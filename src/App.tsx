@@ -61,12 +61,27 @@ function BackgroundPreloader() {
   // Default playlist: if nothing is loaded and the Ciriaco server is up, load its M3U
   useEffect(() => {
     if (Capacitor.isNativePlatform()) return;
-    const { allChannels: chs, loadFromUrl } = useM3UStore.getState();
-    checkCiriaco().then(ok => {
-      if (!ok) return;
-      useCiriacoStore.getState().load();   // agenda para la portada y la guía
-      if (chs.length === 0 && useM3UStore.getState().allChannels.length === 0) loadFromUrl(CIRIACO_PLAYLIST_URL);
-    });
+    let cancelled = false;
+    const loadDefaultPlaylist = async () => {
+      for (let attempt = 0; attempt < 8; attempt++) {
+        if (cancelled) return;
+        if (await checkCiriaco()) {
+          if (cancelled) return;
+          useCiriacoStore.getState().load();
+          if (useM3UStore.getState().allChannels.length === 0) {
+            await useM3UStore.getState().loadFromUrl(CIRIACO_PLAYLIST_URL);
+          }
+          return;
+        }
+        if (attempt < 7) await new Promise(resolve => setTimeout(resolve, 750));
+      }
+
+      if (!cancelled && useM3UStore.getState().allChannels.length === 0) {
+        await useM3UStore.getState().loadFromUrl(CIRIACO_PLAYLIST_URL);
+      }
+    };
+    void loadDefaultPlaylist();
+    return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

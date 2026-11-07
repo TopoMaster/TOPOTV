@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { Heart, Clock, ChevronRight } from 'lucide-react';
 import { useM3UStore } from '@/store/useM3UStore';
+import { CIRIACO_PLAYLIST_URL } from '@/lib/ciriaco';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { useHistoryStore } from '@/store/useHistoryStore';
 import { FeaturedBanner } from '@/components/catalog/FeaturedBanner';
@@ -33,11 +35,11 @@ function QuickRow({ title, icon: Icon, channels, accentColor }: { title: string;
 }
 
 export function HomePage() {
-  const {groups,isLoading,allChannels} = useM3UStore();
+  const {groups,isLoading,allChannels,error,loadFromUrl} = useM3UStore();
   const favIds = useFavoritesStore(s=>s.ids);
   const historyEntries = useHistoryStore(s=>s.entries);
   if (isLoading) return <LoadingState message="Procesando lista M3U..." />;
-  if (!allChannels.length) return <EmptyState />;
+  if (!allChannels.length) return <EmptyState error={error} onRetry={!Capacitor.isNativePlatform() ? () => loadFromUrl(CIRIACO_PLAYLIST_URL) : undefined} />;
   const favChannels = [...favIds].map(id=>allChannels.find(c=>c.id===id)).filter(Boolean) as Channel[];
   const historyChannels = historyEntries.map(e=>e.channel);
   return (

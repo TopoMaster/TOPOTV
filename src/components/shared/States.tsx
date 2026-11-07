@@ -1,8 +1,8 @@
-import { Upload, Tv, AlertCircle } from 'lucide-react';
+import { Upload, Tv, AlertCircle, RefreshCw } from 'lucide-react';
 import { useM3UStore } from '@/store/useM3UStore';
 import { useRef } from 'react';
 
-export function EmptyState() {
+export function EmptyState({ error, onRetry }: { error?: string | null; onRetry?: () => void } = {}) {
   const { loadFromFile, isLoading } = useM3UStore();
   const fileRef = useRef<HTMLInputElement>(null);
   return (
@@ -13,7 +13,13 @@ export function EmptyState() {
       <div className="text-center" style={{maxWidth:'360px'}}>
         <h2 className="font-display" style={{fontSize:'2rem',marginBottom:'8px'}}>Sin lista cargada</h2>
         <p style={{color:'var(--text-secondary)',fontSize:'0.9rem',lineHeight:1.6}}>Carga tu archivo M3U para empezar a navegar los canales.</p>
+        {error&&<p role="alert" style={{color:'var(--offline-red)',fontSize:'0.78rem',lineHeight:1.5,marginTop:'12px'}}>{error}</p>}
       </div>
+      {onRetry&&<button onClick={onRetry} disabled={isLoading}
+        className="flex items-center gap-2"
+        style={{padding:'10px 20px',background:'var(--bg-elevated)',color:'var(--text-secondary)',border:'1px solid var(--border-mid)',borderRadius:'var(--radius-md)',fontSize:'0.8rem',fontWeight:600,cursor:isLoading?'wait':'pointer'}}>
+        <RefreshCw size={14} />Reintentar lista automática
+      </button>}
       <button onClick={()=>fileRef.current?.click()} disabled={isLoading}
         className="flex items-center gap-2"
         style={{padding:'12px 28px',background:'var(--accent)',color:'#080a0e',border:'none',borderRadius:'var(--radius-md)',fontSize:'0.85rem',fontWeight:700,letterSpacing:'0.06em',textTransform:'uppercase',cursor:isLoading?'not-allowed':'pointer',opacity:isLoading?0.6:1}}>
