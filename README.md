@@ -16,18 +16,19 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 
 | Plataforma | Descarga |
 | --- | --- |
-| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.0.1.exe) |
-| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.0.1.apk) |
-| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.0.1.zip) |
+| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.0.2.exe) |
+| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.0.2.apk) |
+| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.0.2.zip) |
 
-**Versión actual: v1.0.1.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
+**Versión actual: v1.0.2.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
 
 ## Qué incluye
 
 - Canales organizados por categorías, búsqueda y favoritos.
 - Guía de programación cuando la lista incluye una fuente EPG compatible.
 - Agenda de eventos deportivos y enlaces de reproducción disponibles en las fuentes configuradas.
-- Pestaña Flashscore en Web y Windows, con acceso al sitio oficial.
+- Pestaña Flashscore: integrada en Web y Windows; en Android se abre en el navegador del dispositivo.
+- Agenda de eventos y guía EPG también en Android (se descargan directamente en el móvil).
 - Interfaz compatible con Android TV.
 
 La pestaña Flashscore es independiente de la agenda de eventos de TOPOTV. La etiqueta «Directo» de la agenda se estima según el horario; no es un marcador oficial en tiempo real.

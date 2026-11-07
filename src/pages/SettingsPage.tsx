@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Server, ShieldCheck, Upload, RotateCcw, Check, AlertTriangle, Tv2, RefreshCw, Wifi, Monitor, Share2, Smartphone } from 'lucide-react';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useM3UStore } from '@/store/useM3UStore';
+import { CIRIACO_PLAYLIST_URL } from '@/lib/ciriaco';
 import { useEPGStore } from '@/store/useEPGStore';
 import { shareStatus, tunnelStart, tunnelStop, shareRevoke, type ShareStatus } from '@/lib/share';
 
@@ -98,9 +99,23 @@ function PlayerSection() {
 }
 
 function M3USection() {
-  const {loadFromFile,loadFromUrl,reset,meta,allChannels,isLoading} = useM3UStore();
-  const [m3uUrl,setM3uUrl] = useState('');
+  const {loadFromFile,loadFromUrls,reset,meta,allChannels,isLoading,error} = useM3UStore();
+  const {m3uSourceUrls,setM3uSourceUrls} = useSettingsStore();
+  const [sourcesInput,setSourcesInput] = useState(m3uSourceUrls.join('\n'));
+  const [sourceError,setSourceError] = useState<string|null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  async function saveAndLoadSources() {
+    const urls = [...new Set(sourcesInput.split(/\r?\n/).map(url=>url.trim()).filter(Boolean))];
+    const invalid = urls.find(url => {
+      try { return !['http:', 'https:'].includes(new URL(url).protocol); }
+      catch { return true; }
+    });
+    if (invalid) { setSourceError('Cada línea debe ser una URL HTTP o HTTPS válida.'); return; }
+    setSourceError(null);
+    setM3uSourceUrls(urls);
+    const sources = [...new Set([CIRIACO_PLAYLIST_URL, ...urls])];
+    if (sources.length) await loadFromUrls(sources);
+  }
   return (
     <section className="mb-8">
       <SLabel icon={Upload} label="Lista M3U" />
@@ -115,11 +130,16 @@ function M3USection() {
             <input ref={fileRef} type="file" accept=".m3u,.m3u8" className="hidden" onChange={async e=>{const f=e.target.files?.[0];if(f)await loadFromFile(f);e.target.value='';}} />
           </div>
           <div>
-            <p style={{fontSize:'0.72rem',color:'var(--text-muted)',marginBottom:'8px',textTransform:'uppercase',letterSpacing:'0.04em'}}>Desde URL</p>
-            <div className="flex gap-2">
-              <input type="url" value={m3uUrl} onChange={e=>setM3uUrl(e.target.value)} placeholder="https://..." style={inp} onFocus={focus} onBlur={blur} onKeyDown={e=>e.key==='Enter'&&m3uUrl.trim()&&loadFromUrl(m3uUrl.trim())} />
-              <button onClick={()=>loadFromUrl(m3uUrl.trim())} disabled={!m3uUrl.trim()||isLoading} style={{padding:'9px 16px',background:'var(--accent)',color:'#080a0e',border:'none',borderRadius:'var(--radius-md)',fontSize:'0.78rem',fontWeight:700,cursor:!m3uUrl.trim()||isLoading?'not-allowed':'pointer',opacity:!m3uUrl.trim()||isLoading?0.5:1,whiteSpace:'nowrap'}}>Cargar</button>
-            </div>
+            <p style={{fontSize:'0.72rem',color:'var(--text-muted)',marginBottom:'8px',textTransform:'uppercase',letterSpacing:'0.04em'}}>Fuentes automáticas</p>
+            <textarea value={sourcesInput} onChange={e=>setSourcesInput(e.target.value)} rows={4} placeholder="Pega una URL M3U por línea" style={{...inp,resize:'vertical',minHeight:96,fontFamily:'DM Mono,monospace'}} />
+            <p style={{fontSize:'0.68rem',color:'var(--text-muted)',marginTop:8,lineHeight:1.5}}>
+              La agenda de TOPOTV (Ciriaco) se añade automáticamente; estas URLs se combinan con ella.
+              {' '}Las fuentes se guardan en este dispositivo, se combinan y actualizan al iniciar.
+            </p>
+            {(sourceError||error)&&<p role="alert" style={{color:'var(--offline-red)',fontSize:'0.72rem',marginTop:8}}>{sourceError||error}</p>}
+            <button onClick={()=>void saveAndLoadSources()} disabled={isLoading} style={{marginTop:10,padding:'9px 16px',background:'var(--accent)',color:'#080a0e',border:'none',borderRadius:'var(--radius-md)',fontSize:'0.78rem',fontWeight:700,cursor:isLoading?'wait':'pointer',display:'flex',alignItems:'center',gap:7}}>
+              <RefreshCw size={13} style={{animation:isLoading?'spin 0.8s linear infinite':'none'}} />{isLoading?'Cargando fuentes…':'Guardar y cargar fuentes'}
+            </button>
           </div>
           {allChannels.length>0&&<div style={{borderTop:'1px solid var(--border-subtle)',paddingTop:'14px'}}><button onClick={reset} style={{background:'none',border:'none',color:'var(--text-muted)',fontSize:'0.75rem',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:'6px'}} onMouseEnter={e=>(e.currentTarget.style.color='var(--offline-red)')} onMouseLeave={e=>(e.currentTarget.style.color='var(--text-muted)')}><AlertTriangle size={13} strokeWidth={1.8} />Limpiar lista</button></div>}
         </div>
@@ -136,7 +156,7 @@ function EPGSection() {
   const [inputUrl,setInputUrl] = useState(manualEpgUrl);
   const [saved,setSaved] = useState(false);
   const m3uEpgUrls = meta?.epgUrls??[];
-  const sl: Record<string,string> = {idle:'Sin cargar',unavailable:'Servidor EPG no activo (arranca setup.bat)',loading:`Descargando... ${progress}%`,parsing:'Procesando XML...',ready:`${channelCount} canales con guía`,error:'Error al cargar'};
+  const sl: Record<string,string> = {idle:'Sin cargar',unavailable:'Servidor EPG no activo',loading:`Descargando... ${progress}%`,parsing:'Procesando XML...',ready:`${channelCount} canales con guía`,error:'Error al cargar'};
   const sc: Record<string,string> = {idle:'var(--text-muted)',unavailable:'var(--offline-red)',loading:'var(--accent)',parsing:'var(--accent)',ready:'var(--online-green)',error:'var(--offline-red)'};
   function handleSave() {
     setManualEpgUrl(inputUrl.trim());
@@ -288,7 +308,7 @@ export function SettingsPage() {
       <BackendSection />
       <PlayerSection />
       <M3USection />
-      {!isNativeApp&&<EPGSection />}
+      <EPGSection />
     </div>
   );
 }

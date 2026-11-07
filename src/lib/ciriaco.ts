@@ -1,5 +1,9 @@
 import type { Channel, Stream } from '@/types';
+import { Capacitor } from '@capacitor/core';
 import { buildStreamUrl } from '@/lib/aceApi';
+import { buildAgendaM3U, nativeAgenda, nativeScrape, nativeStatus } from '@/lib/ciriacoNative';
+
+const isNative = () => Capacitor.isNativePlatform();
 
 export const CIRIACO_URL = 'http://localhost:3004';
 export const CIRIACO_PLAYLIST_URL = `${CIRIACO_URL}/api/ciriaco/playlist.m3u`;
@@ -23,14 +27,17 @@ export interface CiriacoData {
 }
 
 export async function checkCiriaco(): Promise<boolean> {
+  if (isNative()) return true;
   try { return (await fetch(`${CIRIACO_URL}/health`, { signal: AbortSignal.timeout(2500) })).ok; } catch { return false; }
 }
 export async function fetchCiriaco(): Promise<CiriacoData> {
+  if (isNative()) return nativeAgenda();
   const r = await fetch(`${CIRIACO_URL}/api/ciriaco/events`, { signal: AbortSignal.timeout(240000) });
   if (!r.ok) { const j = await r.json().catch(() => null); throw new Error(j?.error ?? `Ciriaco HTTP ${r.status}`); }
   return r.json();
 }
 export async function fetchCiriacoStatus(): Promise<CiriacoStatus | null> {
+  if (isNative()) return nativeStatus();
   try { return await (await fetch(`${CIRIACO_URL}/api/ciriaco/status`, { signal: AbortSignal.timeout(2500) })).json(); } catch { return null; }
 }
 export async function setCiriacoWarpConnected(connected: boolean): Promise<CiriacoStatus> {
@@ -42,6 +49,7 @@ export async function setCiriacoWarpConnected(connected: boolean): Promise<Ciria
 }
 /** Fuerza actualización (el servidor activa WARP solo durante el scrape). Puede tardar ~1 min. */
 export async function refreshCiriaco(): Promise<void> {
+  if (isNative()) { await nativeScrape(); return; }
   const r = await fetch(`${CIRIACO_URL}/api/ciriaco/refresh`, { method: 'POST', signal: AbortSignal.timeout(240000) });
   if (!r.ok) { const j = await r.json().catch(() => null); throw new Error(j?.error ?? `Ciriaco HTTP ${r.status}`); }
 }
@@ -95,4 +103,9 @@ export function liveAndNext(data: CiriacoData | null, now = new Date(), limit = 
 export function eventProgress(date: string, time: string, sport: string, now = new Date()) {
   const diff = (now.getTime() - new Date(`${date}T${time}:00`).getTime()) / 60000;
   return Math.min(1, Math.max(0, diff / eventDuration(sport)));
+}
+
+/** Carga la agenda como lista M3U: servidor local en escritorio, generada en el propio dispositivo en Android. */
+export async function ciriacoPlaylistText(backend: { host: string; port: number }): Promise<string> {
+  return buildAgendaM3U(await fetchCiriaco(), backend.host, backend.port);
 }

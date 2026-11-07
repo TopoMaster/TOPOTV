@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom';
-import { Capacitor } from '@capacitor/core';
 import { Heart, Clock, ChevronRight } from 'lucide-react';
 import { useM3UStore } from '@/store/useM3UStore';
 import { CIRIACO_PLAYLIST_URL } from '@/lib/ciriaco';
@@ -39,7 +38,7 @@ export function HomePage() {
   const favIds = useFavoritesStore(s=>s.ids);
   const historyEntries = useHistoryStore(s=>s.entries);
   if (isLoading) return <LoadingState message="Procesando lista M3U..." />;
-  if (!allChannels.length) return <EmptyState error={error} onRetry={!Capacitor.isNativePlatform() ? () => loadFromUrl(CIRIACO_PLAYLIST_URL) : undefined} />;
+  if (!allChannels.length) return <EmptyState error={error} onRetry={() => loadFromUrl(CIRIACO_PLAYLIST_URL)} />;
   const favChannels = [...favIds].map(id=>allChannels.find(c=>c.id===id)).filter(Boolean) as Channel[];
   const historyChannels = historyEntries.map(e=>e.channel);
   return (

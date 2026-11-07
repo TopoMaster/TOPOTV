@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Channel, EPGSchedule } from '@/types';
-import { getEPGStatus, triggerEPGLoad, fetchTodaySchedule, buildEmptyEPGData, type EPGData } from '@/lib/epg';
+import { Capacitor } from '@capacitor/core';
+import { clearEPGCache, getEPGStatus, triggerEPGLoad, fetchTodaySchedule, buildEmptyEPGData, type EPGData } from '@/lib/epg';
 
 type EPGStatus = 'idle'|'loading'|'parsing'|'ready'|'error'|'unavailable';
 function normalize(s: string) { return s.toLowerCase().replace(/[\s._-]+/g,'').replace(/[^a-z0-9]/g,''); }
@@ -72,7 +73,8 @@ export const useEPGStore = create<EPGState>((set, get) => ({
 
   reset: async () => {
     scheduleCache.clear();
-    try { await fetch('http://localhost:3003/clear-cache',{signal:AbortSignal.timeout(2000)}); } catch {}
+    if (Capacitor.isNativePlatform()) clearEPGCache();
+    else try { await fetch('http://localhost:3003/clear-cache',{signal:AbortSignal.timeout(2000)}); } catch {}
     set({status:'idle',channelCount:0,progress:0,error:null});
   },
 }));

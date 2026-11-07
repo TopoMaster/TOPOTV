@@ -12,6 +12,7 @@
       "vite/client"
     ],
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,

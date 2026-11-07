@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, ExternalLink } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { createShareLink } from '@/lib/share';
 import { useM3UStore } from '@/store/useM3UStore';
 import { usePlayerStore } from '@/store/usePlayerStore';
@@ -59,7 +60,9 @@ export function CiriacoAccessNotice() {
       <div className="flex items-start gap-2">
         <WifiOff size={15} style={{ color: 'var(--accent)', marginTop: '2px', flexShrink: 0 }} />
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.76rem', lineHeight: 1.5 }}>
-          <strong style={{ color: 'var(--accent)' }}>Aviso VPN:</strong> Ciriaco puede bloquear el acceso si la VPN no está activa. TOPOTV permite controlar Cloudflare WARP, que se usa solo para actualizar eventos y canales; desconéctalo antes de reproducir.
+          <strong style={{ color: 'var(--accent)' }}>Aviso VPN:</strong> {Capacitor.isNativePlatform()
+            ? 'Ciriaco puede bloquear el acceso desde algunas redes. Si la agenda no carga, activa una VPN, pulsa Actualizar y desactívala antes de reproducir.'
+            : 'Ciriaco puede bloquear el acceso si la VPN no está activa. TOPOTV permite controlar Cloudflare WARP, que se usa solo para actualizar eventos y canales; desconéctalo antes de reproducir.'}
         </p>
       </div>
       <div className="flex items-center gap-2">
@@ -124,10 +127,10 @@ function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: string; chan
               style={{ padding: '8px 16px', background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
               <Play size={13} strokeWidth={2.5} fill="#080a0e" />Ver
             </button>
-            <button onClick={share} title="Copiar enlace para ver en otro dispositivo (navegador)"
+            {!Capacitor.isNativePlatform() && <button onClick={share} title="Copiar enlace para ver en otro dispositivo (navegador)"
               style={{ padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', color: shared === 'ok' ? 'var(--online-green)' : shared === 'err' ? 'var(--offline-red)' : 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
               {shared === 'ok' ? <Check size={14} /> : shared === 'busy' ? <RefreshCw size={14} className="animate-spin" /> : <Share2 size={14} />}
-            </button>
+            </button>}
             <button onClick={() => setOpen(o => !o)} title="Opciones de enlace"
               style={{ padding: '8px 10px', background: open ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${open ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: open ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.7rem', cursor: 'pointer', flexShrink: 0 }}>
               {links.length} {links.length === 1 ? 'enlace' : 'enlaces'}

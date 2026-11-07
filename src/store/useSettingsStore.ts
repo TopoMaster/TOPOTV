@@ -8,12 +8,14 @@ interface SettingsState {
   backendConfig: AceBackendConfig; backendStatus: BackendStatus;
   theme: 'dark' | 'light'; manualEpgUrl: string;
   preferredPlayer: PlayerApp;
+  m3uSourceUrls: string[];
   playback: PlaybackConfig;
   setBackendConfig: (cfg: Partial<AceBackendConfig>) => void;
   checkBackend: () => Promise<void>;
   setTheme: (t: 'dark' | 'light') => void;
   setManualEpgUrl: (url: string) => void;
   setPreferredPlayer: (p: PlayerApp) => void;
+  setM3uSourceUrls: (urls: string[]) => void;
   setPlayback: (cfg: Partial<PlaybackConfig>) => void;
 }
 
@@ -23,6 +25,7 @@ export const useSettingsStore = create<SettingsState>()(
       backendConfig: { host: '127.0.0.1', port: 6878 },
       backendStatus: 'unknown', theme: 'dark', manualEpgUrl: '',
       preferredPlayer: 'vlc',
+      m3uSourceUrls: [],
       playback: {
         vlcNetworkCachingMs: 3000,
         vlcLiveCachingMs: 3000,
@@ -36,6 +39,7 @@ export const useSettingsStore = create<SettingsState>()(
       setTheme: (theme) => set({ theme }),
       setManualEpgUrl: (url) => set({ manualEpgUrl: url }),
       setPreferredPlayer: (preferredPlayer) => set({ preferredPlayer }),
+      setM3uSourceUrls: (m3uSourceUrls) => set({ m3uSourceUrls }),
       setPlayback: (cfg) => set(s => ({ playback: { ...s.playback, ...cfg } })),
     }),
     {

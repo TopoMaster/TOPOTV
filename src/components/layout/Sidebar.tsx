@@ -35,7 +35,7 @@ export function Sidebar() {
         {sidebarOpen&&<span className="fade-in"><LogoWord /></span>}
       </div>
       <nav className="px-2 pt-3 flex flex-col gap-0.5">
-        {TOP_NAV.filter(({to})=>!isNativeApp||!['/tv-guide','/events','/flashscore'].includes(to)).map(({to,icon:Icon,label,badge})=>(
+        {TOP_NAV.map(({to,icon:Icon,label,badge})=>(
           <NavLink key={to} to={to} end={to==='/'} className={({isActive})=>`nav-item ${isActive?'active':''}`} title={!sidebarOpen?label:undefined}>
             <div className="relative shrink-0">
               <Icon size={18} strokeWidth={1.8} />

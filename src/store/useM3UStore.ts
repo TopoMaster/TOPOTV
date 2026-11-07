@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Channel, Group, M3UMeta, ParsedM3U } from '@/types';
-import { loadM3UFromFile, loadM3UFromUrl } from '@/lib/m3uParser';
+import { loadM3UFromFile, loadM3UFromUrl, mergeM3ULists } from '@/lib/m3uParser';
 
 interface M3UState {
   meta: M3UMeta | null; groups: Group[]; allChannels: Channel[];
   isLoading: boolean; error: string | null; lastSource: string | null;
   loadFromFile: (file: File) => Promise<void>;
   loadFromUrl: (url: string) => Promise<void>;
+  loadFromUrls: (urls: string[]) => Promise<void>;
   setData: (parsed: ParsedM3U) => void;
   reset: () => void;
   getGroup: (slugOrTitle: string) => Group | undefined;
@@ -27,8 +28,23 @@ export const useM3UStore = create<M3UState>()(
         finally { set({ isLoading: false }); }
       },
       loadFromUrl: async (url) => {
+        await get().loadFromUrls([url]);
+      },
+      loadFromUrls: async (urls) => {
+        const uniqueUrls = [...new Set(urls.map(url => url.trim()).filter(Boolean))];
+        if (!uniqueUrls.length) { set({ error: 'Añade al menos una URL M3U.' }); return; }
         set({ isLoading: true, error: null });
-        try { const p = await loadM3UFromUrl(url); get().setData(p); }
+        try {
+          const results = await Promise.all(uniqueUrls.map(async url => {
+            try { return { url, parsed: await loadM3UFromUrl(url), error: null }; }
+            catch (err) { return { url, parsed: null, error: err instanceof Error ? err.message : 'Error' }; }
+          }));
+          const parsed = results.flatMap(result => result.parsed ? [result.parsed] : []);
+          if (!parsed.length) throw new Error(results.map(result => `${result.url}: ${result.error}`).join('\n'));
+          get().setData(mergeM3ULists(parsed));
+          const failedCount = results.length - parsed.length;
+          if (failedCount) set({ error: `${failedCount} de ${results.length} fuentes no se pudieron cargar.` });
+        }
         catch (err) { set({ error: err instanceof Error ? err.message : 'Error' }); }
         finally { set({ isLoading: false }); }
       },

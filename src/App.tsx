@@ -34,6 +34,7 @@ function BackgroundPreloader() {
   const meta         = useM3UStore(s => s.meta);
   const allChannels  = useM3UStore(s => s.allChannels);
   const lastSource   = useM3UStore(s => s.lastSource);
+  const m3uSourceUrls = useSettingsStore(s => s.m3uSourceUrls);
   const manualEpgUrl = useSettingsStore(s => s.manualEpgUrl);
   const loadEPG      = useEPGStore(s => s.load);
   const syncStatus   = useEPGStore(s => s.syncStatus);
@@ -47,51 +48,53 @@ function BackgroundPreloader() {
 
   // On mount: check if EPG server already has data (from cache or previous session)
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
     syncStatus();
   }, []);
 
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
     syncCiriacoStatus();
     const interval = setInterval(syncCiriacoStatus, 10000);
     return () => clearInterval(interval);
   }, [syncCiriacoStatus]);
 
-  // Default playlist: if nothing is loaded and the Ciriaco server is up, load its M3U
+  // Load configured sources on startup; desktop also includes its local Ciriaco playlist.
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
     let cancelled = false;
-    const loadDefaultPlaylist = async () => {
-      for (let attempt = 0; attempt < 8; attempt++) {
-        if (cancelled) return;
-        if (await checkCiriaco()) {
-          if (cancelled) return;
-          useCiriacoStore.getState().load();
-          if (useM3UStore.getState().allChannels.length === 0) {
-            await useM3UStore.getState().loadFromUrl(CIRIACO_PLAYLIST_URL);
+    const loadSources = async () => {
+      const isNative = Capacitor.isNativePlatform();
+      const sources = [...new Set([CIRIACO_PLAYLIST_URL, ...m3uSourceUrls])];
+      if (!isNative) {
+        for (let attempt = 0; attempt < 8 && !cancelled; attempt++) {
+          if (await checkCiriaco()) {
+            useCiriacoStore.getState().load();
+            break;
           }
-          return;
+          if (attempt < 7) await new Promise(resolve => setTimeout(resolve, 750));
         }
-        if (attempt < 7) await new Promise(resolve => setTimeout(resolve, 750));
       }
 
-      if (!cancelled && useM3UStore.getState().allChannels.length === 0) {
-        await useM3UStore.getState().loadFromUrl(CIRIACO_PLAYLIST_URL);
-      }
+      if (cancelled || useM3UStore.getState().allChannels.length > 0) return;
+      if (sources.length) await useM3UStore.getState().loadFromUrls(sources);
     };
-    void loadDefaultPlaylist();
+    void loadSources();
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [m3uSourceUrls]);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || allChannels.length > 0 || !lastSource || !/^https?:\/\//i.test(lastSource)) return;
+    const sources = [...new Set([CIRIACO_PLAYLIST_URL, ...m3uSourceUrls])];
+    if (!sources.length || !allChannels.length) return;
+    const refreshMs = Math.max(5 * 60 * 1000, (meta?.refreshInterval ?? 3600) * 1000);
+    const interval = setInterval(() => { void useM3UStore.getState().loadFromUrls(sources); }, refreshMs);
+    return () => clearInterval(interval);
+  }, [m3uSourceUrls, meta?.refreshInterval, allChannels.length]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || m3uSourceUrls.length > 0 || allChannels.length > 0 || !lastSource || !/^https?:\/\//i.test(lastSource)) return;
     void useM3UStore.getState().loadFromUrl(lastSource);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When M3U loads: trigger EPG load on server if needed
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
     if (!meta || allChannels.length === 0) return;
     if (epgStatus === 'ready' || epgStatus === 'loading' || epgStatus === 'parsing') return;
 
@@ -112,7 +115,6 @@ function BackgroundPreloader() {
 
   // If server was already loading when we opened, poll for completion
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
     if (epgStatus === 'loading' || epgStatus === 'parsing') {
       pollUntilReady();
     }
@@ -120,7 +122,6 @@ function BackgroundPreloader() {
 
   // Re-trigger when manual URL changes
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
     if (!manualEpgUrl.trim() || !meta) return;
     const knownIds = allChannels.map(c => c.tvgId).filter(Boolean);
     const urls = [manualEpgUrl.trim(), ...(meta.epgUrls ?? [])];
@@ -139,11 +140,11 @@ export default function App() {
         <Routes>
           <Route path="/"               element={<HomePage />} />
           <Route path="/favorites"      element={<FavoritesPage />} />
-          {!isNativeApp&&<Route path="/tv-guide" element={<EventsGuidePage />} />}
-          {!isNativeApp&&<Route path="/epg-xmltv" element={<TVGuidePage />} />}
-          {!isNativeApp&&<Route path="/events" element={<EventsPage />} />}
-          {!isNativeApp&&<Route path="/scores" element={<EventsPage />} />}
-          {!isNativeApp&&<Route path="/flashscore" element={<FlashscorePage />} />}
+          <Route path="/tv-guide" element={<EventsGuidePage />} />
+          <Route path="/epg-xmltv" element={<TVGuidePage />} />
+          <Route path="/events" element={<EventsPage />} />
+          <Route path="/scores" element={<EventsPage />} />
+          <Route path="/flashscore" element={<FlashscorePage />} />
           <Route path="/checker"        element={<CheckerPage />} />
           <Route path="/category/:slug" element={<CategoryPage />} />
           <Route path="/channel/:id"    element={<ChannelPage />} />
