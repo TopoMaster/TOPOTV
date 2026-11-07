@@ -1,0 +1,67 @@
+{
+  "name": "topotv",
+  "productName": "TOPOTV",
+  "version": "1.0.0",
+  "description": "TOPOTV - deportes en directo con AceStream",
+  "author": "TOPOTV",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "prepare-app": "node scripts/prepare.cjs",
+    "start": "npm run prepare-app && electron .",
+    "dist": "npm run prepare-app && electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "tv.topo.topotv",
+    "productName": "TOPOTV",
+    "copyright": "TOPOTV",
+    "asar": true,
+    "directories": {
+      "output": "../artifacts/windows",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "app/**/*",
+      "tools/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/install-deps.ps1",
+        "to": "install-deps.ps1"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "signAndEditExecutable": false,
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "TOPOTV",
+      "include": "build/installer.nsh",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "language": "3082",
+      "artifactName": "TOPOTV-Setup-${version}.exe",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

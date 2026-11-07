@@ -1,0 +1,217 @@
+name: Build TOPOTV
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+
+      - name: Build web app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Windows installer
+        run: |
+          npm ci --prefix desktop
+          npm run dist --prefix desktop
+
+      - name: Check release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $version = node -p "require('./desktop/package.json').version"
+          if ($env:GITHUB_REF_NAME -ne "v$version") {
+            throw "El tag debe ser v$version para coincidir con desktop/package.json."
+          }
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: topotv-windows
+          path: artifacts/windows/TOPOTV-Setup-*.exe
+          if-no-files-found: error
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Build web distribution
+        run: |
+          npm ci
+          npm run web:dist
+
+      - name: Upload web distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: topotv-web
+          path: artifacts/web/
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: android/**/*.gradle*
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Build web app and sync Capacitor
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - name: Validate release signing secrets
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "Falta el GitHub Actions secret $name."
+              exit 1
+            fi
+          done
+
+      - name: Restore Android release keystore
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/topotv-release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/topotv-release.jks" >> "$GITHUB_ENV"
+
+      - name: Build signed release APK
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: ${{ github.ref_name }}
+        run: bash ./gradlew --no-daemon assembleRelease
+
+      - name: Verify release APK signature
+        if: startsWith(github.ref, 'refs/tags/')
+        run: "$ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs android/app/build/outputs/apk/release/app-release.apk"
+
+      - name: Copy release APK to distribution folder
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          ANDROID_VERSION_NAME: ${{ github.ref_name }}
+        run: node tools/copy-android-release.cjs
+
+      - name: Upload release APK
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: topotv-android
+          path: artifacts/android/TOPOTV-${{ github.ref_name }}.apk
+          if-no-files-found: error
+
+      - name: Build debug APK
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        working-directory: android
+        run: bash ./gradlew --no-daemon assembleDebug
+
+      - name: Copy debug APK to distribution folder
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        env:
+          ANDROID_VERSION_NAME: debug-${{ github.run_number }}
+        run: node tools/copy-android-release.cjs --debug
+
+      - name: Upload debug APK
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: topotv-android-debug
+          path: artifacts/android/TOPOTV-debug-${{ github.run_number }}.apk
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [windows, android, web]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows installer
+        uses: actions/download-artifact@v4
+        with:
+          name: topotv-windows
+          path: release-assets
+
+      - name: Download signed Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: topotv-android
+          path: release-assets
+
+      - name: Download web distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: topotv-web
+          path: web-release
+
+      - name: Archive web distribution
+        run: |
+          cd web-release
+          zip -r "../release-assets/TOPOTV-Web-${GITHUB_REF_NAME}.zip" .
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true

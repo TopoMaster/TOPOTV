@@ -1,0 +1,21 @@
+* text=auto
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sh text eol=lf
+/android/gradlew text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.gradle text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+
+*.apk binary
+*.aab binary
+*.exe binary
+*.ico binary
+*.jar binary
+*.png binary
+*.webp binary
+*.woff binary
+*.woff2 binary

@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+
+# Web and desktop build output
+/dist/
+/artifacts/
+/desktop/app/
+/desktop/tools/
+/desktop/release/
+/desktop/.electron-builder-cache/
+/desktop/builder-debug.yml
+
+# Android/Gradle generated files
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
+/android/app/src/main/assets/public/
+/android/app/src/main/assets/capacitor.config.json
+/android/app/src/main/assets/capacitor.plugins.json
+
+# Local configuration and logs
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+
+# Local user data and release binaries
+*.m3u
+*.m3u8
+tools/.ciriaco-cache.json
+*.apk
+*.aab
+*.exe
+*.blockmap
+*.jks
+*.keystore
+*.p12
+*.pfx
+key.properties
+
+# IDE and OS files
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tsbuildinfo
