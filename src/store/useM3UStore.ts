@@ -44,7 +44,7 @@ export const useM3UStore = create<M3UState>()(
             catch (err) { return { url, parsed: null, error: err instanceof Error ? err.message : 'Error' }; }
           }));
           const parsed = results.flatMap(result => result.parsed ? [result.parsed] : []);
-          if (!parsed.length) throw new Error(results.map(result => `${result.url}: ${result.error}`).join('\n'));
+          if (!parsed.length) throw new Error('No se pudo cargar ninguna lista. Comprueba tu conexión a internet y pulsa Reintentar.');
           get().setData(mergeM3ULists(parsed));
           const failedCount = results.length - parsed.length;
           if (failedCount) set({ error: `${failedCount} de ${results.length} fuentes no se pudieron cargar.` });

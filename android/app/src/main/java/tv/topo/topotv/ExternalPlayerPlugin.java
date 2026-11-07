@@ -15,6 +15,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 @CapacitorPlugin(name = "ExternalPlayer")
 public class ExternalPlayerPlugin extends Plugin {
     private static final String VLC = "org.videolan.vlc";
+    private static final String VLC_BETA = "org.videolan.vlc.betav7neon";
 
     private boolean installed(String pkg) {
         try {
@@ -32,6 +33,14 @@ public class ExternalPlayerPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    private Intent viewIntent(String url, String title) {
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setDataAndTypeAndNormalize(Uri.parse(url), "video/*");
+        intent.putExtra("title", title);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return intent;
+    }
+
     @PluginMethod
     public void open(PluginCall call) {
         String url = call.getString("url");
@@ -43,24 +52,33 @@ public class ExternalPlayerPlugin extends Plugin {
         String pkg = call.getString("package", VLC);
         boolean chooser = Boolean.TRUE.equals(call.getBoolean("chooser", false));
 
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.setDataAndTypeAndNormalize(Uri.parse(url), "video/*");
-        intent.putExtra("title", title);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
-        try {
-            if (!chooser) {
-                if (!installed(pkg)) {
-                    call.reject("NOT_INSTALLED");
+        // No se comprueba antes si VLC está instalado (Android 11+ oculta paquetes ajenos):
+        // se intenta abrir directamente y se reacciona si no hay actividad que lo atienda.
+        if (!chooser) {
+            String[] candidates = { pkg, VLC_BETA };
+            for (String candidate : candidates) {
+                try {
+                    Intent intent = viewIntent(url, title);
+                    intent.setPackage(candidate);
+                    getContext().startActivity(intent);
+                    JSObject ret = new JSObject();
+                    ret.put("opened", true);
+                    call.resolve(ret);
+                    return;
+                } catch (ActivityNotFoundException ignored) {
+                    // prueba el siguiente
+                } catch (Exception e) {
+                    call.reject("No se pudo abrir el reproductor: " + e.getMessage());
                     return;
                 }
-                intent.setPackage(pkg);
-                getContext().startActivity(intent);
-            } else {
-                Intent pick = Intent.createChooser(intent, "Abrir con");
-                pick.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                getContext().startActivity(pick);
             }
+            call.reject("NOT_INSTALLED");
+            return;
+        }
+        try {
+            Intent pick = Intent.createChooser(viewIntent(url, title), "Abrir con");
+            pick.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(pick);
             JSObject ret = new JSObject();
             ret.put("opened", true);
             call.resolve(ret);

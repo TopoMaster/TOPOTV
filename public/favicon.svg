@@ -1,1 +1,44 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f1dd9b"/><stop offset="1" stop-color="#d4b25c"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#g)"/><rect x="11" y="16" width="42" height="28" rx="6" fill="none" stroke="#080a0e" stroke-width="4.5"/><path d="M28 24.5v13l11-6.5z" fill="#080a0e"/><path d="M23 50h18" stroke="#080a0e" stroke-width="4.5" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6e6a8"/><stop offset="1" stop-color="#d4b25c"/></linearGradient></defs><rect width="128" height="128" rx="28" fill="url(#bg)"/>
+  <defs>
+    <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a4655"/><stop offset="1" stop-color="#2b2833"/></linearGradient>
+    <linearGradient id="dirt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a5a35"/><stop offset="1" stop-color="#5a3820"/></linearGradient>
+    <radialGradient id="muz" cx="0.5" cy="0.35" r="0.7"><stop offset="0" stop-color="#7a7388"/><stop offset="1" stop-color="#5a5468"/></radialGradient>
+  </defs>
+  <!-- agujero -->
+  <ellipse cx="64" cy="100" rx="46" ry="15" fill="#20130a"/>
+  <!-- cuerpo/cabeza -->
+  <path d="M26 100 C22 66 38 38 64 38 C90 38 106 66 102 100 Z" fill="url(#fur)"/>
+  <!-- orejas -->
+  <circle cx="40" cy="48" r="6" fill="#2b2833"/><circle cx="88" cy="48" r="6" fill="#2b2833"/>
+  <circle cx="40" cy="48" r="3" fill="#f08aa0" opacity=".7"/><circle cx="88" cy="48" r="3" fill="#f08aa0" opacity=".7"/>
+  <!-- hocico -->
+  <ellipse cx="64" cy="76" rx="19" ry="14" fill="url(#muz)"/>
+  <!-- nariz rosa -->
+  <ellipse cx="64" cy="68" rx="9" ry="6.5" fill="#f08aa0"/>
+  <ellipse cx="61.5" cy="66" rx="3" ry="1.8" fill="#fff" opacity=".55"/>
+  <path d="M64 74 v6" stroke="#2b2833" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M64 80 q-5 4 -9 1 M64 80 q5 4 9 1" stroke="#2b2833" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <!-- bigotes -->
+  <g stroke="#cfc9da" stroke-width="1.2" stroke-linecap="round" opacity=".8">
+    <path d="M47 74 l-12 -3 M47 78 l-12 1 M81 74 l12 -3 M81 78 l12 1"/>
+  </g>
+  <!-- ojos -->
+  <circle cx="51" cy="60" r="3.6" fill="#0d0b10"/><circle cx="77" cy="60" r="3.6" fill="#0d0b10"/>
+  <circle cx="52.2" cy="58.8" r="1.2" fill="#fff"/><circle cx="78.2" cy="58.8" r="1.2" fill="#fff"/>
+  <!-- tierra delantera -->
+  <path d="M14 108 C14 96 34 92 64 92 C94 92 114 96 114 108 C114 118 94 122 64 122 C34 122 14 118 14 108 Z" fill="url(#dirt)"/>
+  <ellipse cx="30" cy="104" rx="5" ry="2.5" fill="#a87448" opacity=".7"/><ellipse cx="98" cy="110" rx="6" ry="2.6" fill="#a87448" opacity=".6"/>
+  <ellipse cx="72" cy="116" rx="4" ry="2" fill="#4a2c18" opacity=".7"/>
+  <!-- patas con garras -->
+  <g>
+    <ellipse cx="38" cy="96" rx="13" ry="9" fill="#f3b8a2" transform="rotate(-12 38 96)"/>
+    <ellipse cx="90" cy="96" rx="13" ry="9" fill="#f3b8a2" transform="rotate(12 90 96)"/>
+    <g fill="#fff8ee" stroke="#c98d78" stroke-width=".6">
+      <rect x="26" y="86" width="3.4" height="8" rx="1.7" transform="rotate(-24 27.7 90)"/>
+      <rect x="32" y="84" width="3.4" height="8" rx="1.7" transform="rotate(-8 33.7 88)"/>
+      <rect x="39" y="84" width="3.4" height="8" rx="1.7" transform="rotate(8 40.7 88)"/>
+      <rect x="98.6" y="86" width="3.4" height="8" rx="1.7" transform="rotate(24 100.3 90)"/>
+      <rect x="92.6" y="84" width="3.4" height="8" rx="1.7" transform="rotate(8 94.3 88)"/>
+      <rect x="85.6" y="84" width="3.4" height="8" rx="1.7" transform="rotate(-8 87.3 88)"/>
+    </g>
+  </g></svg>

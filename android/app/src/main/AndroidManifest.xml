@@ -46,6 +46,16 @@
         </provider>
     </application>
 
+    <!-- Visibilidad de paquetes (Android 11+): detectar VLC y abrir streams en reproductores externos -->
+    <queries>
+        <package android:name="org.videolan.vlc" />
+        <package android:name="org.videolan.vlc.betav7neon" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" />
+        </intent>
+    </queries>
+
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />

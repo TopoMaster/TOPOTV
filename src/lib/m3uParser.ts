@@ -74,6 +74,17 @@ const canonical = (value: string) => value.normalize('NFD').replace(/[\u0300-\u0
 /** Grupo donde la agenda de Ciriaco deja sus canales; se fusionan con los de las demás listas por nombre. */
 const FUSE_GROUP = 'topotv';
 
+/** Categoría para canales de Ciriaco que no están en ninguna otra lista (por palabras del nombre). */
+const CATEGORY_RULES: [RegExp, string][] = [
+  [/\bdazn\b/, 'DAZN'], [/\b(f1|formula)\b/, 'FORMULA 1'], [/eurosport/, 'EUROSPORT'],
+  [/hypermotion|laliga tv|segunda/, 'HYPERMOTION'], [/liga de campeones|champions|europa league|conference/, 'LIGA DE CAMPEONES'],
+  [/mplus deportes/, 'MOVISTAR DEPORTES'], [/laliga|la liga/, 'LA LIGA'], [/mplus|movistar/, 'MOVISTAR'],
+  [/baloncesto|basket|acb|euroliga/, 'BALONCESTO'], [/\bnba\b/, 'NBA'], [/motogp|moto gp/, 'MOTOGP'], [/tenn?is/, 'TENNIS'], [/toros/, 'TOROS'],
+  [/combate|ufc|boxeo|boxing|wwe/, 'COMBATE'], [/rfef|federacion/, 'RFEF TV'],
+  [/\b(la 1|la 2|antena 3|telecinco|cuatro|sexta|teledeporte|tdt|rtve|24h|gol)\b/, 'TDT'],
+];
+const categoryFor = (nameKey: string) => CATEGORY_RULES.find(([re]) => re.test(nameKey))?.[1] ?? 'DEPORTES';
+
 export function mergeM3ULists(sources: ParsedM3U[]): ParsedM3U {
   const groups = new Map<string, Group>();
   const channels = new Map<string, Channel>();
@@ -95,28 +106,35 @@ export function mergeM3ULists(sources: ParsedM3U[]): ParsedM3U {
   const entries = sources.flatMap(source => source.groups.map(group => ({ group, key: canonical(group.title) || group.id })));
   entries.sort((a, b) => Number(a.key === FUSE_GROUP) - Number(b.key === FUSE_GROUP));
 
-  for (const { group: sourceGroup, key: groupKey } of entries) {
-    const fuse = groupKey === FUSE_GROUP;
-    let group = groups.get(groupKey);
-    const ensureGroup = () => {
-      if (!group) { group = { ...sourceGroup, channels: [] }; groups.set(groupKey, group); }
-      else if (!group.logo && sourceGroup.logo) group.logo = sourceGroup.logo;
-      return group;
-    };
-    if (!fuse) ensureGroup();
+  const groupFor = (title: string, logo = '', id?: string) => {
+    const key = canonical(title) || id || title;
+    let group = groups.get(key);
+    if (!group) { group = { id: id ?? slugify(title), title, logo, channels: [] }; groups.set(key, group); }
+    else if (!group.logo && logo) group.logo = logo;
+    return { group, key };
+  };
+
+  for (const { group: sourceGroup, key: sourceKey } of entries) {
+    const fuse = sourceKey === FUSE_GROUP;
+    if (!fuse) groupFor(sourceGroup.title, sourceGroup.logo, sourceGroup.id);
 
     for (const sourceChannel of sourceGroup.channels) {
       const nameKey = canon(sourceChannel.name) || canonical(sourceChannel.name);
+      let target: { group: Group; key: string };
       if (fuse) {
-        const targets = byName.get(nameKey);
-        if (targets?.length) { for (const target of targets) addStreams(target, sourceChannel); continue; }
+        // Canal de Ciriaco: si ya existe en alguna categoría se le añaden los enlaces; si no, se guarda en la categoría que le corresponde.
+        const existing = byName.get(nameKey);
+        if (existing?.length) { for (const channel of existing) addStreams(channel, sourceChannel); continue; }
+        target = groupFor(categoryFor(nameKey));
+      } else {
+        target = groupFor(sourceGroup.title, sourceGroup.logo, sourceGroup.id);
       }
-      const channelKey = groupKey + ':' + (canonical(sourceChannel.tvgId) || canonical(sourceChannel.name));
+      const channelKey = target.key + ':' + (canonical(sourceChannel.tvgId) || canonical(sourceChannel.name));
       let channel = channels.get(channelKey);
       if (!channel) {
-        channel = { ...sourceChannel, streams: [] };
+        channel = { ...sourceChannel, group: target.group.title, streams: [] };
         channels.set(channelKey, channel);
-        ensureGroup().channels.push(channel);
+        target.group.channels.push(channel);
         byName.set(nameKey, [...(byName.get(nameKey) ?? []), channel]);
       }
       addStreams(channel, sourceChannel);

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home,Search,Settings,Tv,LayoutGrid,ChevronLeft,ChevronRight,Heart,Calendar,Activity,Shield,Power,Trophy } from 'lucide-react';
+import { Home,Search,Settings,Tv,LayoutGrid,ChevronLeft,ChevronRight,Heart,Activity,Shield,Power,Trophy } from 'lucide-react';
 import { LogoMark, LogoWord } from '@/components/brand/Logo';
 import { useUIStore } from '@/store/useUIStore';
 import { useM3UStore } from '@/store/useM3UStore';
@@ -11,7 +11,6 @@ const TOP_NAV: {to:string;icon:React.ElementType;label:string;badge:boolean;cls?
   {to:'/',icon:Home,label:'Inicio',badge:false},
   {to:'/categories',icon:LayoutGrid,label:'Canales',badge:false,cls:'nav-mobile-only'},
   {to:'/favorites',icon:Heart,label:'Favoritos',badge:true},
-  {to:'/tv-guide',icon:Calendar,label:'Guía TV',badge:false},
   {to:'/events',icon:Activity,label:'Eventos',badge:false},
   {to:'/flashscore',icon:Trophy,label:'Flashscore',badge:false,cls:'nav-desktop-only'},
   {to:'/checker',icon:Shield,label:'Checker',badge:false,cls:'nav-desktop-only'},

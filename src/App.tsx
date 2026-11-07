@@ -10,7 +10,6 @@ import { SearchPage } from '@/pages/SearchPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { FavoritesPage } from '@/pages/FavoritesPage';
 import { TVGuidePage } from '@/pages/TVGuidePage';
-import { EventsGuidePage } from '@/pages/EventsGuidePage';
 import { EventsPage } from '@/pages/EventsPage';
 import { FlashscorePage } from '@/pages/FlashscorePage';
 import { CheckerPage } from '@/pages/CheckerPage';
@@ -135,7 +134,7 @@ export default function App() {
           <Route path="/"               element={<HomePage />} />
           <Route path="/categories"     element={<ChannelsPage />} />
           <Route path="/favorites"      element={<FavoritesPage />} />
-          <Route path="/tv-guide" element={<EventsGuidePage />} />
+          <Route path="/tv-guide" element={<Navigate to="/events" replace />} />
           <Route path="/epg-xmltv" element={<TVGuidePage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/scores" element={<EventsPage />} />

@@ -15,6 +15,8 @@ export async function openInAndroidVlc(url: string, title: string): Promise<{ ok
   } catch (e) {
     const msg = e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
     if (msg.includes('NOT_INSTALLED')) {
+      // Sin VLC: ofrece el selector de Android con cualquier reproductor de vídeo instalado.
+      try { await ExternalPlayer.open({ url, title, chooser: true }); return { ok: true }; } catch { /* sin reproductores */ }
       return { ok: false, error: 'VLC no está instalado en este dispositivo. Instálalo desde Google Play (VLC for Android) o elige el reproductor «Navegador» en Ajustes.' };
     }
     return { ok: false, error: msg };

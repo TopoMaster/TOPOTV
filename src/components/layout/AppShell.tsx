@@ -10,7 +10,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar />
       <div className="app-content flex flex-col flex-1 min-w-0 transition-all duration-300" style={{marginLeft:sidebarOpen?'240px':'64px'}}>
         <TopBar />
-        <main className="flex-1 overflow-y-auto" style={{background:'var(--bg-void)'}}>{children}</main>
+        <main className="flex-1 overflow-y-auto" style={{background:'radial-gradient(900px 360px at 75% -80px, rgba(226,201,126,0.09), transparent 70%), var(--bg-void)'}}>{children}</main>
       </div>
       <PlayerOverlay />
     </div>
