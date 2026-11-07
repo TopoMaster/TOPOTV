@@ -1,125 +1,72 @@
 <div align="center">
-   <img src="public/favicon.svg" alt="TOPOTV" width="84" height="84">
-   <h1>TOPOTV</h1>
-   <p><strong>Tu televisión en directo, organizada en un solo lugar.</strong></p>
-   <p>Web · Windows · Android · Android TV</p>
-   <p>
-      <img src="https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white" alt="Node.js 22">
-      <img src="https://img.shields.io/badge/Android-SDK%2036-3DDC84?logo=android&logoColor=white" alt="Android SDK 36">
-      <img src="https://img.shields.io/badge/Desktop-Electron-47848F?logo=electron&logoColor=white" alt="Electron">
-   </p>
+  <img src="public/favicon.svg" alt="TOPOTV" width="88" height="88">
+  <h1>TOPOTV</h1>
+  <p><strong>Canales, programación y eventos. Todo en un mismo lugar.</strong></p>
+  <p>Web · Windows · Android · Android TV</p>
+  <p>
+    <a href="#descargas">DESCARGAR</a> ·
+    <a href="#guia-de-uso">GUÍA DE USO</a> ·
+    <a href="https://github.com/TopoMaster/TOPOTV/releases">TODAS LAS VERSIONES</a>
+  </p>
 </div>
 
-TOPOTV reúne canales, favoritos, búsqueda, guía de programación y eventos deportivos en una experiencia para navegador, ordenador y dispositivos Android. La reproducción depende de las fuentes y servicios configurados por cada usuario; el proyecto no distribuye canales ni listas de terceros.
+TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos deportivos desde el navegador, el ordenador o un dispositivo Android. **No incluye canales ni listas de reproducción**: usa únicamente fuentes propias o autorizadas.
 
-## Una aplicación, tres destinos
+## Descargas
 
-| Producto | Descripción | Salida de compilación |
-| --- | --- | --- |
-| Web | Interfaz web estática para servir desde un hosting compatible. | `artifacts/web/` |
-| Windows | Aplicación de escritorio empaquetada como instalador NSIS x64. | `artifacts/windows/` |
-| Android | Aplicación para móvil y Android TV, distribuida como APK. | `artifacts/android/` |
-
-El código web compartido vive en `src/`. `dist/` es una carpeta temporal que usan Capacitor y Electron durante sus compilaciones; no es el paquete final ni se debe subir al repositorio. Los archivos listos para probar o distribuir quedan juntos bajo `artifacts/`, separados por plataforma.
-
-## Funciones
-
-- Organiza canales por categorías y permite buscarlos y guardarlos como favoritos.
-- Consulta la programación y la guía EPG, además de eventos deportivos.
-- Accede a Flashscore desde una pestaña integrada en web y Windows, con opción para abrir el sitio aparte.
-- Carga listas M3U y fuentes de programación propias o autorizadas.
-- Incluye una interfaz compatible con Android TV.
-
-La pestaña Flashscore muestra el sitio externo; no combina sus marcadores con la agenda de Ciriaco. En Eventos, la etiqueta «Directo» sigue basándose en el horario y la duración estimada del evento.
-
-En Android, el motor AceStream se instala y ejecuta por separado; no se incluye en la APK. En Windows, los avisos de SmartScreen pueden aparecer porque el instalador todavía no tiene firma Authenticode.
-
-## Requisitos
-
-- Node.js 22 LTS y npm.
-- Android: JDK 21 y Android SDK 36.
-- Windows: Windows x64 para generar el instalador.
-
-## Desarrollo local
-
-```powershell
-npm ci
-npm run dev
-```
-
-Para crear el build web listo para servir:
-
-```powershell
-npm run web:dist
-```
-
-El contenido compilado queda en `artifacts/web/`. Es un frontend estático; las funciones que dependen de servicios de guía, eventos o reproducción requieren sus fuentes y servicios correspondientes.
-
-## Crear los instaladores
-
-| Comando | Resultado |
+| Plataforma | Descarga |
 | --- | --- |
-| `npm run web:dist` | Sitio web estático en `artifacts/web/` |
-| `npm run desktop:dist` | Instalador Windows en `artifacts/windows/` |
-| `npm run android:debug` | APK de prueba en `artifacts/android/TOPOTV-debug.apk` |
-| `npm run android:release` | APK firmada en `artifacts/android/` |
+| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.0.0.exe) |
+| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.0.0.apk) |
+| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.0.0.zip) |
 
-`Build-Installer.bat` también genera el instalador Windows. Las APK debug sirven para pruebas; no se pueden usar como actualización de una APK firmada con la clave de publicación.
+**Aún no hay una versión publicada en GitHub Releases**, por lo que estos enlaces se activarán cuando esté disponible la primera descarga. Puedes consultar el estado en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
 
-### Firma de publicación Android
+## Qué incluye
 
-Android exige que las actualizaciones mantengan la misma clave de firma. Crea el keystore fuera del repositorio y conserva una copia de respaldo cifrada:
+- Canales organizados por categorías, búsqueda y favoritos.
+- Guía de programación cuando la lista incluye una fuente EPG compatible.
+- Agenda de eventos deportivos y enlaces de reproducción disponibles en las fuentes configuradas.
+- Pestaña Flashscore en Web y Windows, con acceso al sitio oficial.
+- Interfaz compatible con Android TV.
 
-```powershell
-keytool -genkeypair -v -keystore "$HOME\topotv-release.jks" -alias topotv -keyalg RSA -keysize 2048 -validity 10000
-```
+La pestaña Flashscore es independiente de la agenda de eventos de TOPOTV. La etiqueta «Directo» de la agenda se estima según el horario; no es un marcador oficial en tiempo real.
 
-Para compilar localmente, configura la ruta y los metadatos de versión en PowerShell. Las contraseñas se solicitan ocultas y no deben guardarse en el repositorio:
+## Guía de uso
 
-```powershell
-$env:ANDROID_KEYSTORE_PATH = "$HOME\topotv-release.jks"
-$env:ANDROID_KEY_ALIAS = "topotv"
-$env:ANDROID_VERSION_CODE = "2"
-$env:ANDROID_VERSION_NAME = "1.0.1"
+### 1. Instala TOPOTV
 
-function Set-SecretEnv([string]$name) {
-   $secret = Read-Host $name -AsSecureString
-   $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
-   try {
-      [Environment]::SetEnvironmentVariable($name, [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr), [EnvironmentVariableTarget]::Process)
-   } finally {
-      [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
-   }
-}
-Set-SecretEnv "ANDROID_KEYSTORE_PASSWORD"
-Set-SecretEnv "ANDROID_KEY_PASSWORD"
-npm run android:release
-```
+Descarga el archivo correspondiente a tu dispositivo desde la tabla anterior. Windows puede mostrar un aviso de editor desconocido porque el instalador no tiene certificado Authenticode. Android también puede mostrar avisos al instalar una APK obtenida fuera de una tienda oficial; verifica que la descarga provenga de este repositorio antes de continuar.
 
-Incrementa `ANDROID_VERSION_CODE` en cada publicación. No pierdas ni reemplaces el keystore después de distribuir una versión: una clave diferente rompe la cadena de actualizaciones.
+### 2. Prepara la reproducción
 
-## Publicar en GitHub
+TOPOTV no incluye el motor de reproducción. En Android, instala Ace Stream Engine por separado desde los enlaces oficiales disponibles en **Ajustes → Motor para móvil y TV**. En **Ajustes → Backend AceStream**, configura la dirección y el puerto del motor; el puerto habitual es `6878`.
 
-El workflow de `.github/workflows/build.yml` compila los tres productos. En pushes y pull requests deja los builds de prueba en **Actions → ejecución → Artifacts**. Al publicar un tag `vX.Y.Z`, crea una release con el instalador Windows, la APK firmada y el paquete web ZIP.
+En Windows, instala las dependencias de reproducción que necesites y comprueba su estado en **Ajustes → Dependencias**. Si utilizas un backend en otro dispositivo, indica su dirección local en **Backend AceStream**.
 
-Antes de crear un tag, configura estos **Actions secrets** en **Settings → Secrets and variables → Actions**:
+### 3. Carga tu lista
 
-- `ANDROID_KEYSTORE_BASE64`: keystore codificado en Base64. En PowerShell puedes copiarlo con `[Convert]::ToBase64String([IO.File]::ReadAllBytes("$HOME\topotv-release.jks")) | Set-Clipboard`.
-- `ANDROID_KEYSTORE_PASSWORD`
-- `ANDROID_KEY_ALIAS`
-- `ANDROID_KEY_PASSWORD`
+Pulsa **Cargar M3U** y selecciona un archivo `.m3u` o `.m3u8` propio o autorizado. TOPOTV mostrará los canales y las categorías que incluya la lista. Para cambiarla, carga otro archivo.
 
-El tag debe coincidir con `version` en `desktop/package.json`, por ejemplo `v1.0.1`. El workflow comprueba la firma de la APK antes de publicarla. Nunca subas el `.jks`, contraseñas ni certificados privados al repositorio.
+### 4. Encuentra y guarda canales
 
-## Estructura del proyecto
+Abre **Buscar** para encontrar canales por nombre. Explora las categorías desde Inicio y añade los canales que quieras conservar a **Favoritos** desde sus tarjetas.
 
-| Ruta | Contenido |
+### 5. Consulta la programación
+
+La guía EPG se carga desde la información incluida en tu lista. Si tu proveedor te dio una dirección de guía, puedes añadirla en **Ajustes → Guía de Programación (EPG)**. En **Eventos** encontrarás la agenda disponible y sus enlaces; Flashscore se consulta desde su pestaña independiente.
+
+### 6. Usa la versión web
+
+El ZIP web contiene la interfaz para alojarla en un servicio web compatible. La reproducción con AceStream y algunas funciones de eventos o de compartir requieren servicios adicionales en el dispositivo; el ZIP por sí solo no los instala.
+
+## Ayuda rápida
+
+| Problema | Qué comprobar |
 | --- | --- |
-| `src/` | Aplicación web compartida |
-| `android/` | Proyecto nativo y configuración Gradle |
-| `desktop/` | Aplicación Electron y configuración del instalador |
-| `tools/` | Herramientas y scripts de empaquetado |
-| `dist/` | Build temporal usado durante la compilación |
-| `artifacts/` | Salidas locales separadas por plataforma; ignoradas por Git |
+| No aparecen canales | Carga una lista `.m3u` o `.m3u8` válida y autorizada. |
+| Un canal no reproduce | Comprueba que la fuente esté disponible y que AceStream esté instalado, activo y configurado en Backend. |
+| No aparece la guía | Verifica que la lista tenga una fuente EPG o añade la URL proporcionada por tu proveedor en Ajustes. |
+| Flashscore no carga dentro de TOPOTV | Usa **Abrir en navegador**; el sitio puede solicitar sus propias opciones de privacidad o edad. |
 
-Para reproducción, utiliza únicamente listas y fuentes que tengas derecho a usar. La firma de una APK identifica su clave de publicación, pero no evita todos los avisos de instalación de Android; el instalador Windows requiere un certificado Authenticode distinto para mostrar un editor verificado.
+Si necesitas reportar un problema, incluye tu plataforma, la versión de TOPOTV y los pasos para reproducirlo. No publiques listas privadas, contraseñas ni datos personales.
