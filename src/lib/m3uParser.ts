@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { CIRIACO_PLAYLIST_URL, ciriacoPlaylistText } from '@/lib/ciriaco';
+import { canon } from '@/lib/ciriacoNative';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import type { Channel, Group, M3UMeta, ParsedM3U, Stream } from '@/types';
 function slugify(t: string) { return t.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').replace(/-+/g,'-').trim(); }
@@ -48,6 +49,14 @@ export function parseM3U(content: string, source = 'unknown'): ParsedM3U {
       groupMap.get(groupTitle)!.channels.push(ch);
     }
   }
+  // Logos de categoría: líneas "#EXTGRP: group-title=... group-logo=..."
+  for (const line of lines) {
+    if (!line.startsWith('#EXTGRP')) continue;
+    const title = line.match(/group-title="([^"]*)"/)?.[1];
+    const logo = line.match(/group-logo="([^"]*)"/)?.[1];
+    const group = title ? groupMap.get(title) : undefined;
+    if (group && logo && !group.logo) group.logo = logo;
+  }
   return { meta, groups: groupOrder.map(t=>groupMap.get(t)!), allChannels: [...channelMap.values()] };
 }
 export async function loadM3UFromFile(file: File): Promise<ParsedM3U> { return parseM3U(await file.text(), file.name); }
@@ -62,43 +71,55 @@ export async function loadM3UFromUrl(url: string): Promise<ParsedM3U> {
 
 const canonical = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
+/** Grupo donde la agenda de Ciriaco deja sus canales; se fusionan con los de las demás listas por nombre. */
+const FUSE_GROUP = 'topotv';
+
 export function mergeM3ULists(sources: ParsedM3U[]): ParsedM3U {
   const groups = new Map<string, Group>();
   const channels = new Map<string, Channel>();
+  const byName = new Map<string, Channel[]>();   // nombre canónico -> canales ya fusionados (de cualquier categoría)
   const epgUrls = new Set<string>();
 
-  for (const source of sources) {
-    for (const url of source.meta.epgUrls) epgUrls.add(url);
-    for (const sourceGroup of source.groups) {
-      const groupKey = canonical(sourceGroup.title) || sourceGroup.id;
-      let group = groups.get(groupKey);
-      if (!group) {
-        group = { ...sourceGroup, channels: [] };
-        groups.set(groupKey, group);
-      } else if (!group.logo && sourceGroup.logo) {
-        group.logo = sourceGroup.logo;
-      }
+  const addStreams = (channel: Channel, from: Channel) => {
+    const known = new Set(channel.streams.map(stream => stream.aceId));
+    for (const stream of from.streams) {
+      if (!known.has(stream.aceId)) { channel.streams.push(stream); known.add(stream.aceId); }
+    }
+    if (!channel.logo && from.logo) channel.logo = from.logo;
+    if (!channel.tvgId && from.tvgId) channel.tvgId = from.tvgId;
+  };
 
-      for (const sourceChannel of sourceGroup.channels) {
-        const channelKey = `${groupKey}:${canonical(sourceChannel.tvgId) || canonical(sourceChannel.name)}`;
-        let channel = channels.get(channelKey);
-        if (!channel) {
-          channel = { ...sourceChannel, streams: [] };
-          channels.set(channelKey, channel);
-          group.channels.push(channel);
-        } else {
-          if (!channel.logo && sourceChannel.logo) channel.logo = sourceChannel.logo;
-          if (!channel.tvgId && sourceChannel.tvgId) channel.tvgId = sourceChannel.tvgId;
-        }
+  for (const source of sources) for (const url of source.meta.epgUrls) epgUrls.add(url);
 
-        const knownStreams = new Set(channel.streams.map(stream => stream.aceId));
-        for (const stream of sourceChannel.streams) {
-          if (!knownStreams.has(stream.aceId)) {
-            channel.streams.push(stream);
-            knownStreams.add(stream.aceId);
-          }
-        }
+  // Las categorías "reales" primero; los canales de Ciriaco después, para poder repartirlos en ellas.
+  const entries = sources.flatMap(source => source.groups.map(group => ({ group, key: canonical(group.title) || group.id })));
+  entries.sort((a, b) => Number(a.key === FUSE_GROUP) - Number(b.key === FUSE_GROUP));
+
+  for (const { group: sourceGroup, key: groupKey } of entries) {
+    const fuse = groupKey === FUSE_GROUP;
+    let group = groups.get(groupKey);
+    const ensureGroup = () => {
+      if (!group) { group = { ...sourceGroup, channels: [] }; groups.set(groupKey, group); }
+      else if (!group.logo && sourceGroup.logo) group.logo = sourceGroup.logo;
+      return group;
+    };
+    if (!fuse) ensureGroup();
+
+    for (const sourceChannel of sourceGroup.channels) {
+      const nameKey = canon(sourceChannel.name) || canonical(sourceChannel.name);
+      if (fuse) {
+        const targets = byName.get(nameKey);
+        if (targets?.length) { for (const target of targets) addStreams(target, sourceChannel); continue; }
       }
+      const channelKey = groupKey + ':' + (canonical(sourceChannel.tvgId) || canonical(sourceChannel.name));
+      let channel = channels.get(channelKey);
+      if (!channel) {
+        channel = { ...sourceChannel, streams: [] };
+        channels.set(channelKey, channel);
+        ensureGroup().channels.push(channel);
+        byName.set(nameKey, [...(byName.get(nameKey) ?? []), channel]);
+      }
+      addStreams(channel, sourceChannel);
     }
   }
 
@@ -109,7 +130,7 @@ export function mergeM3ULists(sources: ParsedM3U[]): ParsedM3U {
       loadedAt: new Date(),
       source: sources[0]?.meta.source ?? 'unknown',
     },
-    groups: [...groups.values()],
+    groups: [...groups.values()].filter(group => group.channels.length > 0),
     allChannels: [...channels.values()],
   };
 }

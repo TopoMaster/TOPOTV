@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { checkCiriaco, fetchCiriaco, fetchCiriacoStatus, refreshCiriaco, setCiriacoWarpConnected, CIRIACO_PLAYLIST_URL, type CiriacoData, type CiriacoStatus } from '@/lib/ciriaco';
+import { checkCiriaco, fetchCiriaco, fetchCiriacoStatus, refreshCiriaco, setCiriacoWarpConnected, type CiriacoData, type CiriacoStatus } from '@/lib/ciriaco';
 import { useM3UStore } from './useM3UStore';
 
 interface CiriacoState {
@@ -50,7 +50,7 @@ export const useCiriacoStore = create<CiriacoState>((set, get) => ({
       await refreshCiriaco();
       const data = await fetchCiriaco();
       set({ data, status: data.status, online: true });
-      await useM3UStore.getState().loadFromUrl(CIRIACO_PLAYLIST_URL);
+      await useM3UStore.getState().reloadSources();
     } catch (e) { set({ error: e instanceof Error ? e.message : 'Error' }); }
     finally { clearInterval(poll); set({ updating: false }); }
   },

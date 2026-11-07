@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+import { openInAndroidVlc } from '@/lib/externalPlayer';
 import type { AceBackendConfig, BackendStatus, PlaybackConfig, Stream } from '@/types';
 const DEFAULT: AceBackendConfig = { host: '127.0.0.1', port: 6878 };
 export function baseUrl(cfg=DEFAULT) { return `http://${cfg.host}:${cfg.port}`; }
@@ -18,6 +20,11 @@ export type PlayerApp='vlc'|'browser';
 export async function openInPlayer(stream: Stream, cfg=DEFAULT, player: PlayerApp='vlc', playback?: PlaybackConfig): Promise<{ok:boolean;method:string;error?:string}> {
   if(player==='browser') return {ok:true,method:'browser'}; // lo reproduce <PlayerOverlay/> con hls.js
   const streamUrl=buildStreamUrl(stream.aceId,cfg);
+  if(Capacitor.isNativePlatform()) {
+    // Android: VLC se abre con un Intent y reproduce el stream directo del motor AceStream.
+    const r=await openInAndroidVlc(streamUrl,stream.label||'TOPOTV');
+    return r.ok?{ok:true,method:'android-vlc'}:{ok:false,method:'android-vlc',error:r.error};
+  }
   try {
     const params = new URLSearchParams({ url: streamUrl });
     if (playback) {

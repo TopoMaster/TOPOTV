@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Server, ShieldCheck, Upload, RotateCcw, Check, AlertTriangle, Tv2, RefreshCw, Wifi, Monitor, Share2, Smartphone } from 'lucide-react';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useM3UStore } from '@/store/useM3UStore';
-import { CIRIACO_PLAYLIST_URL } from '@/lib/ciriaco';
+import { withDefaultSources } from '@/lib/ciriaco';
 import { useEPGStore } from '@/store/useEPGStore';
 import { shareStatus, tunnelStart, tunnelStop, shareRevoke, type ShareStatus } from '@/lib/share';
 
@@ -51,7 +51,7 @@ function BackendSection() {
 function PlayerSection() {
   const {preferredPlayer,setPreferredPlayer,playback,setPlayback} = useSettingsStore();
   const isNativeApp = Capacitor.isNativePlatform();
-  const playerOptions = isNativeApp ? ['browser'] as const : ['vlc','browser'] as const;
+  const playerOptions = ['vlc','browser'] as const;
   const range = (label: string, value: number, min: number, max: number, step: number, unit: string, help: string, onChange: (value: number) => void) => (
     <label className="block" style={{marginBottom:14}}>
       <span className="flex items-center justify-between gap-3" style={{fontSize:'0.75rem',color:'var(--text-secondary)',marginBottom:5}}>
@@ -67,7 +67,7 @@ function PlayerSection() {
     <section className="mb-8">
       <SLabel icon={Monitor} label="Reproductor" />
       <Card>
-        <p style={{fontSize:'0.8rem',color:'var(--text-secondary)',marginBottom:'16px',lineHeight:1.6}}>{isNativeApp?'En Android, TOPOTV reproduce el stream dentro de la app. El motor AceStream debe estar instalado y activo por separado en este dispositivo.':'VLC abre el stream en una ventana aparte (recomendado, más estable). "Navegador" lo reproduce dentro de TOPOTV y puede tardar más en arrancar.'}</p>
+        <p style={{fontSize:'0.8rem',color:'var(--text-secondary)',marginBottom:'16px',lineHeight:1.6}}>{isNativeApp?'En Android, VLC abre el stream en la app VLC for Android (instálala desde Google Play); «Navegador» lo reproduce dentro de TOPOTV. En ambos casos el motor AceStream debe estar instalado y activo.':'VLC abre el stream en una ventana aparte (recomendado, más estable). "Navegador" lo reproduce dentro de TOPOTV y puede tardar más en arrancar.'}</p>
         <div className="flex gap-3 mb-4">
           {playerOptions.map(p=>(
             <button key={p} onClick={()=>setPreferredPlayer(p)} style={{flex:1,padding:'12px',background:preferredPlayer===p?'var(--accent-dim)':'var(--bg-elevated)',border:`1px solid ${preferredPlayer===p?'var(--accent)':'var(--border-mid)'}`,borderRadius:'var(--radius-md)',color:preferredPlayer===p?'var(--accent)':'var(--text-secondary)',cursor:'pointer',textAlign:'center',transition:'all 0.15s'}}>
@@ -89,10 +89,10 @@ function PlayerSection() {
           {range('Reintentos al cargar manifiesto',playback.hlsManifestLoadingMaxRetry,0,10,1,'','Más reintentos tolera fallos temporales de red.',value=>setPlayback({hlsManifestLoadingMaxRetry:value}))}
           {range('Reintentos al cargar segmentos',playback.hlsFragLoadingMaxRetry,0,10,1,'','Más reintentos puede recuperar cortes breves; también tarda más en declarar un error.',value=>setPlayback({hlsFragLoadingMaxRetry:value}))}
         </div>
-        <div style={{padding:'10px 14px',background:'var(--bg-elevated)',borderRadius:'var(--radius-md)',border:'1px solid var(--border-subtle)'}}>
+        {!isNativeApp&&<div style={{padding:'10px 14px',background:'var(--bg-elevated)',borderRadius:'var(--radius-md)',border:'1px solid var(--border-subtle)'}}>
           <p style={{fontSize:'0.72rem',color:'var(--text-secondary)',fontWeight:600,marginBottom:'4px'}}>Requisito VLC:</p>
           <p style={{fontSize:'0.68rem',color:'var(--text-muted)',lineHeight:1.5}}>VLC debe estar en: <code style={{color:'var(--accent)',background:'rgba(0,0,0,0.3)',padding:'1px 5px',borderRadius:'3px'}}>C:\Program Files\VideoLAN\VLC\vlc.exe</code><br/>O define la variable de entorno <code style={{color:'var(--accent)'}}>VLC_PATH</code> antes de ejecutar setup.bat.</p>
-        </div>
+        </div>}
       </Card>
     </section>
   );
@@ -113,7 +113,7 @@ function M3USection() {
     if (invalid) { setSourceError('Cada línea debe ser una URL HTTP o HTTPS válida.'); return; }
     setSourceError(null);
     setM3uSourceUrls(urls);
-    const sources = [...new Set([CIRIACO_PLAYLIST_URL, ...urls])];
+    const sources = withDefaultSources(urls);
     if (sources.length) await loadFromUrls(sources);
   }
   return (
@@ -133,7 +133,7 @@ function M3USection() {
             <p style={{fontSize:'0.72rem',color:'var(--text-muted)',marginBottom:'8px',textTransform:'uppercase',letterSpacing:'0.04em'}}>Fuentes automáticas</p>
             <textarea value={sourcesInput} onChange={e=>setSourcesInput(e.target.value)} rows={4} placeholder="Pega una URL M3U por línea" style={{...inp,resize:'vertical',minHeight:96,fontFamily:'DM Mono,monospace'}} />
             <p style={{fontSize:'0.68rem',color:'var(--text-muted)',marginTop:8,lineHeight:1.5}}>
-              La agenda de TOPOTV (Ciriaco) se añade automáticamente; estas URLs se combinan con ella.
+              La lista de Elcano y la agenda de Ciriaco se cargan siempre y se fusionan por categorías; las URLs que añadas aquí se combinan con ellas.
               {' '}Las fuentes se guardan en este dispositivo, se combinan y actualizan al iniciar.
             </p>
             {(sourceError||error)&&<p role="alert" style={{color:'var(--offline-red)',fontSize:'0.72rem',marginTop:8}}>{sourceError||error}</p>}

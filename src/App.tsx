@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { AppShell } from '@/components/layout/AppShell';
+import { ChannelsPage } from '@/pages/ChannelsPage';
 import { HomePage } from '@/pages/HomePage';
 import { CategoryPage } from '@/pages/CategoryPage';
 import { ChannelPage } from '@/pages/ChannelPage';
@@ -16,7 +17,7 @@ import { CheckerPage } from '@/pages/CheckerPage';
 import { useM3UStore } from '@/store/useM3UStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useEPGStore } from '@/store/useEPGStore';
-import { CIRIACO_PLAYLIST_URL, checkCiriaco } from '@/lib/ciriaco';
+import { checkCiriaco } from '@/lib/ciriaco';
 import { useCiriacoStore } from '@/store/useCiriacoStore';
 
 /**
@@ -33,8 +34,6 @@ import { useCiriacoStore } from '@/store/useCiriacoStore';
 function BackgroundPreloader() {
   const meta         = useM3UStore(s => s.meta);
   const allChannels  = useM3UStore(s => s.allChannels);
-  const lastSource   = useM3UStore(s => s.lastSource);
-  const m3uSourceUrls = useSettingsStore(s => s.m3uSourceUrls);
   const manualEpgUrl = useSettingsStore(s => s.manualEpgUrl);
   const loadEPG      = useEPGStore(s => s.load);
   const syncStatus   = useEPGStore(s => s.syncStatus);
@@ -57,41 +56,36 @@ function BackgroundPreloader() {
     return () => clearInterval(interval);
   }, [syncCiriacoStatus]);
 
-  // Load configured sources on startup; desktop also includes its local Ciriaco playlist.
+  // Al arrancar: Elcano + listas del usuario + agenda de Ciriaco, fusionadas por categorías.
   useEffect(() => {
     let cancelled = false;
     const loadSources = async () => {
+      const reload = () => useM3UStore.getState().reloadSources();
       const isNative = Capacitor.isNativePlatform();
-      const sources = [...new Set([CIRIACO_PLAYLIST_URL, ...m3uSourceUrls])];
-      if (!isNative) {
-        for (let attempt = 0; attempt < 8 && !cancelled; attempt++) {
-          if (await checkCiriaco()) {
-            useCiriacoStore.getState().load();
-            break;
-          }
-          if (attempt < 7) await new Promise(resolve => setTimeout(resolve, 750));
+      const online = isNative || await checkCiriaco();
+      if (!isNative && online) useCiriacoStore.getState().load();
+      await reload();
+      if (isNative || online) return;
+      // Escritorio: el servicio local de Ciriaco puede tardar unos segundos en arrancar.
+      for (let attempt = 0; attempt < 8 && !cancelled; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 750));
+        if (await checkCiriaco()) {
+          useCiriacoStore.getState().load();
+          if (!cancelled) await reload();
+          return;
         }
       }
-
-      if (cancelled || useM3UStore.getState().allChannels.length > 0) return;
-      if (sources.length) await useM3UStore.getState().loadFromUrls(sources);
     };
     void loadSources();
     return () => { cancelled = true; };
-  }, [m3uSourceUrls]);
+  }, []);
 
   useEffect(() => {
-    const sources = [...new Set([CIRIACO_PLAYLIST_URL, ...m3uSourceUrls])];
-    if (!sources.length || !allChannels.length) return;
+    if (!allChannels.length) return;
     const refreshMs = Math.max(5 * 60 * 1000, (meta?.refreshInterval ?? 3600) * 1000);
-    const interval = setInterval(() => { void useM3UStore.getState().loadFromUrls(sources); }, refreshMs);
+    const interval = setInterval(() => { void useM3UStore.getState().reloadSources(); }, refreshMs);
     return () => clearInterval(interval);
-  }, [m3uSourceUrls, meta?.refreshInterval, allChannels.length]);
-
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform() || m3uSourceUrls.length > 0 || allChannels.length > 0 || !lastSource || !/^https?:\/\//i.test(lastSource)) return;
-    void useM3UStore.getState().loadFromUrl(lastSource);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [meta?.refreshInterval, allChannels.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When M3U loads: trigger EPG load on server if needed
   useEffect(() => {
@@ -139,6 +133,7 @@ export default function App() {
       <AppShell>
         <Routes>
           <Route path="/"               element={<HomePage />} />
+          <Route path="/categories"     element={<ChannelsPage />} />
           <Route path="/favorites"      element={<FavoritesPage />} />
           <Route path="/tv-guide" element={<EventsGuidePage />} />
           <Route path="/epg-xmltv" element={<TVGuidePage />} />

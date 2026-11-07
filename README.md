@@ -16,11 +16,11 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 
 | Plataforma | Descarga |
 | --- | --- |
-| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.0.2.exe) |
-| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.0.2.apk) |
-| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.0.2.zip) |
+| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.0.3.exe) |
+| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.0.3.apk) |
+| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.0.3.zip) |
 
-**Versión actual: v1.0.2.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
+**Versión actual: v1.0.3.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
 
 ## Qué incluye
 
@@ -29,7 +29,9 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 - Agenda de eventos deportivos y enlaces de reproducción disponibles en las fuentes configuradas.
 - Pestaña Flashscore: integrada en Web y Windows; en Android se abre en el navegador del dispositivo.
 - Agenda de eventos y guía EPG también en Android (se descargan directamente en el móvil).
-- Interfaz compatible con Android TV.
+- Canales organizados por categorías: la lista de Elcano se fusiona con la agenda de Ciriaco.
+- En Android, reproducción dentro de la app o en VLC for Android (Ajustes → Reproductor).
+- Interfaz compatible con Android TV y adaptada a móvil.
 
 La pestaña Flashscore es independiente de la agenda de eventos de TOPOTV. La etiqueta «Directo» de la agenda se estima según el horario; no es un marcador oficial en tiempo real.
 

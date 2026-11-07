@@ -5,7 +5,7 @@ import { usePlayerStore } from '@/store/usePlayerStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { LoadingState } from '@/components/shared/States';
 import { ChannelLogo } from '@/components/shared/ChannelLogo';
-import { CiriacoAccessNotice, UpdateControl } from '@/pages/EventsPage';
+import { CiriacoAccessNotice, EventRow, UpdateControl } from '@/pages/EventsPage';
 import { emoji, sportColor } from '@/lib/sports';
 import { eventDuration, eventStatus, eventToChannel, linkTag, sortLinks, todayIso, type CiriacoEvent } from '@/lib/ciriaco';
 
@@ -25,7 +25,21 @@ function relevance(row: Row) {
   return next.length ? Math.min(...next) : 10000;
 }
 
+/** true en pantallas estrechas (móvil): la parrilla horizontal no es usable ahí. */
+function useNarrow(max = 700) {
+  const query = `(max-width: ${max}px)`;
+  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, [query]);
+  return narrow;
+}
+
 export function EventsGuidePage() {
+  const narrow = useNarrow();
   const { data, online, loading, error, load } = useCiriacoStore();
   const play = usePlayerStore(s => s.play);
   const backend = useSettingsStore(s => s.backendConfig);
@@ -88,7 +102,7 @@ export function EventsGuidePage() {
   const selChannel = sel ? eventToChannel(sel.ev, selLinks, backend) : null;
 
   return (
-    <div className="fade-in" style={{ padding: '24px', paddingBottom: '48px' }}>
+    <div className="fade-in page-pad" style={{ paddingBottom: '48px' }}>
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Calendar size={22} strokeWidth={1.8} style={{ color: 'var(--accent)' }} />
@@ -136,7 +150,15 @@ export function EventsGuidePage() {
             </div>
           )}
 
-          {rows.length === 0 ? (
+          {narrow ? (
+            <div className="flex flex-col gap-2">
+              {(current?.events ?? [])
+                .filter(e => (sport === 'all' || e.sport === sport) && (!onlyLinks || e.links.length > 0))
+                .sort((a, b) => a.time.localeCompare(b.time))
+                .map(e => <EventRow key={e.id} ev={e} date={day} channels={data.channels} />)}
+              {rows.length === 0 && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>No hay eventos para estos filtros</div>}
+            </div>
+          ) : rows.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>No hay eventos para estos filtros</div>
           ) : (
             <div ref={scroller} style={{ overflow: 'auto', maxHeight: 'calc(100vh - 290px)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)', position: 'relative' }}>

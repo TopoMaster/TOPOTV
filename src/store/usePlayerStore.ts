@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { Capacitor } from '@capacitor/core';
 import type { Channel, PlayerState, Stream } from '@/types';
 import { openInPlayer, requestPlay } from '@/lib/aceApi';
 import { useSettingsStore } from './useSettingsStore';
@@ -19,7 +18,7 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
     if (!target) { set({ status: 'error', errorMessage: 'No hay streams disponibles' }); return; }
     set({ channel, stream: target, status: 'connecting', errorMessage: null, startedAt: new Date() });
     const { backendConfig, preferredPlayer, playback } = useSettingsStore.getState();
-    const player = Capacitor.isNativePlatform() ? 'browser' : preferredPlayer;
+    const player = preferredPlayer;
     const result = await requestPlay(target, backendConfig);
     if (!result.ok) { set({ status: 'error', errorMessage: result.error ?? 'Error de conexión' }); return; }
     const opened = await openInPlayer(target, backendConfig, player, playback);

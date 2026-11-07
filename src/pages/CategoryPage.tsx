@@ -18,7 +18,7 @@ export function CategoryPage() {
         </button>
         <div>
           <h1 className="font-display" style={{fontSize:'clamp(1.8rem,4vw,3rem)',lineHeight:1}}>{group.title}</h1>
-          <p style={{color:'var(--text-muted)',fontSize:'0.78rem',marginTop:'4px'}}>{group.channels.length} canales</p>
+          <p style={{color:'var(--text-muted)',fontSize:'0.78rem',marginTop:'4px'}}>{group.channels.length} {group.channels.length === 1 ? 'canal' : 'canales'}</p>
         </div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:'16px'}}>

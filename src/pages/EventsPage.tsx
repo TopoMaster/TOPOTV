@@ -9,7 +9,7 @@ import { useCiriacoStore } from '@/store/useCiriacoStore';
 import { LoadingState } from '@/components/shared/States';
 import { ChannelLogo } from '@/components/shared/ChannelLogo';
 import { emoji, sportColor } from '@/lib/sports';
-import { CIRIACO_PLAYLIST_URL, CIRIACO_SOURCE_URL, ELCANO_SOURCE_URL, eventProgress, eventStatus, eventToChannel, linkTag, sortLinks, todayIso, type CiriacoChannel, type CiriacoEvent, type CiriacoStatus } from '@/lib/ciriaco';
+import { CIRIACO_SOURCE_URL, ELCANO_SOURCE_URL, eventProgress, eventStatus, eventToChannel, linkTag, sortLinks, todayIso, type CiriacoChannel, type CiriacoEvent, type CiriacoStatus } from '@/lib/ciriaco';
 
 const ALL = 'all';
 
@@ -77,7 +77,7 @@ export function CiriacoAccessNotice() {
   );
 }
 
-function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: string; channels: Record<string, CiriacoChannel> }) {
+export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: string; channels: Record<string, CiriacoChannel> }) {
   const play = usePlayerStore(s => s.play);
   const backend = useSettingsStore(s => s.backendConfig);
   const [open, setOpen] = useState(false);
@@ -100,7 +100,7 @@ function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: string; chan
     <div className="surface-card" style={{ position: 'relative', overflow: 'hidden', borderColor: live ? 'rgba(255,77,77,0.35)' : undefined, padding: '12px 16px 12px 20px', opacity: status === 'finished' ? 0.5 : 1 }}>
       <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: sportColor(ev.sport), opacity: links.length ? 0.9 : 0.35 }} />
       {live && <span style={{ position: 'absolute', left: 4, right: 0, bottom: 0, height: 2, background: 'rgba(255,255,255,0.06)' }}><span style={{ display: 'block', height: '100%', width: `${eventProgress(date, ev.time, ev.sport) * 100}%`, background: 'var(--live-red)' }} /></span>}
-      <div className="flex items-center gap-3">
+      <div className="ev-main">
         <div style={{ minWidth: '52px', textAlign: 'center' }}>
           <div className="font-display" style={{ fontSize: '1.3rem', color: live ? 'var(--live-red)' : 'var(--text-primary)', lineHeight: 1 }}>{ev.time}</div>
           {live && <span style={{ fontSize: '0.55rem', color: 'var(--live-red)', fontWeight: 700, letterSpacing: '0.08em' }}>DIRECTO</span>}
@@ -112,17 +112,17 @@ function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: string; chan
             {ev.logos.map((src, i) => <img key={i} src={src} alt="" width={24} height={24} loading="lazy" style={{ objectFit: 'contain' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />)}
           </div>
         )}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</p>
-          <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', letterSpacing: '0.04em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div className="ev-info">
+          <p className="ev-title" style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{ev.title}</p>
+          <p className="ev-sub" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
             {ev.competition}{ev.round ? ` · ${ev.round}` : ''}
           </p>
         </div>
-        <div className="flex items-center" style={{ gap: 4, flexShrink: 0 }}>
+        <div className="ev-chans">
           {ev.channelKeys.slice(0, 4).map(k => <span key={k} title={channels[k]?.name}><ChannelLogo name={channels[k]?.name ?? k} src={channels[k]?.logo} size={26} /></span>)}
         </div>
         {links.length > 0 ? (
-          <>
+          <div className="ev-actions">
             <button onClick={() => play(channel, channel.streams[0])} className="flex items-center gap-1.5"
               style={{ padding: '8px 16px', background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
               <Play size={13} strokeWidth={2.5} fill="#080a0e" />Ver
@@ -135,11 +135,11 @@ function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: string; chan
               style={{ padding: '8px 10px', background: open ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${open ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: open ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.7rem', cursor: 'pointer', flexShrink: 0 }}>
               {links.length} {links.length === 1 ? 'enlace' : 'enlaces'}
             </button>
-          </>
+          </div>
         ) : <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', flexShrink: 0 }}>Sin enlaces</span>}
       </div>
       {open && (
-        <div className="flex flex-wrap gap-2 fade-in" style={{ marginTop: '10px', paddingLeft: '64px' }}>
+        <div className="flex flex-wrap gap-2 fade-in ev-links" style={{ marginTop: '10px' }}>
           {channel.streams.map((s, i) => (
             <button key={s.aceId} onClick={() => play(channel, s)} className="flex items-center gap-2"
               style={{ padding: '4px 12px 4px 5px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: '100px', color: 'var(--text-secondary)', fontSize: '0.7rem', cursor: 'pointer' }}>
@@ -154,7 +154,7 @@ function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: string; chan
 }
 
 export function EventsPage() {
-  const loadFromUrl = useM3UStore(s => s.loadFromUrl);
+  const reloadSources = useM3UStore(s => s.reloadSources);
   const { data, online, loading, error, load } = useCiriacoStore();
   const [day, setDay] = useState<string>(todayIso());
   const [sport, setSport] = useState(ALL);
@@ -180,7 +180,7 @@ export function EventsPage() {
   const pill = (active: boolean) => ({ padding: '7px 16px', background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: '100px', color: active ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: active ? 600 : 400, cursor: 'pointer' as const, whiteSpace: 'nowrap' as const, flexShrink: 0 });
 
   return (
-    <div className="fade-in" style={{ padding: '24px', paddingBottom: '48px', maxWidth: '1180px' }}>
+    <div className="fade-in page-pad" style={{ paddingBottom: '48px', maxWidth: '1180px' }}>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <CalendarDays size={22} strokeWidth={1.8} style={{ color: 'var(--accent)' }} />
@@ -189,8 +189,8 @@ export function EventsPage() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <UpdateControl />
-          <button onClick={() => loadFromUrl(CIRIACO_PLAYLIST_URL)} disabled={!data} title="Cargar los canales de TOPOTV como lista M3U"
-            className="flex items-center gap-1.5" style={{ ...pill(false), opacity: data ? 1 : 0.4 }}><ListVideo size={13} />Cargar como lista</button>
+          <button onClick={() => reloadSources()} disabled={!data} title="Recargar la lista de canales fusionando Elcano y Ciriaco"
+            className="flex items-center gap-1.5" style={{ ...pill(false), opacity: data ? 1 : 0.4 }}><ListVideo size={13} />Recargar canales</button>
         </div>
       </div>
 

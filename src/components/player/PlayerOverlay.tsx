@@ -10,7 +10,7 @@ export function PlayerOverlay() {
   const { channel, stream, status, errorMessage, stop, setStatus } = usePlayerStore();
   const { preferredPlayer, backendConfig, playback } = useSettingsStore();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const browserMode = preferredPlayer === 'browser' || Capacitor.isNativePlatform();
+  const browserMode = preferredPlayer === 'browser';
 
   // Navegador: cargar el HLS del motor
   useEffect(() => {

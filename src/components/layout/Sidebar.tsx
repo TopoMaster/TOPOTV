@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home,Search,Settings,Tv,ChevronLeft,ChevronRight,Heart,Calendar,Activity,Shield,Power,Trophy } from 'lucide-react';
+import { Home,Search,Settings,Tv,LayoutGrid,ChevronLeft,ChevronRight,Heart,Calendar,Activity,Shield,Power,Trophy } from 'lucide-react';
 import { LogoMark, LogoWord } from '@/components/brand/Logo';
 import { useUIStore } from '@/store/useUIStore';
 import { useM3UStore } from '@/store/useM3UStore';
@@ -7,14 +7,15 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { useCiriacoStore } from '@/store/useCiriacoStore';
 import { Capacitor } from '@capacitor/core';
-const TOP_NAV = [
+const TOP_NAV: {to:string;icon:React.ElementType;label:string;badge:boolean;cls?:string}[] = [
   {to:'/',icon:Home,label:'Inicio',badge:false},
+  {to:'/categories',icon:LayoutGrid,label:'Canales',badge:false,cls:'nav-mobile-only'},
   {to:'/favorites',icon:Heart,label:'Favoritos',badge:true},
   {to:'/tv-guide',icon:Calendar,label:'Guía TV',badge:false},
   {to:'/events',icon:Activity,label:'Eventos',badge:false},
-  {to:'/flashscore',icon:Trophy,label:'Flashscore',badge:false},
-  {to:'/checker',icon:Shield,label:'Checker',badge:false},
-  {to:'/search',icon:Search,label:'Buscar',badge:false},
+  {to:'/flashscore',icon:Trophy,label:'Flashscore',badge:false,cls:'nav-desktop-only'},
+  {to:'/checker',icon:Shield,label:'Checker',badge:false,cls:'nav-desktop-only'},
+  {to:'/search',icon:Search,label:'Buscar',badge:false,cls:'nav-desktop-only'},
 ];
 const BOTTOM_NAV = [{to:'/settings',icon:Settings,label:'Ajustes'}];
 export function Sidebar() {
@@ -35,8 +36,8 @@ export function Sidebar() {
         {sidebarOpen&&<span className="fade-in"><LogoWord /></span>}
       </div>
       <nav className="px-2 pt-3 flex flex-col gap-0.5">
-        {TOP_NAV.map(({to,icon:Icon,label,badge})=>(
-          <NavLink key={to} to={to} end={to==='/'} className={({isActive})=>`nav-item ${isActive?'active':''}`} title={!sidebarOpen?label:undefined}>
+        {TOP_NAV.map(({to,icon:Icon,label,badge,cls})=>(
+          <NavLink key={to} to={to} end={to==='/'} className={({isActive})=>`nav-item ${isActive?'active':''} ${cls??''}`} title={!sidebarOpen?label:undefined}>
             <div className="relative shrink-0">
               <Icon size={18} strokeWidth={1.8} />
               {badge&&favCount>0&&<span className="absolute -top-1 -right-1 flex items-center justify-center" style={{width:'14px',height:'14px',borderRadius:'50%',background:'var(--accent)',fontSize:'0.55rem',fontWeight:700,color:'#080a0e'}}>{favCount>9?'9+':favCount}</span>}
@@ -46,8 +47,8 @@ export function Sidebar() {
         ))}
       </nav>
       <div style={{height:'1px',background:'var(--border-subtle)',margin:'8px 12px'}} />
-      {!isNativeApp&&sidebarOpen&&groups.length>0&&<div className="px-4 pb-2"><span style={{fontSize:'0.65rem',color:'var(--text-muted)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Categorías</span></div>}
-      {!isNativeApp&&<div className="flex-1 overflow-y-auto px-2 flex flex-col gap-0.5">
+      {sidebarOpen&&groups.length>0&&<div className="px-4 pb-2"><span style={{fontSize:'0.65rem',color:'var(--text-muted)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Categorías</span></div>}
+      {<div className="flex-1 overflow-y-auto px-2 flex flex-col gap-0.5">
         {groups.map(group=>(
           <button key={group.id} onClick={()=>navigate(`/category/${group.id}`)} className="nav-item w-full text-left" title={!sidebarOpen?group.title:undefined}>
             {group.logo?<img src={group.logo} alt={group.title} className="shrink-0 object-contain" style={{width:'18px',height:'18px'}} onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />:<Tv size={18} strokeWidth={1.8} className="shrink-0" />}
