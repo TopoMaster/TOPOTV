@@ -3,7 +3,7 @@
  * Arranca en el propio proceso: servidor de la web (5174), servicio de eventos (3004) y VLC helper (3002).
  * La agenda se lee con un BrowserWindow oculto (Chromium de Electron): no hace falta Playwright.
  */
-const { app, BrowserWindow, shell, session, Menu, dialog } = require('electron');
+const { app, BrowserWindow, shell, session, Menu, dialog, powerSaveBlocker } = require('electron');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -87,6 +87,20 @@ app.whenReady().then(async () => {
     startCiriaco({ scrape: electronScrape(extractInBrowser), cacheFile: path.join(app.getPath('userData'), 'agenda-cache.json') });
     const vlc = require(path.join(TOOLS, 'vlc-helper.cjs'));
     vlc.start({ log });
+    // Grabaciones programadas: evitan que Windows suspenda el equipo mientras se graba
+    let sleepBlock = null;
+    require(path.join(TOOLS, 'recorder.cjs')).start({
+      log,
+      file: path.join(app.getPath('userData'), 'grabaciones.json'),
+      dir: path.join(app.getPath('videos'), 'TOPOTV'),
+      ensureEngine: vlc.ensureEngine,
+      onBusy: busy => {
+        if (busy && sleepBlock === null) sleepBlock = powerSaveBlocker.start('prevent-app-suspension');
+        else if (!busy && sleepBlock !== null) { powerSaveBlocker.stop(sleepBlock); sleepBlock = null; }
+      },
+      openFile: file => { const exe = vlc.findVlc(); if (exe) require('child_process').spawn(exe, [file], { detached: true, stdio: 'ignore' }).unref(); else shell.openPath(file); },
+      openFolder: dir => shell.openPath(dir),
+    });
     require(path.join(TOOLS, 'share-server.cjs')).start({ log, binDir: path.join(app.getPath('userData'), 'bin') });
     createWindow();
     // Motor AceStream: lo arranca si está instalado y parado

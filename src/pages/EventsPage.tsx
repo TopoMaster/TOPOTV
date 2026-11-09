@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, ExternalLink } from 'lucide-react';
+import { Circle, CalendarDays, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, ExternalLink } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { useNavigate } from 'react-router-dom';
+import { scheduleRecording } from '@/lib/recorder';
+import { useRecorderStore } from '@/store/useRecorderStore';
 import { createShareLink } from '@/lib/share';
 import { useM3UStore } from '@/store/useM3UStore';
 import { usePlayerStore } from '@/store/usePlayerStore';
@@ -9,7 +12,7 @@ import { useCiriacoStore } from '@/store/useCiriacoStore';
 import { LoadingState } from '@/components/shared/States';
 import { ChannelLogo } from '@/components/shared/ChannelLogo';
 import { emoji, sportColor } from '@/lib/sports';
-import { CIRIACO_SOURCE_URL, ELCANO_SOURCE_URL, eventProgress, eventStatus, eventToChannel, linkTag, sortLinks, todayIso, type CiriacoChannel, type CiriacoEvent, type CiriacoStatus } from '@/lib/ciriaco';
+import { CIRIACO_SOURCE_URL, ELCANO_SOURCE_URL, eventDuration, eventProgress, eventStatus, eventToChannel, linkTag, sortLinks, todayIso, type CiriacoChannel, type CiriacoEvent, type CiriacoStatus } from '@/lib/ciriaco';
 
 const ALL = 'all';
 
@@ -85,6 +88,28 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
   const links = useMemo(() => sortLinks(ev.links), [ev]);
   const channel = useMemo(() => eventToChannel(ev, ev.links, backend), [ev, backend]);
   const [shared, setShared] = useState<'idle' | 'busy' | 'ok' | 'err'>('idle');
+  // Grabación programada (solo app de Windows: el grabador local responde en el puerto 3007)
+  const navigate = useNavigate();
+  const recAvailable = useRecorderStore(s => s.available);
+  const recordings = useRecorderStore(s => s.recordings);
+  const refreshRec = useRecorderStore(s => s.refresh);
+  const recKey = `${date} ${ev.time} ${ev.title}`;
+  const existing = recordings.find(r => r.key === recKey && ['scheduled', 'recording', 'done'].includes(r.status));
+  const [recOpen, setRecOpen] = useState(false);
+  const [pre, setPre] = useState(5);
+  const [dur, setDur] = useState(eventDuration(ev.sport) + 20);
+  const [recMsg, setRecMsg] = useState<string | null>(null);
+  const evStart = new Date(`${date}T${ev.time}:00`).getTime();
+  const winStart = evStart - pre * 60000;
+  const winEnd = evStart + dur * 60000;
+  const hhmm = (ms: number) => new Date(ms).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const scheduleIt = async () => {
+    setRecMsg(null);
+    try {
+      await scheduleRecording({ title: ev.title || ev.competition, sport: ev.sport, key: recKey, start: winStart, end: winEnd, hashes: sortLinks(ev.links).map(l => l.hash), host: backend.host, port: backend.port });
+      setRecOpen(false); await refreshRec();
+    } catch (e) { setRecMsg(e instanceof Error ? e.message : String(e)); }
+  };
   const share = async () => {
     setShared('busy');
     try {
@@ -127,6 +152,13 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
               style={{ padding: '8px 16px', background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
               <Play size={13} strokeWidth={2.5} fill="#080a0e" />Ver
             </button>
+            {recAvailable && (
+              <button onClick={() => existing ? navigate('/recordings') : setRecOpen(o => !o)} title={existing ? 'Ver en Grabaciones' : 'Grabar este evento para verlo después'}
+                style={{ padding: '8px 12px', background: existing ? 'rgba(255,77,77,0.12)' : recOpen ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${existing ? 'rgba(255,77,77,0.45)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: existing ? 'var(--live-red)' : 'var(--text-secondary)', fontSize: '0.72rem', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Circle size={10} fill="var(--live-red)" style={{ color: 'var(--live-red)' }} />
+                {existing ? (existing.status === 'done' ? 'Grabado' : existing.status === 'recording' ? 'Grabando' : 'Programada') : 'Grabar'}
+              </button>
+            )}
             {!Capacitor.isNativePlatform() && <button onClick={share} title="Copiar enlace para ver en otro dispositivo (navegador)"
               style={{ padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', color: shared === 'ok' ? 'var(--online-green)' : shared === 'err' ? 'var(--offline-red)' : 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
               {shared === 'ok' ? <Check size={14} /> : shared === 'busy' ? <RefreshCw size={14} className="animate-spin" /> : <Share2 size={14} />}
@@ -138,6 +170,23 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
           </div>
         ) : <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', flexShrink: 0 }}>Sin enlaces</span>}
       </div>
+      {recOpen && !existing && (
+        <div className="fade-in ev-links" style={{ marginTop: 10, padding: '12px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)' }}>
+          <div className="flex flex-wrap items-end gap-3">
+            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Empezar antes (min)
+              <input type="number" min={0} max={60} value={pre} onChange={e => setPre(Math.max(0, Math.min(60, Number(e.target.value) || 0)))} style={{ display: 'block', width: 84, marginTop: 4, padding: '8px 10px', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)' }} />
+            </label>
+            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Duración desde el inicio (min)
+              <input type="number" min={10} max={420} value={dur} onChange={e => setDur(Math.max(10, Math.min(420, Number(e.target.value) || 10)))} style={{ display: 'block', width: 84, marginTop: 4, padding: '8px 10px', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)' }} />
+            </label>
+            <button onClick={scheduleIt} disabled={winEnd <= Date.now()} style={{ minHeight: 40, padding: '0 18px', background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', borderRadius: 100, fontSize: '0.78rem', fontWeight: 700, cursor: winEnd <= Date.now() ? 'not-allowed' : 'pointer', opacity: winEnd <= Date.now() ? 0.5 : 1 }}>Programar grabación</button>
+          </div>
+          <p style={{ marginTop: 8, fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            {winEnd <= Date.now() ? 'Este evento ya terminó.' : `Grabará de ${hhmm(winStart)} a ${hhmm(winEnd)} (la duración del evento es una estimación). El PC debe estar encendido con TOPOTV abierto.`}
+          </p>
+          {recMsg && <p role="alert" style={{ marginTop: 4, fontSize: '0.72rem', color: 'var(--offline-red)' }}>{recMsg}</p>}
+        </div>
+      )}
       {open && (
         <div className="flex flex-wrap gap-2 fade-in ev-links" style={{ marginTop: '10px' }}>
           {channel.streams.map((s, i) => (

@@ -3,7 +3,7 @@
  * (descarga + extracción + normalización + M3U), pero dentro de la propia app.
  * La descarga usa HTTP nativo de Capacitor, que no está sujeto a CORS.
  */
-import { CapacitorHttp } from '@capacitor/core';
+import { CapacitorHttp, registerPlugin } from '@capacitor/core';
 import logoIndex from './channel-logos.json';
 import type { CiriacoData, CiriacoDay, CiriacoLink, CiriacoStatus } from './ciriaco';
 
@@ -155,14 +155,63 @@ export function nativeStatus(): CiriacoStatus {
   return { fetchedAt: c?.fetchedAt ?? null, via: c ? 'directo' : null, fresh: !!c && sameDay(c.fetchedAt), updating: state.updating, phase: state.phase, lastError: state.lastError, warp: { available: false, connected: null, mode: 'off' } };
 }
 
+/** Plugin nativo (AgendaScraperPlugin.java): carga la web en un WebView oculto y ejecuta un script cuando ya se ha dibujado. */
+const AgendaScraper = registerPlugin<{ scrape(o: { url: string; script: string; readySelector: string; timeoutMs: number }): Promise<{ data: string }> }>('AgendaScraper');
+
+/** Mismo recorrido que extractAgenda(), en JavaScript plano para ejecutarlo dentro de la página. */
+const IN_PAGE_SCRIPT = String.raw`(function(){
+var cl=function(s){return (s||'').replace(/\s+/g,' ').trim();};
+var days=[],cur=null;
+var els=document.querySelectorAll('h2.fecha, table.tabla-eventos');
+for(var i=0;i<els.length;i++){var el=els[i];
+if(el.tagName==='H2'){var m=cl(el.textContent).match(/(\d{2})\/(\d{2})\/(\d{4})/);cur={date:m?m[3]+'-'+m[2]+'-'+m[1]:'',label:cl(el.textContent),events:[]};days.push(cur);continue;}
+if(!cur)continue;
+var body=el.tBodies[0];var rows=body?body.rows:[];
+for(var j=0;j<rows.length;j++){var tr=rows[j];
+var c=function(k){return tr.querySelector('td[data-label="'+k+'"]');};
+var time=cl((c('Hora')||{}).textContent);
+if(!/^\d{1,2}:\d{2}$/.test(time))continue;
+var comp=c('Competición');var clone=comp?comp.cloneNode(true):null;
+var ronda=clone?clone.querySelector('.ronda'):null;var round=cl(ronda?ronda.textContent:'');
+if(ronda)ronda.remove();
+var fm=comp?comp.querySelector('[class*="flag-icon-"]'):null;var fc=fm?fm.className.match(/flag-icon-([a-z-]+)/):null;
+var evCell=c('Evento'),chCell=c('Canales'),dep=c('Deporte');
+var depEl=dep?dep.querySelector('.deporte'):null;
+var imgs=evCell?evCell.querySelectorAll('img'):[];var logos=[];for(var k=0;k<imgs.length;k++){if(imgs[k].src)logos.push(imgs[k].src);}
+var links=[];var as=chCell?chCell.querySelectorAll('a[href^="acestream://"]'):[];for(k=0;k<as.length;k++){links.push({href:as[k].getAttribute('href'),text:cl(as[k].textContent)});}
+var span=chCell?chCell.querySelector('span'):null;
+cur.events.push({time:time,round:round,flag:fc?fc[1]:'',sport:cl(depEl?depEl.textContent:(dep?dep.textContent:'')),competition:cl(clone?clone.textContent:''),title:cl(evCell?evCell.textContent:''),logos:logos,channelsText:cl(span?span.textContent:''),links:links});
+}}
+return JSON.stringify(days);
+})()`;
+
+async function readAgenda(): Promise<RawDay[]> {
+  // 1) WebView oculto: la tabla de Ciriaco se dibuja con JavaScript, igual que en Windows
+  let webError = '';
+  try {
+    const res = await AgendaScraper.scrape({ url: SOURCE, script: IN_PAGE_SCRIPT, readySelector: 'table.tabla-eventos tbody tr', timeoutMs: 45000 });
+    const raw = JSON.parse(JSON.parse(res.data)) as RawDay[];
+    if (raw.some(d => d.events.length)) return raw;
+    webError = 'La página cargó pero sin eventos.';
+  } catch (e) { webError = e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e); }
+  // 2) Descarga directa del HTML (por si la web llegara a servir las tablas ya hechas)
+  try {
+    const res = await CapacitorHttp.get({ url: SOURCE, headers: { Accept: 'text/html' }, connectTimeout: 20000, readTimeout: 30000, responseType: 'text' });
+    if (res.status >= 200 && res.status < 300) {
+      const raw = extractAgenda(new DOMParser().parseFromString(String(res.data), 'text/html'));
+      if (raw.some(d => d.events.length)) return raw;
+    }
+  } catch { /* se informa abajo */ }
+  const blocked = /TIMEOUT|NETWORK/.test(webError);
+  throw new Error(blocked
+    ? 'No se pudo abrir Ciriaco (tu red puede estar bloqueándolo). Activa una VPN, pulsa Actualizar y desactívala después.'
+    : 'No se encontraron eventos en la página de Ciriaco (puede haber cambiado de formato).');
+}
+
 export async function nativeScrape(): Promise<CiriacoData> {
   state.updating = true; state.phase = 'Leyendo Ciriaco…'; state.lastError = '';
   try {
-    const res = await CapacitorHttp.get({ url: SOURCE, headers: { Accept: 'text/html' }, connectTimeout: 20000, readTimeout: 30000, responseType: 'text' });
-    if (res.status < 200 || res.status >= 300) throw new Error(`Ciriaco respondió HTTP ${res.status}. Si tu red lo bloquea, prueba con una VPN.`);
-    const doc = new DOMParser().parseFromString(String(res.data), 'text/html');
-    const raw = extractAgenda(doc);
-    if (!raw.some(d => d.events.length)) throw new Error('No se encontraron eventos en la página de Ciriaco (puede haber cambiado o estar bloqueada).');
+    const raw = await readAgenda();
     const { days, channels } = normalizeAgenda(raw);
     const fetchedAt = new Date().toISOString();
     const data: CiriacoData = { source: SOURCE, fetchedAt, via: 'directo', days, channels, status: { ...nativeStatus(), fetchedAt, fresh: true, updating: false } };

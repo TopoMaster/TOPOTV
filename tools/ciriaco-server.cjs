@@ -9,10 +9,10 @@
  *   GET  /api/ciriaco/playlist.m3u     -> M3U de todos los canales (?host=127.0.0.1&port=6878)
  *
  * Actualización: UNA vez al día (al arrancar si la caché es de otro día, y a partir de las 05:00).
- * Red: intenta directo; si Ciriaco no carga y hay Cloudflare WARP (warp-cli), lo conecta SOLO
+ * Red: con Cloudflare WARP (warp-cli) instalado lo conecta SIEMPRE para actualizar y lo desconecta al terminar (modo auto: prueba directo primero y WARP si falla; lo conecta SOLO
  * durante la actualización y lo desconecta después. Así AceStream/VLC nunca van por WARP.
  *
- * Variables: CIRIACO_WARP=auto|always|off (def. auto) · CIRIACO_PROXY=socks5://... (proxy manual) ·
+ * Variables: CIRIACO_WARP=always|auto|off (def. always) · CIRIACO_PROXY=socks5://... (proxy manual) ·
  *            WARP_CLI=ruta\warp-cli.exe · CIRIACO_PORT
  */
 const http = require('http');
@@ -24,7 +24,7 @@ const { canon, clean, logoFor } = require('./channel-logos.cjs');
 const SOURCE = 'https://ciriaco.netlify.app/';
 const PORT = Number(process.env.CIRIACO_PORT || 3004);
 const PROXY = process.env.CIRIACO_PROXY || '';
-const WARP_MODE = (process.env.CIRIACO_WARP || 'auto').toLowerCase();
+const WARP_MODE = (process.env.CIRIACO_WARP || 'always').toLowerCase();
 const TRUSTED_WARP_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1):(5173|5174)$/;
 let CACHE_FILE = path.join(__dirname, '.ciriaco-cache.json');
 const DAILY_HOUR = 5;
@@ -225,6 +225,18 @@ async function scrapeSmart() {
     try { phase = 'Leyendo Ciriaco…'; return { ...(await scrapeOnce('', 20000)), via: 'directo' }; }
     catch (e) { if (WARP_MODE === 'off' || !WARP_CLI) throw new Error(`Ciriaco no carga${WARP_CLI ? '' : ' y no se encontró warp-cli'} (${e.message.split('\n')[0]})`); log('directo falló, probando WARP:', e.message.split('\n')[0]); }
   }
+  // Con WARP: se conecta solo para leer la agenda y se desconecta siempre al terminar.
+  // Si WARP no se puede usar (servicio parado, sin registro...), se intenta una última vez en directo.
+  try {
+    return await scrapeViaWarp();
+  } catch (warpError) {
+    log('WARP falló, probando en directo:', warpError.message.split('\n')[0]);
+    try { phase = 'Leyendo Ciriaco…'; return { ...(await scrapeOnce('', 20000)), via: 'directo' }; }
+    catch { throw new Error(`No se pudo actualizar con WARP (${warpError.message.split('\n')[0]}) ni en directo.`); }
+  }
+}
+
+async function scrapeViaWarp() {
   const wasOn = await warpConnected();
   warpConnectedState = wasOn;
   try {
@@ -241,10 +253,12 @@ async function scrapeSmart() {
   } finally {
     if (!wasOn) {
       phase = 'Desconectando WARP…';
-      await runWarpCommand('disconnect');
-      const disconnected = await waitWarp(false, 10000);
-      warpConnectedState = disconnected ? false : await warpConnected();
-      log(disconnected ? 'WARP desconectado' : 'no se pudo confirmar la desconexión de WARP');
+      try {
+        await runWarpCommand('disconnect');
+        const disconnected = await waitWarp(false, 10000);
+        warpConnectedState = disconnected ? false : await warpConnected();
+        log(disconnected ? 'WARP desconectado' : 'no se pudo confirmar la desconexión de WARP');
+      } catch (e) { log('no se pudo desconectar WARP:', e.message.split('\n')[0]); warpConnectedState = null; }
     }
   }
 }

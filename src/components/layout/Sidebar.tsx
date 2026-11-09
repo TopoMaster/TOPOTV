@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home,Search,Settings,Tv,LayoutGrid,ChevronLeft,ChevronRight,Heart,Activity,Shield,Power,Trophy } from 'lucide-react';
+import { Home,Search,Settings,Tv,LayoutGrid,CircleDot,ChevronLeft,ChevronRight,Heart,Activity,Shield,Power,Trophy } from 'lucide-react';
 import { LogoMark, LogoWord } from '@/components/brand/Logo';
 import { useUIStore } from '@/store/useUIStore';
 import { useM3UStore } from '@/store/useM3UStore';
@@ -12,6 +12,7 @@ const TOP_NAV: {to:string;icon:React.ElementType;label:string;badge:boolean;cls?
   {to:'/categories',icon:LayoutGrid,label:'Canales',badge:false,cls:'nav-mobile-only'},
   {to:'/favorites',icon:Heart,label:'Favoritos',badge:true},
   {to:'/events',icon:Activity,label:'Eventos',badge:false},
+  {to:'/recordings',icon:CircleDot,label:'Grabaciones',badge:false,cls:'nav-desktop-only'},
   {to:'/flashscore',icon:Trophy,label:'Flashscore',badge:false,cls:'nav-desktop-only'},
   {to:'/checker',icon:Shield,label:'Checker',badge:false,cls:'nav-desktop-only'},
   {to:'/search',icon:Search,label:'Buscar',badge:false,cls:'nav-desktop-only'},
@@ -35,7 +36,7 @@ export function Sidebar() {
         {sidebarOpen&&<span className="fade-in"><LogoWord /></span>}
       </div>
       <nav className="px-2 pt-3 flex flex-col gap-0.5">
-        {TOP_NAV.map(({to,icon:Icon,label,badge,cls})=>(
+        {TOP_NAV.filter(({to})=>!isNativeApp||to!=='/recordings').map(({to,icon:Icon,label,badge,cls})=>(
           <NavLink key={to} to={to} end={to==='/'} className={({isActive})=>`nav-item ${isActive?'active':''} ${cls??''}`} title={!sidebarOpen?label:undefined}>
             <div className="relative shrink-0">
               <Icon size={18} strokeWidth={1.8} />

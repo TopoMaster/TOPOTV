@@ -10,10 +10,12 @@ Proyecto: `c:\Users\Usuario\Desktop\TOPOCODE\topotv-proyecto` · repo `TopoMaste
 ## Cómo está montado
 
 - **Web (React 19 + Vite + zustand + Tailwind)** en `src/`. Se compila con `npm run build` (`tsc -b && vite build`).
-- **Windows**: Electron en `desktop/`. Arranca servicios locales: web 5174, **Ciriaco 3004** (`desktop/tools/ciriaco-server.cjs`, lee la agenda y gestiona **WARP**), VLC helper 3002, enlaces compartidos 3005/3006.
+- **Windows**: Electron en `desktop/`. Arranca servicios locales: web 5174, **Ciriaco 3004** (`tools/ciriaco-server.cjs`, lee la agenda y gestiona **WARP**), VLC helper 3002, enlaces compartidos 3005/3006.
 - **Android**: Capacitor 8 en `android/`. No hay servidores locales, así que `src/lib/ciriacoNative.ts` (agenda Ciriaco) y `src/lib/epgNative.ts` (EPG XMLTV) hacen dentro del móvil lo que en Windows hacen los servidores. VLC se abre con el plugin nativo `android/app/src/main/java/tv/topo/topotv/ExternalPlayerPlugin.java` (envoltorio en `src/lib/externalPlayer.ts`).
 - **Listas de canales**: `withDefaultSources()` en `src/lib/ciriaco.ts` carga siempre Elcano (categorías) + URLs del usuario + Ciriaco al final. `mergeM3ULists()` en `src/lib/m3uParser.ts` las fusiona por categorías: un canal de Ciriaco que ya existe suma enlaces; si no existe va a su categoría por palabras del nombre (`CATEGORY_RULES`, por defecto "DEPORTES"). No debe existir un grupo "TOPOTV".
 - **WARP**: en Windows, `CIRIACO_WARP` por defecto `always`: se conecta para actualizar y se desconecta al terminar, para que la reproducción vaya sin VPN. En Android no hay WARP: el usuario activa su VPN.
+- **Grabaciones (solo Windows)**: `tools/recorder.cjs` (puerto 3007) programa y graba el stream del motor AceStream en .ts (carpeta Vídeos/TOPOTV); cliente en `src/lib/recorder.ts`, página `RecordingsPage.tsx`, botón Grabar en `EventRow`. Prueba aislada: motor falso + `recorder.cjs` con `RECORDER_PORT` distinto.
+- **Android y la agenda**: la web de Ciriaco dibuja la tabla con JavaScript, así que la APK usa un WebView oculto (`AgendaScraperPlugin.java`) y, si falla, descarga HTML directa. El script que se ejecuta en la página (`IN_PAGE_SCRIPT`) se puede validar en Chromium headless con una página que dibuje la tabla.
 - Guía TV fue eliminada a petición de Alvaro (`/tv-guide` redirige a Eventos). No la reintroduzcas.
 - Marca: logo de topo (`public/favicon.svg`, `src/components/brand/Logo.tsx`, iconos Android en `res/mipmap-*`, `desktop/build/icon.png|ico`). Paleta oscura con acento dorado (`src/index.css`).
 
@@ -32,6 +34,7 @@ Proyecto: `c:\Users\Usuario\Desktop\TOPOCODE\topotv-proyecto` · repo `TopoMaste
 
 ## Trampas que ya nos han mordido
 
+- **Los servidores de escritorio se editan en `tools/` (raíz), NUNCA en `desktop/tools/`**: esa carpeta está en .gitignore y la regenera `desktop/scripts/prepare.cjs` copiando una lista fija de archivos. Si añades un archivo nuevo a `tools/`, añádelo también a esa lista. (En v1.0.4 se editó la copia ignorada y el WARP automático no llegó a la release; se corrigió en v1.0.5.) Antes de publicar, comprueba con `git status` que los archivos tocados aparecen.
 - **Scripts con barras invertidas o regex por heredoc de Bash**: la herramienta los corrompe (`\b` se convierte en carácter de retroceso, `\\` se pierde). Escribe esos scripts con la herramienta Write y ejecútalos con `node`. Después de editar regex, comprueba que no hay caracteres `\x08` en `src/`.
 - **No hay Python** en la máquina. Usa Node.
 - **gh no está autenticado**; `git push` sí funciona. Para consultar GitHub usa la API pública con `curl` y **sin sondear en bucle rápido**: el límite sin autenticar se agota (devuelve "rate limit exceeded"). Espera con `sleep 45` o más.
@@ -56,4 +59,4 @@ Anota siempre en la respuesta final qué NO se ha probado en dispositivo real. P
 
 ## Ideas ya valoradas (no implementadas)
 
-- **Grabación programada de eventos**: viable solo en Windows (grabar el stream HTTP del motor AceStream a `.ts` a la hora del evento, con margen antes y después, lista de grabaciones y apertura en VLC). En Android no se recomienda. Pendiente de que Alvaro lo confirme.
+- **Grabación en Android**: no se recomienda (Android mata las apps en segundo plano). Si se pide, grabar en el PC y ver desde el móvil con el servidor de enlaces compartidos.

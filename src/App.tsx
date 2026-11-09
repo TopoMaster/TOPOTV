@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { AppShell } from '@/components/layout/AppShell';
 import { ChannelsPage } from '@/pages/ChannelsPage';
+import { RecordingsPage } from '@/pages/RecordingsPage';
+import { useRecorderStore } from '@/store/useRecorderStore';
 import { HomePage } from '@/pages/HomePage';
 import { CategoryPage } from '@/pages/CategoryPage';
 import { ChannelPage } from '@/pages/ChannelPage';
@@ -54,6 +56,15 @@ function BackgroundPreloader() {
     const interval = setInterval(syncCiriacoStatus, 10000);
     return () => clearInterval(interval);
   }, [syncCiriacoStatus]);
+
+  // Estado del grabador de escritorio (botón «Grabar» en Eventos)
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
+    const refresh = useRecorderStore.getState().refresh;
+    void refresh();
+    const interval = setInterval(refresh, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Al arrancar: Elcano + listas del usuario + agenda de Ciriaco, fusionadas por categorías.
   useEffect(() => {
@@ -137,6 +148,7 @@ export default function App() {
           <Route path="/tv-guide" element={<Navigate to="/events" replace />} />
           <Route path="/epg-xmltv" element={<TVGuidePage />} />
           <Route path="/events" element={<EventsPage />} />
+          {!isNativeApp&&<Route path="/recordings" element={<RecordingsPage />} />}
           <Route path="/scores" element={<EventsPage />} />
           <Route path="/flashscore" element={<FlashscorePage />} />
           <Route path="/checker"        element={<CheckerPage />} />
