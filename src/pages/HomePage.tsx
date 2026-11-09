@@ -44,9 +44,9 @@ export function HomePage() {
   const historyChannels = historyEntries.map(e=>e.channel);
   return (
     <div className="fade-in" style={{paddingBottom:'40px'}}>
+      <TeamsToday />
       <ContinueWatching />
       <LiveRail />
-      <TeamsToday />
       <FeaturedBanner groups={groups} />
       <QuickRow title="Favoritos" icon={Heart} channels={favChannels} accentColor="var(--accent)" />
       <QuickRow title="Recientes" icon={Clock} channels={historyChannels} accentColor="var(--text-secondary)" />

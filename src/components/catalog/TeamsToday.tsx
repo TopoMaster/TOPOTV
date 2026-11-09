@@ -13,7 +13,7 @@ export function TeamsToday() {
   const items = myEventsToday(data, teams);
   if (!data || !items.length) return null;
   return (
-    <section className="slide-up" style={{ marginBottom: 32 }}>
+    <section className="slide-up" style={{ marginTop: 20, marginBottom: 12 }}>
       <div className="flex items-center justify-between px-6 mb-4">
         <div className="flex items-center gap-2">
           <Star size={16} strokeWidth={1.8} fill="var(--accent)" style={{ color: 'var(--accent)' }} />

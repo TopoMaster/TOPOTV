@@ -124,6 +124,9 @@
     line-height:1.1;
   }
   .nav-desktop-only { display:none !important; }
+  .topbar-count, .topbar-load-label { display:none !important; }
+  .app-sidebar > nav { flex:5 1 0 !important; }
+  .app-sidebar > div:last-child { flex:1 1 0 !important; }
   .app-sidebar > div.px-4 { display:none !important; }
   .page-pad aside[role="note"] { padding:10px 12px !important; margin-bottom:10px !important; }
   .page-pad aside[role="note"] p { font-size:0.7rem !important; }

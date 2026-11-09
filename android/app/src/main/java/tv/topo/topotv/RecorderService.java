@@ -39,6 +39,7 @@ public class RecorderService extends Service {
     static final String EXTRA_ID = "id";
     static final String ACTION_STOP = "tv.topo.topotv.REC_STOP";
     private static final String CHANNEL = "topotv_recording";
+    private static final String CHANNEL_DONE = "topotv_recording_done";
     private static final int NOTIF_ID = 4107;
     private static final int FIRST_DATA_MS = 60000;
     private static final int PROBE_MS = 25000;                    // espera de datos de cada enlace al comprobarlo
@@ -84,6 +85,24 @@ public class RecorderService extends Service {
         else startForeground(NOTIF_ID, n);
     }
 
+    /** Aviso al terminar: «Grabación lista» o el motivo del fallo (no avisa si la paró el usuario sin datos). */
+    private void notifyFinished(String title, boolean ok, long bytes, String error) {
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+            if (Build.VERSION.SDK_INT >= 26) nm.createNotificationChannel(new NotificationChannel(CHANNEL_DONE, "Grabaciones terminadas", NotificationManager.IMPORTANCE_DEFAULT));
+            Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            PendingIntent pi = open == null ? null : PendingIntent.getActivity(this, 1, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+            Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL_DONE) : new Notification.Builder(this);
+            String detail = ok ? title + " · " + Math.max(1, bytes / (1024 * 1024)) + " MB" + (error.isEmpty() ? "" : " (" + error + ")") : title + ": " + (error.isEmpty() ? "no llegaron datos del motor" : error);
+            b.setContentTitle(ok ? "Grabación lista" : "No se pudo grabar").setContentText(detail)
+                .setStyle(new Notification.BigTextStyle().bigText(detail))
+                .setSmallIcon(ok ? android.R.drawable.stat_sys_download_done : android.R.drawable.stat_notify_error).setAutoCancel(true);
+            if (pi != null) b.setContentIntent(pi);
+            nm.notify((int) (System.currentTimeMillis() / 1000), b.build());
+        } catch (Exception ignored) { /* sin permiso de notificaciones: el aviso no sale */ }
+    }
+
     static boolean isRunning(String id) { return RUNNING.containsKey(id); }
 
     static boolean anyRunning() { return !RUNNING.isEmpty(); }
@@ -124,6 +143,7 @@ public class RecorderService extends Service {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             PowerManager.WakeLock lock = pm == null ? null : pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "topotv:rec");
             if (lock != null) lock.acquire(9 * 3600 * 1000L);
+            String title = "TOPOTV";
             Uri uri = null;
             File file = null;
             OutputStream out = null;
@@ -132,6 +152,7 @@ public class RecorderService extends Service {
             try {
                 JSONObject rec = RecordingStore.find(RecorderService.this, id);
                 if (rec == null) return;
+                title = rec.optString("title", "TOPOTV");
                 long end = rec.optLong("end");
                 String host = rec.optString("host", "127.0.0.1");
                 int port = rec.optInt("port", 6878);
@@ -235,6 +256,7 @@ public class RecorderService extends Service {
                         }
                     }
                     RecordingStore.update(RecorderService.this, id, p);
+                    if (bytes > 0 || !byUser) notifyFinished(title, bytes > 0, bytes, error);
                 } catch (Exception ignored) { }
                 if (lock != null && lock.isHeld()) lock.release();
                 RUNNING.remove(id);

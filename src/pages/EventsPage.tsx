@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Circle, CalendarDays, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, ExternalLink, Bell, BellRing, Star } from 'lucide-react';
+import { Circle, CalendarDays, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, ExternalLink, Bell, BellRing, Star, X, SlidersHorizontal } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useNavigate } from 'react-router-dom';
 import { BYTES_PER_HOUR, formatBytes, scheduleRecording } from '@/lib/recorder';
@@ -47,6 +47,8 @@ function UpdateControl() {
 }
 
 function CiriacoAccessNotice() {
+  const [closed, setClosed] = useState(() => { try { return localStorage.getItem('topotv-vpn-notice') === '1'; } catch { return false; } });
+  if (closed) return null;
   const sourceLinkStyle = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -78,9 +80,17 @@ function CiriacoAccessNotice() {
         <a href={ELCANO_SOURCE_URL} target="_blank" rel="noopener noreferrer" style={sourceLinkStyle}>
           Elcano <ExternalLink size={12} />
         </a>
+        <button onClick={() => { setClosed(true); try { localStorage.setItem('topotv-vpn-notice', '1'); } catch { /* sin almacenamiento */ } }} aria-label="Entendido, no volver a mostrar" title="Entendido, no volver a mostrar" style={{ ...sourceLinkStyle, cursor: 'pointer', background: 'none' }}>Entendido <X size={12} /></button>
       </div>
     </aside>
   );
+}
+
+/** «Hoy · lun, 9 nov»: más corto que la etiqueta del servidor, para que quepan los días en el móvil. */
+function dayLabel(d: { date: string; label: string }) {
+  const dt = new Date(`${d.date}T12:00:00`);
+  if (isNaN(dt.getTime())) return d.label;
+  return (d.date === todayIso() ? 'Hoy · ' : '') + dt.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: string; channels: Record<string, CiriacoChannel> }) {
@@ -121,6 +131,7 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
   const scheduleIt = async () => {
     setRecMsg(null);
     try {
+      if (Capacitor.isNativePlatform()) await ensureNotifyPermission();   // Android 13+: sin permiso no salen los avisos de grabación
       await scheduleRecording({ title: ev.title || ev.competition, sport: ev.sport, key: recKey, start: winStart, end: winEnd, hashes: sortLinks(ev.links).map(l => l.hash), host: backend.host, port: backend.port });
       setRecOpen(false); await refreshRec();
     } catch (e) { setRecMsg(e instanceof Error ? e.message : String(e)); }
@@ -242,6 +253,8 @@ export function EventsPage() {
   const [query, setQuery] = useState('');
   const [onlyLinks, setOnlyLinks] = useState(false);
   const [onlyMine, setOnlyMine] = useState(false);
+  // en el móvil los filtros empiezan plegados para ver antes los partidos
+  const [showFilters, setShowFilters] = useState(() => typeof window === 'undefined' || window.innerWidth > 700);
   const favTeams = useSettingsStore(s => s.favTeams);
 
   useEffect(() => { if (!useCiriacoStore.getState().data) load(); }, [load]);
@@ -258,6 +271,7 @@ export function EventsPage() {
       (sport === ALL || e.sport === sport) && (!onlyLinks || e.links.length > 0) && (!onlyMine || isMyEvent(e, favTeams)) &&
       (!q || matchScore(q, `${e.title} ${e.competition} ${e.channelKeys.map(k => channels[k]?.name ?? k).join(' ')}`) > 0)),
   })).filter(d => d.events.length), [visibleDays, sport, onlyLinks, onlyMine, favTeams, q, channels]);
+  const activeFilters = (sport !== ALL ? 1 : 0) + (onlyLinks ? 1 : 0) + (onlyMine ? 1 : 0);
   const total = filtered.reduce((n, d) => n + d.events.length, 0);
 
   const pill = (active: boolean) => ({ padding: '7px 16px', background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: '100px', color: active ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: active ? 600 : 400, cursor: 'pointer' as const, whiteSpace: 'nowrap' as const, flexShrink: 0 });
@@ -292,7 +306,7 @@ export function EventsPage() {
         <>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <button onClick={() => { setDay(ALL); setSport(ALL); }} style={pill(day === ALL)}>Todos los días</button>
-            {data.days.map(d => <button key={d.date} onClick={() => { setDay(d.date); setSport(ALL); }} style={pill(day === d.date)}>{d.label} <span style={{ opacity: 0.6 }}>({d.events.length})</span></button>)}
+            {data.days.map(d => <button key={d.date} onClick={() => { setDay(d.date); setSport(ALL); }} style={pill(day === d.date)}>{dayLabel(d)} <span style={{ opacity: 0.6 }}>({d.events.length})</span></button>)}
           </div>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <div className="flex items-center gap-2" style={{ flex: '1 1 220px', padding: '7px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: '100px' }}>
@@ -300,12 +314,19 @@ export function EventsPage() {
               <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar equipo, competición o canal"
                 style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '0.78rem' }} />
             </div>
-            <button onClick={() => setOnlyLinks(v => !v)} style={pill(onlyLinks)}>Solo con enlaces</button>
-            {favTeams.length > 0 && <button onClick={() => setOnlyMine(v => !v)} style={pill(onlyMine)}>★ Mis equipos</button>}
+            <button onClick={() => setShowFilters(v => !v)} aria-expanded={showFilters} className="flex items-center gap-1.5" style={pill(showFilters || activeFilters > 0)}><SlidersHorizontal size={13} />Filtros{activeFilters > 0 ? ` (${activeFilters})` : ''}</button>
           </div>
-          <div className="scroll-x mb-5">
-            {sports.map(s => <button key={s} onClick={() => setSport(s)} style={pill(sport === s)}>{s === ALL ? 'Todos los deportes' : `${emoji(s)} ${s}`}</button>)}
-          </div>
+          {showFilters ? (
+            <div className="fade-in">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <button onClick={() => setOnlyLinks(v => !v)} style={pill(onlyLinks)}>Solo con enlaces</button>
+                {favTeams.length > 0 && <button onClick={() => setOnlyMine(v => !v)} style={pill(onlyMine)}>★ Mis equipos</button>}
+              </div>
+              <div className="scroll-x mb-5">
+                {sports.map(s => <button key={s} onClick={() => setSport(s)} style={pill(sport === s)}>{s === ALL ? 'Todos los deportes' : `${emoji(s)} ${s}`}</button>)}
+              </div>
+            </div>
+          ) : <div className="mb-2" />}
           <div className="flex flex-col gap-5">
             {filtered.map(d => (
               <section key={d.date}>

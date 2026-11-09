@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
+import { useUIStore } from '@/store/useUIStore';
 import { usePlayerStore } from '@/store/usePlayerStore';
 
 type Dir = 'left' | 'right' | 'up' | 'down';
@@ -65,6 +68,18 @@ export function InputControls() {
     };
     window.addEventListener('keydown', onKey);
 
+    // Android: el botón atrás cierra lo que esté abierto (guía, reproductor), luego vuelve a la pantalla anterior y, en Inicio, sale
+    let cancelled = false;
+    let backHandle: { remove: () => Promise<void> } | null = null;
+    if (Capacitor.isNativePlatform()) {
+      void CapApp.addListener('backButton', () => {
+        if (useUIStore.getState().onboardingOpen) { useUIStore.getState().setOnboardingOpen(false); return; }
+        if (usePlayerStore.getState().status !== 'idle') { usePlayerStore.getState().stop(); return; }
+        if (window.location.pathname !== '/') navigate(-1);
+        else void CapApp.exitApp();
+      }).then(h => { if (cancelled) void h.remove(); else backHandle = h; });
+    }
+
     // Mando (Gamepad API): sondeo ligero solo mientras hay uno conectado
     let raf = 0, last = 0, prevA = false, prevB = false, prevY = false;
     const loop = () => {
@@ -92,7 +107,7 @@ export function InputControls() {
     window.addEventListener('gamepadconnected', start);
     window.addEventListener('gamepaddisconnected', stop);
     if (Array.from(navigator.getGamepads?.() ?? []).some(Boolean)) start();
-    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('gamepadconnected', start); window.removeEventListener('gamepaddisconnected', stop); stop(); };
+    return () => { cancelled = true; void backHandle?.remove(); window.removeEventListener('keydown', onKey); window.removeEventListener('gamepadconnected', start); window.removeEventListener('gamepaddisconnected', stop); stop(); };
   }, [navigate, location.pathname]);
   return null;
 }
