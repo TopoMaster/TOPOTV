@@ -35,6 +35,7 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 - TDT en abierto (RTVE y televisiones autonómicas con emisión oficial gratuita), sin necesidad del motor AceStream.
 - Guía interactiva en el primer arranque (se puede repetir desde Ajustes).
 - Modo TV (Ajustes): interfaz grande y manejable con mando; automático en Android TV.
+- Motor AceStream en Android: TOPOTV detecta la app del motor (Ace Serve, Ace Stream Media…), la abre al entrar si lo activas y espera a que arranque (el motor no se incluye en TOPOTV).
 - WARP integrado en Android: se conecta solo al actualizar la agenda y se apaga al terminar (solo para el tráfico de TOPOTV).
 - Interfaz compatible con Android TV y adaptada a móvil.
 

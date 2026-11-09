@@ -50,6 +50,12 @@
     <queries>
         <package android:name="org.videolan.vlc" />
         <package android:name="org.videolan.vlc.betav7neon" />
+        <package android:name="org.free.aceserve" />
+        <package android:name="org.acestream.media" />
+        <package android:name="org.acestream.media.atv" />
+        <package android:name="org.acestream.core" />
+        <package android:name="org.acestream.core.atv" />
+        <package android:name="org.acestream.engine" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="video/*" />

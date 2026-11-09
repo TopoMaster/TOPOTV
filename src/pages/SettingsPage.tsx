@@ -5,6 +5,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useM3UStore } from '@/store/useM3UStore';
 import { useUIStore } from '@/store/useUIStore';
 import { warpDown, warpState, warpUp } from '@/lib/warpAndroid';
+import { ENGINE_STORE_URL, findEngineApp, openEngineAppSettings, startEngineApp, type EngineApp } from '@/lib/engineAndroid';
 import { withDefaultSources } from '@/lib/ciriaco';
 import { useEPGStore } from '@/store/useEPGStore';
 import { shareStatus, tunnelStart, tunnelStop, shareRevoke, type ShareStatus } from '@/lib/share';
@@ -325,6 +326,48 @@ function InterfaceSection() {
   );
 }
 
+function EngineAndroidSection() {
+  const { backendConfig, backendStatus, checkBackend, engineAutoStart, setEngineAutoStart } = useSettingsStore();
+  const [app, setApp] = useState<EngineApp | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { void findEngineApp().then(setApp); void checkBackend(); }, [checkBackend]);
+  const online = backendStatus === 'online';
+  const opt = (active: boolean) => ({ flex: '1 1 110px', minHeight: 44, padding: '8px 12px', cursor: 'pointer', background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: active ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: active ? 700 : 500 } as const);
+  async function turnOn() {
+    setBusy(true); setMsg('');
+    const r = await startEngineApp(backendConfig);
+    if (!r.ok && r.error) setMsg(r.error);
+    await checkBackend(); setBusy(false);
+  }
+  return (
+    <section className="mb-8">
+      <SLabel icon={Server} label="Motor AceStream" />
+      <Card>
+        <div className="flex items-center gap-2 mb-3">
+          <span className={`status-dot ${backendStatus}`} />
+          <strong style={{ fontSize: '0.85rem' }}>{online ? 'Motor en marcha' : backendStatus === 'offline' ? 'Motor apagado' : 'Comprobando…'}</strong>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{app === undefined ? '' : app ? `· ${app.name}` : '· no hay ninguna app con motor instalada'}</span>
+        </div>
+        <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 12 }}>
+          El motor AceStream es software propietario y vive en su propia app (por ejemplo Ace Serve o Ace Stream Media): TOPOTV no puede llevarlo dentro. Lo que sí hace es encontrarlo, abrirlo por ti y esperar a que arranque. Para apagarlo, Android solo deja cerrarlo desde la información de la app («Forzar detención»).
+        </p>
+        <div className="flex gap-2 flex-wrap mb-3">
+          <button style={opt(false)} onClick={turnOn} disabled={busy || online || !app}>{busy ? 'Encendiendo…' : online ? 'Ya está encendido' : 'Encender motor'}</button>
+          {app && <button style={opt(false)} onClick={() => openEngineAppSettings(app)}>Apagar (Ajustes de Android)</button>}
+          {app === null && <a href={ENGINE_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ ...opt(false), display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>Instalar Ace Stream Media</a>}
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <button style={opt(engineAutoStart)} onClick={() => setEngineAutoStart(true)}>Encender al abrir TOPOTV</button>
+          <button style={opt(!engineAutoStart)} onClick={() => setEngineAutoStart(false)}>Solo a mano</button>
+        </div>
+        <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.5, marginTop: 10 }}>Al encenderlo automáticamente verás la app del motor un instante; vuelve a TOPOTV con «Atrás».</p>
+        {msg && <p role="alert" style={{ fontSize: '0.74rem', color: 'var(--offline-red)', marginTop: 8 }}>{msg}</p>}
+      </Card>
+    </section>
+  );
+}
+
 function WarpAndroidSection() {
   const { warpAuto, setWarpAuto } = useSettingsStore();
   const [state, setState] = useState<'idle' | 'busy' | 'ok' | 'error'>('idle');
@@ -369,6 +412,7 @@ export function SettingsPage() {
       {!isNativeApp&&<DevicesSection />}
       {!isNativeApp&&<ShareSection />}
       <InterfaceSection />
+      {isNativeApp&&<EngineAndroidSection />}
       {isNativeApp&&<WarpAndroidSection />}
       <BackendSection />
       <PlayerSection />

@@ -7,6 +7,7 @@ import android.content.res.Configuration;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.provider.Settings;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -43,6 +44,44 @@ public class ExternalPlayerPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("tv", tv);
         call.resolve(ret);
+    }
+
+    /** Abre otra app (p. ej. la que lleva el motor AceStream) desde TOPOTV. */
+    @PluginMethod
+    public void launchApp(PluginCall call) {
+        String pkg = call.getString("package");
+        Intent launch = pkg == null ? null : getContext().getPackageManager().getLaunchIntentForPackage(pkg);
+        if (launch == null) {
+            call.reject("NOT_INSTALLED");
+            return;
+        }
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            getContext().startActivity(launch);
+            JSObject ret = new JSObject();
+            ret.put("launched", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("No se pudo abrir la app: " + e.getMessage());
+        }
+    }
+
+    /** Pantalla de información de una app en Android (desde ahí se puede forzar su cierre). */
+    @PluginMethod
+    public void openAppSettings(PluginCall call) {
+        String pkg = call.getString("package");
+        if (pkg == null) {
+            call.reject("Falta el paquete.");
+            return;
+        }
+        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + pkg));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("No se pudo abrir los ajustes: " + e.getMessage());
+        }
     }
 
     private Intent viewIntent(String url, String title) {

@@ -6,6 +6,7 @@ import { ChannelsPage } from '@/pages/ChannelsPage';
 import { RecordingsPage } from '@/pages/RecordingsPage';
 import { Onboarding } from '@/components/shared/Onboarding';
 import { isAndroidTv } from '@/lib/externalPlayer';
+import { startEngineApp } from '@/lib/engineAndroid';
 import { useRecorderStore } from '@/store/useRecorderStore';
 import { HomePage } from '@/pages/HomePage';
 import { CategoryPage } from '@/pages/CategoryPage';
@@ -67,6 +68,13 @@ function BackgroundPreloader() {
     const active = tvMode === 'on' || (tvMode === 'auto' && deviceTv);
     document.documentElement.classList.toggle('tv-mode', active);
   }, [tvMode, deviceTv]);
+
+  // Android: encender el motor AceStream (su app) al entrar, si está activado y no responde
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const { engineAutoStart, backendConfig } = useSettingsStore.getState();
+    if (engineAutoStart) void startEngineApp(backendConfig).then(() => useSettingsStore.getState().checkBackend());
+  }, []);
 
   // Estado del grabador de escritorio (botón «Grabar» en Eventos)
   useEffect(() => {

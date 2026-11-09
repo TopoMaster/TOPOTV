@@ -4,6 +4,8 @@ interface ExternalPlayerPlugin {
   open(options: { url: string; title?: string; package?: string; chooser?: boolean }): Promise<{ opened: boolean }>;
   isInstalled(options?: { package?: string }): Promise<{ installed: boolean }>;
   isTv(): Promise<{ tv: boolean }>;
+  launchApp(options: { package: string }): Promise<{ launched: boolean }>;
+  openAppSettings(options: { package: string }): Promise<void>;
 }
 
 /** Plugin nativo de Android (ExternalPlayerPlugin.java): abre el stream en VLC. */
