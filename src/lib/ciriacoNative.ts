@@ -4,7 +4,7 @@
  * La descarga usa HTTP nativo de Capacitor, que no está sujeto a CORS.
  */
 import { CapacitorHttp, registerPlugin } from '@capacitor/core';
-import logoIndex from './channel-logos.json';
+import logoIndex from '../../tools/channel-logos.json';   // misma tabla que usa el servidor de escritorio
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { warpDown, warpUp } from '@/lib/warpAndroid';
 import type { CiriacoData, CiriacoDay, CiriacoLink, CiriacoStatus } from './ciriaco';
@@ -31,7 +31,7 @@ export function canon(name: string) {
   s = s.replace(NOISE, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
   return s.replace(/^mplus laliga tv\b/, 'mplus laliga');
 }
-export function clean(raw: string) {
+function clean(raw: string) {
   return String(raw || '')
     .replace(/\[[^\]]*\]|\([^)]*\)/g, ' ').replace(/^[A-Za-z]{2}:\s*/, '')
     .replace(/\b(4K|2160p|1080p|720p|576p|480p|FHD|HDR|UHD|HD|SD)\b/gi, ' ')
@@ -50,7 +50,7 @@ interface RawEvent { time: string; round: string; flag: string; sport: string; c
 interface RawDay { date: string; label: string; events: RawEvent[] }
 
 /** Misma lectura que extractInBrowser() del servidor de escritorio, sobre un documento parseado. */
-export function extractAgenda(doc: Document): RawDay[] {
+function extractAgenda(doc: Document): RawDay[] {
   const cl = (s?: string | null) => (s || '').replace(/\s+/g, ' ').trim();
   const days: RawDay[] = [];
   let cur: RawDay | null = null;
@@ -100,7 +100,7 @@ function parseLink(l: RawLink) {
   };
 }
 
-export function normalizeAgenda(rawDays: RawDay[]): Pick<CiriacoData, 'days' | 'channels'> {
+function normalizeAgenda(rawDays: RawDay[]): Pick<CiriacoData, 'days' | 'channels'> {
   const variants = new Map<string, Map<string, number>>();
   const see = (raw: string) => {
     const key = canon(raw);

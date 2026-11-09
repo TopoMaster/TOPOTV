@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
+import android.content.SharedPreferences;
 
 import androidx.core.content.FileProvider;
 
@@ -71,6 +72,7 @@ public class RecorderPlugin extends Plugin {
         o.put("start", r.optLong("start")); o.put("end", r.optLong("end")); o.put("status", r.optString("status"));
         o.put("file", r.optString("name")); o.put("bytes", r.optLong("bytes")); o.put("error", r.optString("error"));
         JSONArray h = r.optJSONArray("hashes"); o.put("linkCount", h == null ? 0 : h.length());
+        JSONObject check = r.optJSONObject("check"); if (check != null) o.put("check", check);
         return o;
     }
 
@@ -93,12 +95,86 @@ public class RecorderPlugin extends Plugin {
         }
     }
 
+    private static void deleteFile(Context c, JSONObject rec) {
+        String uri = rec.optString("uri");
+        if (uri.isEmpty()) return;
+        try {
+            Uri u = Uri.parse(uri);
+            if (ContentResolver.SCHEME_CONTENT.equals(u.getScheme())) c.getContentResolver().delete(u, null, null);
+            else if (u.getPath() != null) new File(u.getPath()).delete();
+        } catch (Exception ignored) { }
+    }
+
+    private static SharedPreferences settings(Context c) { return c.getApplicationContext().getSharedPreferences("topotv_rec_settings", Context.MODE_PRIVATE); }
+
+    /** Borra las grabaciones terminadas más viejas que los días elegidos (0 = nunca). */
+    private static void prune(Context c) {
+        int days = settings(c).getInt("retentionDays", 0);
+        if (days <= 0) return;
+        long limit = System.currentTimeMillis() - days * 86400000L;
+        JSONArray list = RecordingStore.all(c);
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject r = list.optJSONObject(i);
+            if (r == null || r.optLong("end") >= limit) continue;
+            String st = r.optString("status");
+            if ("done".equals(st) || "failed".equals(st) || "cancelled".equals(st) || "missed".equals(st)) {
+                deleteFile(c, r);
+                RecordingStore.remove(c, r.optString("id"));
+            }
+        }
+    }
+
     /* ── API para la web ────────────────────────────────────────── */
+    @PluginMethod
+    public void info(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("freeBytes", RecorderService.freeBytes());
+        ret.put("retentionDays", settings(getContext()).getInt("retentionDays", 0));
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void setRetention(PluginCall call) {
+        int days = Math.max(0, Math.min(365, call.getInt("days", 0)));
+        settings(getContext()).edit().putInt("retentionDays", days).apply();
+        prune(getContext());
+        JSObject ret = new JSObject();
+        ret.put("retentionDays", days);
+        call.resolve(ret);
+    }
+
+    /** Comprobación previa de los enlaces de una grabación programada (la app abierta, unos minutos antes). */
+    @PluginMethod
+    public void precheck(final PluginCall call) {
+        final String id = call.getString("id", "");
+        if (RecorderService.anyRunning()) { call.resolve(new JSObject().put("skipped", true)); return; }
+        new Thread(() -> {
+            JSONObject check = LinkProbe.preflight(getContext(), id, 25000, RecorderService::anyRunning);
+            try { call.resolve(check == null ? new JSObject().put("skipped", true) : JSObject.fromJSONObject(check)); }
+            catch (Exception e) { call.resolve(new JSObject().put("skipped", true)); }
+        }, "topotv-precheck").start();
+    }
+
+    /** ¿Da datos este enlace? (para el comprobador de enlaces en segundo plano). */
+    @PluginMethod
+    public void probe(final PluginCall call) {
+        final String host = call.getString("host", "127.0.0.1");
+        final int port = call.getInt("port", 6878);
+        final String hash = call.getString("hash", "");
+        final int timeout = Math.max(3000, Math.min(60000, call.getInt("timeoutMs", 15000)));
+        if (!HASH.matcher(hash).matches() || !("127.0.0.1".equals(host) || "localhost".equals(host))) { call.reject("Enlace no válido."); return; }
+        new Thread(() -> {
+            boolean ok = LinkProbe.probe(host, port, hash, timeout);
+            call.resolve(new JSObject().put("ok", ok));
+        }, "topotv-probe").start();
+    }
+
     @PluginMethod
     public void list(PluginCall call) {
         try {
             Context c = getContext();
             normalize(c);
+            prune(c);
             JSONArray src = RecordingStore.all(c);
             JSArray out = new JSArray();
             for (int i = src.length() - 1; i >= 0; i--) out.put(pub(src.getJSONObject(i)));
@@ -163,12 +239,7 @@ public class RecorderPlugin extends Plugin {
             if (rec == null) { call.resolve(); return; }
             if (RecorderService.isRunning(id)) RecorderService.requestStop(c, id);
             disarm(c, id);
-            String uri = rec.optString("uri");
-            if (!uri.isEmpty()) {
-                Uri u = Uri.parse(uri);
-                if (ContentResolver.SCHEME_CONTENT.equals(u.getScheme())) c.getContentResolver().delete(u, null, null);
-                else if (u.getPath() != null) new File(u.getPath()).delete();
-            }
+            deleteFile(c, rec);
             RecordingStore.remove(c, id);
             call.resolve();
         } catch (Exception e) {

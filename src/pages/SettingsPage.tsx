@@ -9,7 +9,7 @@ import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
 import { ENGINE_DOCS_URL, findEngineApp, installEngine, installEngineFromFile, openEngineAppSettings, startEngineApp, type EngineApp } from '@/lib/engineAndroid';
 import { withDefaultSources } from '@/lib/ciriaco';
 import { useEPGStore } from '@/store/useEPGStore';
-import { AppearanceSection, ChecksSection, SystemSection, TeamsSection } from '@/pages/SettingsExtras';
+import { AppearanceSection, BackupSection, ChecksSection, SystemSection, TeamsSection } from '@/pages/SettingsExtras';
 import { shareStatus, tunnelStart, tunnelStop, shareRevoke, type ShareStatus } from '@/lib/share';
 
 const inp: React.CSSProperties = { padding:'9px 12px',background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)',color:'var(--text-primary)',fontSize:'0.85rem',fontFamily:'DM Mono,monospace',outline:'none',width:'100%' };
@@ -452,8 +452,9 @@ export function SettingsPage() {
       <InterfaceSection />
       <AppearanceSection />
       <TeamsSection />
-      {!isNativeApp&&<ChecksSection />}
-      {!isNativeApp&&<SystemSection />}
+      <ChecksSection />
+      <SystemSection />
+      <BackupSection />
       {isNativeApp&&<EngineAndroidSection />}
       {isNativeApp&&<WarpAndroidSection />}
       <BackendSection />

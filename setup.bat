@@ -27,7 +27,6 @@ if exist tools\share-server.cjs   start "Compartir :3005/3006" /min node tools\s
 if exist tools\vlc-helper.cjs     start "VLC Helper :3002" /min node tools\vlc-helper.cjs
 if exist tools\epg-server.cjs     start "EPG :3003"        /min node tools\epg-server.cjs
 if exist tools\ciriaco-server.cjs start "Ciriaco :3004"    /min cmd /c "cd tools && node ciriaco-server.cjs"
-if exist flashscore-proxy\server.js start "Proxy :3001"    /min cmd /c "cd flashscore-proxy && node server.js"
 
 if not exist tools\vlc-helper.cjs echo AVISO: falta tools\vlc-helper.cjs (VLC no se podra abrir)
 echo Comprobando Ciriaco...

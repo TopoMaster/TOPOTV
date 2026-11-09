@@ -14,7 +14,7 @@ function Pill({ label, level, detail, to }: { label: string; level: Level; detai
       className="flex items-center gap-1.5 status-pill"
       style={{ height: 28, padding: '0 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 100, color: 'var(--text-secondary)', fontSize: '0.68rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: COLOR[level], boxShadow: level === 'ok' ? `0 0 6px ${COLOR[level]}` : 'none', flexShrink: 0 }} />
-      {label}
+      <span className="pill-label">{label}</span>
     </button>
   );
 }

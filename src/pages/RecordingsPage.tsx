@@ -54,7 +54,7 @@ export function RecordingsPage() {
             Programa una grabación desde <strong style={{ color: 'var(--text-secondary)' }}>Eventos</strong> con el botón «Grabar». {Capacitor.isNativePlatform() ? 'El móvil debe estar encendido, con el motor AceStream en marcha (ábrelo antes si no lo tienes en automático) y sin un ahorro de batería que cierre TOPOTV. Graba aunque apagues la pantalla y verás un aviso mientras lo hace.' : 'El PC debe estar encendido, con TOPOTV abierto (puede estar minimizado) y el motor AceStream activo; TOPOTV evita que Windows se suspenda mientras graba.'}
             {dir && <> Se guardan en <code style={{ color: 'var(--accent)' }}>{dir}</code>.</>}
           </p>
-          {desktop && (
+          {(
             <div className="flex items-center gap-3 flex-wrap" style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--bg-elevated)', border: `1px solid ${freeBytes >= 0 && freeBytes < 5 * 1024 ** 3 ? 'rgba(245,158,11,0.5)' : 'var(--border-subtle)'}`, borderRadius: 'var(--radius-md)', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
               <HardDrive size={15} style={{ color: freeBytes >= 0 && freeBytes < 5 * 1024 ** 3 ? '#f59e0b' : 'var(--text-muted)' }} />
               <span>{freeBytes >= 0 ? `Quedan ${formatBytes(freeBytes)} libres en el disco${freeBytes < 5 * 1024 ** 3 ? ' — conviene liberar espacio' : ''}.` : 'Espacio en disco: sin datos.'}</span>
@@ -83,6 +83,7 @@ export function RecordingsPage() {
                         {r.bytes > 0 && ` · ${formatBytes(r.bytes)}`}
                       </p>
                       {r.error && <p style={{ fontSize: '0.72rem', color: 'var(--offline-red)', marginTop: 2 }}>{r.error}</p>}
+                      {r.check && (r.status === 'scheduled' || r.status === 'recording') && <p style={{ fontSize: '0.7rem', marginTop: 2, color: r.check.ok ? 'var(--online-green)' : '#f59e0b' }}>{r.check.ok ? `✓ Comprobado a las ${new Date(r.check.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}: el enlace ${r.check.pos + 1} de ${r.linkCount} funciona y se usará primero.` : `Comprobado a las ${new Date(r.check.at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}: ningún enlace de ${r.linkCount} responde todavía; se reintentará al empezar.`}</p>}
                     </div>
                     <span className={live ? 'live-pulse' : ''} style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: st.color, padding: '4px 10px', border: `1px solid ${st.color}`, borderRadius: 100 }}>{st.text}</span>
                     <div className="flex items-center gap-2 flex-wrap">

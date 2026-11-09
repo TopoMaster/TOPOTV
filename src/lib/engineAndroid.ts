@@ -10,7 +10,7 @@ import type { AceBackendConfig } from '@/types';
  * y se espera a que responda en el puerto del motor.
  */
 export interface EngineApp { pkg: string; name: string }
-export const ENGINE_APPS: EngineApp[] = [
+const ENGINE_APPS: EngineApp[] = [
   { pkg: 'org.free.aceserve', name: 'Ace Serve' },
   { pkg: 'org.acestream.media', name: 'Ace Stream Media' },
   { pkg: 'org.acestream.media.atv', name: 'Ace Stream Media (TV)' },
@@ -18,7 +18,6 @@ export const ENGINE_APPS: EngineApp[] = [
   { pkg: 'org.acestream.core.atv', name: 'Ace Stream Engine (TV)' },
   { pkg: 'org.acestream.engine', name: 'Ace Stream Engine' },
 ];
-export const ENGINE_STORE_URL = 'https://play.google.com/store/apps/details?id=org.acestream.media';
 
 export async function findEngineApp(): Promise<EngineApp | null> {
   for (const app of ENGINE_APPS) {
@@ -59,14 +58,14 @@ const Installer = registerPlugin<ApkInstaller>('ApkInstaller');
 export const ENGINE_DOCS_URL = 'https://docs.acestream.net/products/';
 
 /** Enlace oficial (docs.acestream.net/products) del motor «Ace Stream Engine» para esta arquitectura. */
-export async function engineDownloadUrl(): Promise<string> {
+async function engineDownloadUrl(): Promise<string> {
   const { abi } = await Installer.abi();
   const tv = await isAndroidTv();
   return `https://download.acestream.media/products/${tv ? 'android-tv' : 'android'}/acestream-core/${abi}/latest`;
 }
 
 /** Convierte enlaces de «compartir» de Google Drive y Dropbox en enlaces de descarga directa. */
-export function directDownloadUrl(raw: string): string {
+function directDownloadUrl(raw: string): string {
   const url = raw.trim();
   const drive = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([\w-]+)/);
   if (drive) return `https://drive.usercontent.google.com/download?id=${drive[1]}&export=download&confirm=t`;
@@ -75,7 +74,7 @@ export function directDownloadUrl(raw: string): string {
 }
 
 /** ¿Lleva esta versión de TOPOTV el motor dentro y es compatible con este móvil? */
-export async function bundledEngineAvailable(): Promise<boolean> {
+async function bundledEngineAvailable(): Promise<boolean> {
   try { const r = await Installer.hasBundled(); return r.bundled && r.arm64; } catch { return false; }
 }
 
@@ -118,4 +117,14 @@ export async function installEngineFromFile(): Promise<{ ok: boolean; needsPermi
     if (msg.includes('CANCELLED')) return { ok: false, cancelled: true };
     return { ok: false, error: msg };
   }
+}
+
+/** Descarga un APK desde un enlace https (p. ej. una release de GitHub) y abre el instalador de Android. */
+export async function installApkFromUrl(url: string, onProgress: (pct: number | null) => void): Promise<{ ok: boolean; needsPermission?: boolean; error?: string }> {
+  const sub = await Installer.addListener('progress', p => onProgress(p.total > 0 ? Math.round(100 * p.bytes / p.total) : null));
+  try { await Installer.install({ url }); return { ok: true }; }
+  catch (e) {
+    const msg = e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
+    return msg.includes('NEEDS_PERMISSION') ? { ok: false, needsPermission: true } : { ok: false, error: msg };
+  } finally { sub.remove(); }
 }

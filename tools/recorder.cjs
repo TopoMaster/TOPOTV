@@ -20,7 +20,10 @@ const PORT = Number(process.env.RECORDER_PORT || 3007);
 const TRUSTED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1):(5173|5174|4173)$/;
 const HASH_RE = /^[0-9a-f]{40}$/i;
 const MAX_MS = 8 * 3600 * 1000;
-const FIRST_DATA_MS = 60000;
+const FIRST_DATA_MS = Number(process.env.RECORDER_FIRST_DATA_MS || 60000);
+const PRE_CHECK_MS = 10 * 60 * 1000;   // la comprobación de enlaces se hace 10 min antes de empezar
+const PROBE_MS = Number(process.env.RECORDER_PROBE_MS || 25000);   // cuánto se espera datos de cada enlace al probarlo
+const RECHECK_MS = 5 * 60 * 1000;   // si la comprobación es más vieja que esto, se repite al empezar a grabar
 
 let recs = [];
 let FILE = path.join(__dirname, '.recordings.json');
@@ -28,6 +31,7 @@ let DIR = path.join(__dirname, 'recordings');
 let log = console.log;
 let opts = {};
 const active = new Map();   // id -> { stop() }
+const checking = new Map();   // id -> promesa de la comprobación previa en curso
 let settings = { retentionDays: 0 };   // 0 = no borrar nunca
 const MIN_FREE = 400 * 1024 * 1024;   // si queda menos, se para la grabación para no llenar el disco
 const freeBytes = () => { try { fs.mkdirSync(DIR, { recursive: true }); const st = fs.statfsSync(DIR); return Number(st.bavail) * Number(st.bsize); } catch { return -1; } };
@@ -50,7 +54,7 @@ const safeName = s => String(s || 'evento').normalize('NFD').replace(/[̀-ͯ]/g,
 const stamp = ms => { const d = new Date(ms); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}${p(d.getMinutes())}`; };
 const fileSize = f => { try { return fs.statSync(f).size; } catch { return 0; } };
 const busy = () => { try { opts.onBusy && opts.onBusy(active.size > 0); } catch { /* sin bloqueo de suspensión */ } };
-const pub = r => ({ id: r.id, key: r.key || '', title: r.title, sport: r.sport, start: r.start, end: r.end, status: r.status, file: r.file ? path.basename(r.file) : '', bytes: r.status === 'recording' && r.file ? fileSize(r.file) : r.bytes || 0, error: r.error || '', linkCount: r.hashes.length });
+const pub = r => ({ id: r.id, key: r.key || '', title: r.title, sport: r.sport, start: r.start, end: r.end, status: r.status, file: r.file ? path.basename(r.file) : '', bytes: r.status === 'recording' && r.file ? fileSize(r.file) : r.bytes || 0, error: r.error || '', linkCount: r.hashes.length, check: r.check || null });
 
 /** Una conexión al motor: resuelve con los bytes recibidos cuando termina, falla o se pide parar. */
 function pullStream(rec, hash, ws, handle) {
@@ -72,6 +76,46 @@ function pullStream(rec, hash, ws, handle) {
   });
 }
 
+/** ¿Da datos este enlace? Abre el stream del motor, espera el primer trozo y lo cierra. */
+function probeHash(rec, hash) {
+  return new Promise(resolve => {
+    let done = false, timer = null, req = null;
+    const finish = ok => { if (done) return; done = true; clearTimeout(timer); try { req && req.destroy(); } catch { /* ya cerrado */ } resolve(ok); };
+    req = http.get({ host: rec.host, port: rec.port, path: `/ace/getstream?id=${hash}` }, res => {
+      if (res.statusCode !== 200) { res.resume(); return finish(false); }
+      res.once('data', () => finish(true));
+      res.on('error', () => finish(false)); res.on('end', () => finish(false));
+    });
+    req.on('error', () => finish(false));
+    timer = setTimeout(() => finish(false), PROBE_MS);
+  });
+}
+
+/**
+ * Comprobación previa: prueba los enlaces del evento de uno en uno y deja primero el que da datos.
+ * Se guarda en rec.check = { at, tested, ok, pos } (pos = posición original del que funcionó).
+ */
+function preflight(rec, handle) {
+  if (checking.has(rec.id)) return checking.get(rec.id);
+  const job = (async () => {
+    try {
+      if (opts.ensureEngine) await opts.ensureEngine(log);
+      let pos = -1;
+      for (let i = 0; i < rec.hashes.length; i++) {
+        if (handle && handle.stopped) return;
+        if (await probeHash(rec, rec.hashes[i])) { pos = i; break; }
+      }
+      rec.check = { at: Date.now(), tested: pos < 0 ? rec.hashes.length : pos + 1, ok: pos >= 0, pos };
+      if (pos > 0) rec.hashes = [rec.hashes[pos], ...rec.hashes.filter((_, i) => i !== pos)];
+      log(`[rec] ${rec.title}: comprobación previa → ${pos >= 0 ? `enlace ${pos + 1} de ${rec.hashes.length} funciona` : 'ningún enlace responde ahora'}`);
+      save();
+    } catch (e) { log('[rec] error en la comprobación previa', e.message); }
+    finally { checking.delete(rec.id); }
+  })();
+  checking.set(rec.id, job);
+  return job;
+}
+
 async function runRecording(rec) {
   rec.status = 'recording'; rec.error = ''; rec.bytes = 0;
   fs.mkdirSync(DIR, { recursive: true });
@@ -83,6 +127,9 @@ async function runRecording(rec) {
   const endTimer = setTimeout(() => handle.stop(), Math.max(0, rec.end - Date.now()));   // corta el stream al acabar la ventana
   try {
     if (opts.ensureEngine) { const r = await opts.ensureEngine(log); log('[rec] motor:', r); }
+    // antes de grabar: se elige el enlace que funciona (si la comprobación no existe, es vieja o no encontró ninguno, se repite)
+    if (checking.has(rec.id)) await checking.get(rec.id);
+    if (!rec.check || !rec.check.ok || Date.now() - rec.check.at > RECHECK_MS) await preflight(rec, handle);
     let i = 0, emptyRounds = 0;
     while (!handle.stopped && Date.now() < rec.end) {
       const before = rec.bytes || 0;
@@ -112,6 +159,7 @@ function tick() {
     if (r.status === 'scheduled') {
       if (now >= r.end) { r.status = 'missed'; r.error = 'La app estaba cerrada o apagada a la hora del evento.'; save(); }
       else if (now >= r.start && !active.has(r.id)) runRecording(r).catch(e => log('[rec] error', e.message));
+      else if (!r.check && !checking.has(r.id) && active.size === 0 && now >= r.start - PRE_CHECK_MS) preflight(r);   // aviso temprano: ¿hay algún enlace vivo?
     } else if (r.status === 'recording' && !active.has(r.id)) {
       r.status = r.bytes > 0 || fileSize(r.file) > 0 ? 'done' : 'failed'; save();   // quedó a medias por un cierre de la app
     }

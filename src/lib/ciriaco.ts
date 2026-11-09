@@ -6,9 +6,9 @@ import { buildAgendaM3U, nativeAgenda, nativeScrape, nativeStatus } from '@/lib/
 
 const isNative = () => Capacitor.isNativePlatform();
 
-export const CIRIACO_URL = 'http://localhost:3004';
+const CIRIACO_URL = 'http://localhost:3004';
 export const CIRIACO_PLAYLIST_URL = `${CIRIACO_URL}/api/ciriaco/playlist.m3u`;
-export const ELCANO_PLAYLIST_URL = 'https://tokyo.elcano-ipfs.workers.dev/k51qzi5uqu5dh5qej4b9wlcr5i6vhc7rcfkekhrxqek5c9lk6gdaiik820fecs/hashes_acestream.m3u';
+const ELCANO_PLAYLIST_URL = 'https://tokyo.elcano-ipfs.workers.dev/k51qzi5uqu5dh5qej4b9wlcr5i6vhc7rcfkekhrxqek5c9lk6gdaiik820fecs/hashes_acestream.m3u';
 /** Fuente interna: canales de TDT en abierto (lista incluida en la app, ver src/lib/tdt.ts). */
 export const TDT_SOURCE_URL = 'topotv://tdt';
 /** Listas que TOPOTV carga siempre: Elcano (categorías), TDT (si está activada), las del usuario y, al final, la agenda de Ciriaco (que se fusiona con las anteriores). */

@@ -139,23 +139,42 @@ function download(url, dest, hops = 0) {
       if ([301, 302, 303, 307, 308].includes(r.statusCode) && r.headers.location) { r.resume(); return resolve(download(new URL(r.headers.location, url).href, dest, hops + 1)); }
       if (r.statusCode !== 200) { r.resume(); return reject(new Error('HTTP ' + r.statusCode)); }
       const tmp = dest + '.part', f = fs.createWriteStream(tmp);
+      const expected = Number(r.headers['content-length']) || 0;
+      let got = 0, failed = false;
+      const fail = e => { if (failed) return; failed = true; f.destroy(); try { fs.unlinkSync(tmp); } catch { /* sin archivo */ } reject(e); };
+      r.on('data', c => { got += c.length; });
       r.pipe(f);
-      f.on('finish', () => f.close(() => { fs.renameSync(tmp, dest); resolve(dest); }));
-      f.on('error', reject); r.on('error', reject);
+      f.on('finish', () => f.close(() => {
+        if (failed) return;
+        if (expected && got !== expected) return fail(new Error('La descarga del túnel quedó incompleta'));
+        fs.renameSync(tmp, dest); resolve(dest);
+      }));
+      f.on('error', fail); r.on('error', fail); r.on('aborted', () => fail(new Error('Se cortó la descarga del túnel')));
     }).on('error', reject);
   });
+}
+/** ¿Arranca el ejecutable? (una descarga a medias deja un .exe que Windows rechaza con 0xC000007B) */
+function usable(exe) {
+  try { execFileSync(exe, ['--version'], { timeout: 10000, windowsHide: true, stdio: 'ignore' }); return true; } catch { return false; }
 }
 async function startTunnel(binDir, log) {
   if (tunnel.state === 'starting' || tunnel.state === 'on') return;
   Object.assign(tunnel, { state: 'starting', url: null, error: null });
   try {
     let exe = findCloudflared(binDir);
+    if (exe && !usable(exe)) {
+      if (path.dirname(exe) !== binDir) throw new Error('El cloudflared instalado en el equipo no arranca. Reinstálalo o bórralo para que TOPOTV use el suyo.');
+      log('[share] cloudflared dañado, se descarga de nuevo');
+      try { fs.unlinkSync(exe); } catch { /* en uso */ }
+      exe = null;
+    }
     if (!exe) {
       if (process.platform !== 'win32') throw new Error('cloudflared no está instalado');
       fs.mkdirSync(binDir, { recursive: true });
       tunnel.state = 'downloading';
       log('[share] descargando cloudflared…');
       exe = await download(CF_URL, path.join(binDir, 'cloudflared.exe'));
+      if (!usable(exe)) { try { fs.unlinkSync(exe); } catch { /* en uso */ } throw new Error('No se pudo preparar el túnel: el archivo descargado no arranca. Reintenta o instala cloudflared a mano.'); }
       tunnel.state = 'starting';
     }
     const proc = spawn(exe, ['tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${PUBLIC_PORT}`], { windowsHide: true });
@@ -165,7 +184,7 @@ async function startTunnel(binDir, log) {
       if (m && tunnel.state !== 'on') { tunnel.url = m[0]; tunnel.state = 'on'; log('[share] túnel', m[0]); }
     };
     proc.stdout.on('data', onData); proc.stderr.on('data', onData);
-    proc.on('exit', code => { if (tunnel.proc === proc) { tunnel.proc = null; if (tunnel.state !== 'off') Object.assign(tunnel, { state: tunnel.url ? 'off' : 'error', url: null, error: tunnel.url ? null : 'cloudflared terminó (' + code + ')' }); } });
+    proc.on('exit', code => { if (tunnel.proc === proc) { tunnel.proc = null; if (tunnel.state !== 'off') Object.assign(tunnel, { state: tunnel.url ? 'off' : 'error', url: null, error: tunnel.url ? null : 'El túnel se cerró al arrancar (código ' + code + ')' }); } });
     proc.on('error', e => Object.assign(tunnel, { state: 'error', error: e.message }));
     setTimeout(() => { if (tunnel.state === 'starting') { Object.assign(tunnel, { state: 'error', error: 'El túnel no respondió en 40 s' }); stopTunnel(true); } }, 40000);
   } catch (e) { Object.assign(tunnel, { state: 'error', error: e.message }); }

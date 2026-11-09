@@ -3,10 +3,12 @@ import { ChevronRight } from 'lucide-react';
 import type { Group } from '@/types';
 import { ChannelCard } from './ChannelCard';
 import { sortAlive, useHealthStore } from '@/store/useHealthStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 export function CategoryRow({ group, maxVisible=12 }: { group: Group; maxVisible?: number }) {
   const navigate = useNavigate();
   const health = useHealthStore(s => s.streams);
-  const visible = sortAlive(group.channels, health).slice(0, maxVisible);
+  const hideDead = useSettingsStore(s => s.hideDead);
+  const visible = sortAlive(group.channels, health, hideDead).slice(0, maxVisible);
   if (!group.channels.length) return null;
   return (
     <section className="slide-up" style={{marginBottom:'36px'}}>

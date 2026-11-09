@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Download, X } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { checkUpdate, startUpdate, systemAvailable, updateProgress, type UpdateInfo } from '@/lib/system';
 
@@ -34,7 +35,10 @@ export function UpdateBanner() {
         const p = await updateProgress();
         if (p.phase === 'error') throw new Error(p.error || 'La descarga falló');
         setBusy(p.percent);
-        if (p.phase === 'ready') return;   // la app se cierra sola y abre el instalador
+        if (p.phase === 'ready') {   // Windows: la app se cierra sola y abre el instalador; Android: el diálogo de instalación ya está abierto
+          if (Capacitor.isNativePlatform()) setBusy(null);
+          return;
+        }
       }
       throw new Error('La descarga tarda demasiado');
     } catch (e) { setBusy(null); setError(e instanceof Error ? e.message : String(e)); }

@@ -5,6 +5,7 @@ import { ChannelCard } from '@/components/catalog/ChannelCard';
 import { ErrorState, LoadingState } from '@/components/shared/States';
 import { TDT_PRIVADAS } from '@/lib/tdt';
 import { sortAlive, useHealthStore } from '@/store/useHealthStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 export function CategoryPage() {
   const {slug} = useParams<{slug:string}>();
@@ -12,6 +13,7 @@ export function CategoryPage() {
   const getGroup = useM3UStore(s=>s.getGroup);
   const loading = useM3UStore(s=>s.isLoading||s.allChannels.length===0);
   const health = useHealthStore(s=>s.streams);
+  const hideDead = useSettingsStore(s=>s.hideDead);
   const group = getGroup(slug??'');
   if (!group) return loading ? <LoadingState message="Cargando canales..." /> : <ErrorState message={`Categoría no encontrada.`} />;
   return (
@@ -30,7 +32,7 @@ export function CategoryPage() {
         <div className="flex flex-wrap gap-2">{TDT_PRIVADAS.map(l=><a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" style={{padding:'8px 14px',background:'var(--bg-card)',border:'1px solid var(--border-mid)',borderRadius:100,color:'var(--text-secondary)',fontSize:'0.76rem',textDecoration:'none'}}>{l.name}</a>)}</div>
       </div>}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:'16px'}}>
-        {sortAlive(group.channels, health).map((ch,i)=>(
+        {sortAlive(group.channels, health, hideDead).map((ch,i)=>(
           <div key={ch.id} className="slide-up" style={{animationDelay:`${Math.min(i*0.02,0.4)}s`}}>
             <ChannelCard channel={ch} size="md" />
           </div>

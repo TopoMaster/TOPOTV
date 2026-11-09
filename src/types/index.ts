@@ -4,7 +4,7 @@ export interface Channel { id: string; tvgId: string; name: string; rawName: str
 export interface Group { id: string; title: string; logo: string; channels: Channel[]; }
 export interface M3UMeta { epgUrls: string[]; refreshInterval: number; loadedAt: Date; source: string; }
 export interface ParsedM3U { meta: M3UMeta; groups: Group[]; allChannels: Channel[]; }
-export type PlaybackStatus = 'idle' | 'connecting' | 'playing' | 'error' | 'buffering';
+type PlaybackStatus = 'idle' | 'connecting' | 'playing' | 'error' | 'buffering';
 export interface PlayerState { channel: Channel | null; stream: Stream | null; status: PlaybackStatus; errorMessage: string | null; startedAt: Date | null; }
 export type BackendStatus = 'unknown' | 'online' | 'offline';
 export interface AceBackendConfig { host: string; port: number; }

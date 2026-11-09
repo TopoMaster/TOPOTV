@@ -12,6 +12,10 @@ interface RecorderNative {
   cancel(o: { id: string }): Promise<Recording>;
   remove(o: { id: string }): Promise<void>;
   open(o: { id: string }): Promise<void>;
+  info(): Promise<{ freeBytes: number; retentionDays: number }>;
+  setRetention(o: { days: number }): Promise<{ retentionDays: number }>;
+  precheck(o: { id: string }): Promise<{ skipped?: boolean }>;
+  probe(o: { host: string; port: number; hash: string; timeoutMs: number }): Promise<{ ok: boolean }>;
 }
 const Native = registerPlugin<RecorderNative>('Recorder');
 const nativeError = (e: unknown): never => { throw new Error(e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e)); };
@@ -20,6 +24,8 @@ export type RecStatus = 'scheduled' | 'recording' | 'done' | 'failed' | 'cancell
 export interface Recording {
   id: string; key: string; title: string; sport: string; start: number; end: number;
   status: RecStatus; file: string; bytes: number; error: string; linkCount: number;
+  /** Comprobación previa de enlaces (solo Windows): cuántos se probaron y si alguno funcionó */
+  check?: { at: number; tested: number; ok: boolean; pos: number } | null;
 }
 export interface ScheduleInput { title: string; sport: string; key: string; start: number; end: number; hashes: string[]; host: string; port: number; }
 
@@ -49,13 +55,19 @@ export function formatBytes(n: number) {
 
 /** Espacio libre en el disco de las grabaciones (bytes; -1 si no se sabe) y días tras los que se borran solas (0 = nunca). */
 export async function recorderInfo(): Promise<{ freeBytes: number; retentionDays: number } | null> {
-  if (isNative()) return { freeBytes: -1, retentionDays: 0 };
+  if (isNative()) return Native.info().catch(() => null);
   try {
     const [h, st] = await Promise.all([call<{ freeBytes?: number }>('/health'), call<{ retentionDays?: number }>('/settings')]);
     return { freeBytes: h.freeBytes ?? -1, retentionDays: st.retentionDays ?? 0 };
   } catch { return null; }   // el grabador no contestó: se conserva lo último que se sabía
 }
-export const setRetentionDays = (retentionDays: number) => call<{ retentionDays: number }>('/settings', { method: 'POST', body: JSON.stringify({ retentionDays }) });
+export const setRetentionDays = (retentionDays: number) => isNative()
+  ? Native.setRetention({ days: retentionDays }).catch(nativeError)
+  : call<{ retentionDays: number }>('/settings', { method: 'POST', body: JSON.stringify({ retentionDays }) });
+/** Android: comprueba los enlaces de una grabación programada (en Windows lo hace el propio grabador). */
+export const precheckRecording = (id: string) => Native.precheck({ id });
+/** Android: ¿da datos este enlace del motor? (se hace en Java para no depender del CORS del motor) */
+export const probeLinkNative = (host: string, port: number, hash: string, timeoutMs: number) => Native.probe({ host, port, hash, timeoutMs }).then(r => r.ok).catch(() => false);
 /** Dirección del archivo de una grabación para verla dentro de la app. */
 export const recordingFileUrl = (id: string) => `${REC}/file/${id}`;
 /** Gasto aproximado de disco de una grabación de HD, por hora. */

@@ -20,8 +20,7 @@ import { CIRIACO_SOURCE_URL, ELCANO_SOURCE_URL, eventDuration, eventProgress, ev
 
 const ALL = 'all';
 
-export { emoji };
-export function updatedLabel(st: CiriacoStatus | null) {
+function updatedLabel(st: CiriacoStatus | null) {
   if (!st?.fetchedAt) return 'Sin datos todavía';
   const d = new Date(st.fetchedAt);
   const today = d.toDateString() === new Date().toDateString();
@@ -30,7 +29,7 @@ export function updatedLabel(st: CiriacoStatus | null) {
 }
 
 /** Botón + estado de la actualización diaria (WARP lo gestiona el servidor). */
-export function UpdateControl() {
+function UpdateControl() {
   const { status, updating, refresh } = useCiriacoStore();
   return (
     <div className="flex items-center gap-2">
@@ -47,7 +46,7 @@ export function UpdateControl() {
   );
 }
 
-export function CiriacoAccessNotice() {
+function CiriacoAccessNotice() {
   const sourceLinkStyle = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -92,6 +91,8 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
   const links = useMemo(() => sortLinks(ev.links), [ev]);
   const channel = useMemo(() => eventToChannel(ev, ev.links, backend), [ev, backend]);
   const [shared, setShared] = useState<'idle' | 'busy' | 'ok' | 'err'>('idle');
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
   // Grabación programada (solo app de Windows: el grabador local responde en el puerto 3007)
   const navigate = useNavigate();
   const recAvailable = useRecorderStore(s => s.available);
@@ -112,7 +113,7 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
     if (reminder) { useReminderStore.getState().remove(recKey); return; }
     const granted = await ensureNotifyPermission();
     useReminderStore.getState().add({ key: recKey, title: `${ev.time} · ${ev.title || ev.competition}`, at: evStart, sport: ev.sport });
-    if (!granted) window.alert('Para avisarte, Windows debe permitir las notificaciones de TOPOTV (Configuración → Sistema → Notificaciones).');
+    if (!granted) window.alert('Para avisarte, el sistema debe permitir las notificaciones de TOPOTV (en Windows: Configuración → Sistema → Notificaciones; en Android: Ajustes → Aplicaciones → TOPOTV → Notificaciones).');
   };
   const winStart = evStart - pre * 60000;
   const winEnd = evStart + dur * 60000;
@@ -125,13 +126,14 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
     } catch (e) { setRecMsg(e instanceof Error ? e.message : String(e)); }
   };
   const share = async () => {
-    setShared('busy');
+    setShared('busy'); setShareMsg(null);
     try {
       const url = await createShareLink(channel.streams[0].aceId, ev.title || ev.competition);
-      try { await navigator.clipboard.writeText(url); } catch { window.prompt('Enlace para compartir:', url); }
-      setShared('ok');
-    } catch (e) { setShared('err'); window.alert('No se pudo crear el enlace: ' + (e instanceof Error ? e.message : e)); }
-    setTimeout(() => setShared('idle'), 3000);
+      setShareUrl(url);
+      try { await navigator.clipboard.writeText(url); setShareMsg('Enlace copiado. Pégalo en un mensaje: funciona en cualquier navegador mientras TOPOTV esté abierto.'); }
+      catch { setShareMsg('Copia el enlace con el botón de al lado.'); }   // sin permiso del portapapeles tras la espera
+      setShared('ok'); setTimeout(() => setShared('idle'), 3000);
+    } catch (e) { setShared('err'); setShareMsg(e instanceof Error ? e.message : String(e)); }
   };
   const live = status === 'live';
 
@@ -188,6 +190,17 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
           </div>
         ) : <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', flexShrink: 0 }}>Sin enlaces</span>}
       </div>
+      {(shareUrl || shareMsg) && (
+        <div className="fade-in ev-links" style={{ marginTop: 10, padding: '10px 14px', background: 'var(--bg-elevated)', border: `1px solid ${shared === 'err' ? 'rgba(239,68,68,0.45)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)' }}>
+          {shareUrl && shared !== 'err' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <input readOnly value={shareUrl} onFocus={e => e.target.select()} aria-label="Enlace para compartir" style={{ flex: '1 1 260px', minWidth: 0, padding: '8px 10px', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '0.74rem', fontFamily: 'DM Mono, monospace' }} />
+              <button onClick={async () => { try { await navigator.clipboard.writeText(shareUrl); setShareMsg('Enlace copiado.'); } catch { setShareMsg('No se pudo copiar: selecciona el enlace y pulsa Ctrl+C.'); } }} style={{ minHeight: 36, padding: '0 16px', background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', borderRadius: 100, fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>Copiar</button>
+            </div>
+          )}
+          {shareMsg && <p role={shared === 'err' ? 'alert' : 'status'} style={{ marginTop: shareUrl && shared !== 'err' ? 6 : 0, fontSize: '0.72rem', color: shared === 'err' ? 'var(--offline-red)' : 'var(--text-muted)', lineHeight: 1.5 }}>{shareMsg}</p>}
+        </div>
+      )}
       {recOpen && !existing && (
         <div className="fade-in ev-links" style={{ marginTop: 10, padding: '12px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)' }}>
           <div className="flex flex-wrap items-end gap-3">

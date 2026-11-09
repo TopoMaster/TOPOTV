@@ -4,10 +4,6 @@ import { nativeEPGClear, nativeEPGLoad, nativeEPGStatus, nativeEPGToday } from '
 export interface EPGData { schedules: Map<string, EPGSchedule>; fetchedAt: Date; }
 const EPG = 'http://localhost:3003';
 export interface EPGServerStatus { status: 'idle'|'loading'|'parsing'|'ready'|'error'; progress: number; channels: number; error: string|null; lastUpdated: string|null; }
-export async function isEPGServerRunning(): Promise<boolean> {
-  if (Capacitor.isNativePlatform()) return true;
-  try { const r=await fetch(`${EPG}/health`,{signal:AbortSignal.timeout(1000)}); return r.ok; } catch { return false; }
-}
 export async function getEPGStatus(): Promise<EPGServerStatus|null> {
   if (Capacitor.isNativePlatform()) return nativeEPGStatus();
   try { const r=await fetch(`${EPG}/status`,{signal:AbortSignal.timeout(2000)}); return r.ok?r.json():null; } catch { return null; }
@@ -48,7 +44,7 @@ export function formatDuration(s: Date, e: Date) {
 export function clearEPGCache() { nativeEPGClear(); }
 
 /** Guías que anuncia la lista de Elcano (cabecera url-tvg): se cargan siempre, aunque la lista no llegue a descargarse. */
-export const ELCANO_EPG_URLS = [
+const ELCANO_EPG_URLS = [
   'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/refs/heads/master/guiatv.xml',
   'https://epgshare01.online/epgshare01/epg_ripper_NL1.xml.gz',
 ];

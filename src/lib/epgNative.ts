@@ -23,7 +23,7 @@ const decode = (v: string | undefined) => (v ?? '')
   .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&amp;/g, '&').trim();
 
 /** Recorre el XMLTV con expresiones regulares (sin DOM) y guarda solo lo que cae en la ventana y en los canales pedidos. */
-export function parseXmltv(xml: string, wanted: Set<string>, from: number, to: number) {
+function parseXmltv(xml: string, wanted: Set<string>, from: number, to: number) {
   const names = new Map<string, string[]>();
   for (const m of xml.matchAll(/<channel\s+id="([^"]*)"[^>]*>([\s\S]*?)<\/channel>/g)) {
     names.set(decode(m[1]), [...m[2].matchAll(/<display-name[^>]*>([\s\S]*?)<\/display-name>/g)].map(x => decode(x[1])));

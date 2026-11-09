@@ -55,8 +55,10 @@ export function channelDead(channel: Channel, map: Record<string, Entry>): boole
   return channel.streams.length > 0 && channel.streams.every(s => streamHealth(map, s) === 'dead');
 }
 
-/** Canales con los caídos al final, respetando el orden original del resto. */
-export function sortAlive(channels: Channel[], map: Record<string, Entry>): Channel[] {
+/** Canales con los caídos al final (o fuera, si `hide`), respetando el orden original del resto. */
+export function sortAlive(channels: Channel[], map: Record<string, Entry>, hide = false): Channel[] {
   const dead = channels.filter(c => channelDead(c, map));
-  return dead.length ? [...channels.filter(c => !dead.includes(c)), ...dead] : channels;
+  if (!dead.length) return channels;
+  const alive = channels.filter(c => !dead.includes(c));
+  return hide && alive.length ? alive : [...alive, ...dead];
 }

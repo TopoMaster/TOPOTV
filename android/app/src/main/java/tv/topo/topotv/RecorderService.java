@@ -41,6 +41,9 @@ public class RecorderService extends Service {
     private static final String CHANNEL = "topotv_recording";
     private static final int NOTIF_ID = 4107;
     private static final int FIRST_DATA_MS = 60000;
+    private static final int PROBE_MS = 25000;                    // espera de datos de cada enlace al comprobarlo
+    private static final long RECHECK_MS = 5 * 60 * 1000L;       // una comprobación más vieja se repite al empezar
+    private static final long MIN_FREE = 400L * 1024 * 1024;      // con menos espacio libre se para para no llenar el móvil
     private static final Map<String, Worker> RUNNING = new ConcurrentHashMap<>();
 
     @Override public IBinder onBind(Intent intent) { return null; }
@@ -82,6 +85,14 @@ public class RecorderService extends Service {
     }
 
     static boolean isRunning(String id) { return RUNNING.containsKey(id); }
+
+    static boolean anyRunning() { return !RUNNING.isEmpty(); }
+
+    /** Espacio libre del almacenamiento (bytes; -1 si no se sabe). */
+    static long freeBytes() {
+        try { return new android.os.StatFs(Environment.getExternalStorageDirectory().getPath()).getAvailableBytes(); }
+        catch (Exception e) { return -1; }
+    }
 
     static void requestStop(Context c, String id) {
         Worker w = RUNNING.get(id);
@@ -127,6 +138,15 @@ public class RecorderService extends Service {
                 JSONArray hashes = rec.optJSONArray("hashes");
                 if (hashes == null || hashes.length() == 0) { error = "El evento no tiene enlaces."; return; }
 
+                // antes de grabar: se elige el enlace que funciona (si no hay comprobación, es vieja o no encontró ninguno, se repite)
+                JSONObject chk = rec.optJSONObject("check");
+                if (chk == null || !chk.optBoolean("ok") || System.currentTimeMillis() - chk.optLong("at") > RECHECK_MS) {
+                    LinkProbe.preflight(RecorderService.this, id, PROBE_MS, () -> stopped);
+                    JSONObject fresh = RecordingStore.find(RecorderService.this, id);
+                    if (fresh != null && fresh.optJSONArray("hashes") != null) hashes = fresh.optJSONArray("hashes");
+                }
+                if (stopped) return;
+
                 String name = safeName(rec.optString("title")) + " " + new SimpleDateFormat("yyyy-MM-dd HHmm", Locale.US).format(new Date(rec.optLong("start"))) + ".ts";
                 if (Build.VERSION.SDK_INT >= 29) {
                     ContentValues v = new ContentValues();
@@ -151,7 +171,7 @@ public class RecorderService extends Service {
 
                 byte[] buf = new byte[64 * 1024];
                 int hashIdx = 0, emptyRounds = 0;
-                long lastSave = 0;
+                long lastSave = 0, lastDisk = 0;
                 while (!stopped && System.currentTimeMillis() < end) {
                     long before = bytes;
                     String hash = hashes.optString(hashIdx % hashes.length());
@@ -169,6 +189,11 @@ public class RecorderService extends Service {
                                 bytes += n;
                                 c.setReadTimeout(30000);
                                 long now = System.currentTimeMillis();
+                                if (now - lastDisk > 10000) {
+                                    lastDisk = now;
+                                    long free = freeBytes();
+                                    if (free >= 0 && free < MIN_FREE) { error = "Almacenamiento casi lleno: grabación detenida para no llenar el móvil."; stopped = true; break; }
+                                }
                                 if (now - lastSave > 3000) {
                                     lastSave = now;
                                     JSONObject p = new JSONObject(); p.put("bytes", bytes);
@@ -195,6 +220,7 @@ public class RecorderService extends Service {
                     p.put("bytes", bytes);
                     if (bytes > 0) {
                         p.put("status", "done");
+                        if (!error.isEmpty()) p.put("error", error);
                         if (uri != null && Build.VERSION.SDK_INT >= 29) {
                             ContentValues v = new ContentValues(); v.put(MediaStore.MediaColumns.IS_PENDING, 0);
                             getContentResolver().update(uri, v, null, null);

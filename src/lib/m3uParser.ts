@@ -18,7 +18,7 @@ function parseHeader(line: string): Partial<M3UMeta> {
   const epgMatch = line.match(/url-tvg="([^"]+)"/);
   return { epgUrls: epgMatch ? epgMatch[1].split(',').map(s=>s.trim()) : [], refreshInterval: 3600 };
 }
-export function parseM3U(content: string, source = 'unknown'): ParsedM3U {
+function parseM3U(content: string, source = 'unknown'): ParsedM3U {
   const lines = content.split('\n').map(l=>l.trim()).filter(Boolean);
   if (!lines[0]?.startsWith('#EXTM3U')) throw new Error('Archivo M3U inválido');
   const meta: M3UMeta = { epgUrls:[], refreshInterval:3600, loadedAt:new Date(), source, ...parseHeader(lines[0]) };

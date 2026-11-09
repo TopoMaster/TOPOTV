@@ -85,9 +85,6 @@ dependencies {
     implementation project(':capacitor-android')
     implementation 'com.wireguard.android:tunnel:1.0.20230706'   // túnel WARP integrado
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
-    testImplementation "junit:junit:$junitVersion"
-    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
-    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
 }
 

@@ -1,4 +1,4 @@
-export const SPORT_EMOJI: Record<string, string> = {
+const SPORT_EMOJI: Record<string, string> = {
   'fútbol': '⚽', 'fútbol sala': '⚽', 'baloncesto': '🏀', 'tenis': '🎾', 'automovilismo': '🏎️', 'motor': '🏎️', 'ciclismo': '🚴',
   'rugby': '🏉', 'fútbol americano': '🏈', 'béisbol': '⚾', 'hockey patines': '🏒', 'hockey': '🏒', 'golf': '⛳', 'boxeo': '🥊',
   'deportes de invierno': '⛷️', 'hípica': '🏇', 'snooker': '🎱', 'gimnasia': '🤸', 'patinaje artístico': '⛸️', 'escalada deportiva': '🧗',

@@ -8,6 +8,7 @@ import { useHealthStore } from '@/store/useHealthStore';
 import { useRecorderStore } from '@/store/useRecorderStore';
 import { usePlayerStore } from '@/store/usePlayerStore';
 import { buildStreamUrl } from '@/lib/aceApi';
+import { precheckRecording, probeLinkNative } from '@/lib/recorder';
 import type { Channel, Stream } from '@/types';
 
 const STEP_MS = 20000;          // un enlace cada 20 s: sin saturar el motor ni la red
@@ -55,10 +56,10 @@ function nextTarget(): Stream | null {
   return best ? best.s : null;
 }
 
-/** Comprueba los enlaces en segundo plano y deja anotados los caídos (solo app de Windows). */
+/** Comprueba los enlaces en segundo plano y deja anotados los caídos (Windows y Android, con la app abierta). */
 export function BackgroundChecker() {
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
+    const native = Capacitor.isNativePlatform();
     let busy = false;
     let retry: Stream | null = null;   // enlace que falló una vez: solo se da por caído si falla también el segundo intento
     const timer = setInterval(async () => {
@@ -73,13 +74,23 @@ export function BackgroundChecker() {
       if (!target) return;
       busy = true;
       try {
-        const ok = await probe(buildStreamUrl(target.aceId, settings.backendConfig), second ? RETRY_TIMEOUT_MS : TIMEOUT_MS);
+        const ms = second ? RETRY_TIMEOUT_MS : TIMEOUT_MS;
+        const ok = native
+          ? await probeLinkNative(settings.backendConfig.host, settings.backendConfig.port, target.aceId, ms)   // Android: se sondea desde Java (sin CORS)
+          : await probe(buildStreamUrl(target.aceId, settings.backendConfig), ms);
         if (ok) useHealthStore.getState().mark(target.aceId, true);
         else if (second) useHealthStore.getState().mark(target.aceId, false);
         else retry = target;
       } finally { busy = false; }
     }, STEP_MS);
-    return () => clearInterval(timer);
+    // Android: 10 min antes de una grabación programada, con la app abierta, se comprueban sus enlaces
+    const pre = native ? setInterval(() => {
+      const now = Date.now();
+      for (const r of useRecorderStore.getState().recordings) {
+        if (r.status === 'scheduled' && !r.check && r.start - now <= 10 * 60e3 && r.end > now) { void precheckRecording(r.id).then(() => useRecorderStore.getState().refresh()); break; }
+      }
+    }, 30000) : null;
+    return () => { clearInterval(timer); if (pre) clearInterval(pre); };
   }, []);
   return null;
 }

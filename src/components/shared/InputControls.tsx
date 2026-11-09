@@ -13,7 +13,7 @@ function visibleFocusables(): HTMLElement[] {
 }
 
 /** Foco por cercanía en la dirección pedida: para moverse por las tarjetas con flechas o con un mando. */
-export function moveFocus(dir: Dir) {
+function moveFocus(dir: Dir) {
   const cur = document.activeElement as HTMLElement | null;
   const all = visibleFocusables();
   if (!all.length) return;

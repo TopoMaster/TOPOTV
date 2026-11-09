@@ -243,5 +243,5 @@ html[data-theme='light'] .surface-card { background: var(--bg-card) !important; 
 html[data-theme='light'] main { background: radial-gradient(900px 360px at 75% -80px, rgba(201,154,46,0.14), transparent 70%), var(--bg-void) !important; }
 html[data-theme='light'] ::selection { background: var(--accent-dim); color: var(--accent-strong); }
 
-/* ── Semáforo de la barra superior: en pantallas estrechas se oculta ── */
-@media (max-width: 1000px) { .status-pills { display: none; } }
+/* ── Semáforo de la barra superior: en pantallas estrechas solo los puntos ── */
+@media (max-width: 1000px) { .status-pill .pill-label { display: none; } .status-pill { padding: 0 9px !important; } .status-pills { gap: 4px; } }

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Palette, Star, Activity, Cpu, X } from 'lucide-react';
+import { Palette, Star, Activity, Cpu, X, Archive } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { buildBackup, downloadBackup, restoreBackup } from '@/lib/backup';
 import { useSettingsStore, type FontScale } from '@/store/useSettingsStore';
 import { useHealthStore } from '@/store/useHealthStore';
 import { checkUpdate, diagnostic, openLog, startUpdate, systemAvailable, updateProgress, type UpdateInfo } from '@/lib/system';
@@ -75,7 +77,7 @@ export function TeamsSection() {
 }
 
 export function ChecksSection() {
-  const { autoCheck, setAutoCheck } = useSettingsStore();
+  const { autoCheck, setAutoCheck, hideDead, setHideDead } = useSettingsStore();
   const streams = useHealthStore(s => s.streams);
   const clear = useHealthStore(s => s.clear);
   const all = Object.values(streams);
@@ -89,6 +91,11 @@ export function ChecksSection() {
         <div className="flex gap-2 flex-wrap mb-4">
           <button style={opt(autoCheck)} onClick={() => setAutoCheck(true)}>Activada</button>
           <button style={opt(!autoCheck)} onClick={() => setAutoCheck(false)}>Desactivada</button>
+        </div>
+        <p style={title}>Qué hacer con los canales caídos</p>
+        <div className="flex gap-2 flex-wrap mb-4">
+          <button style={opt(!hideDead)} onClick={() => setHideDead(false)}>Dejarlos al final</button>
+          <button style={opt(hideDead)} onClick={() => setHideDead(true)}>Ocultarlos</button>
         </div>
         <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginBottom: 10 }}>{all.length ? `${all.length} enlaces comprobados: ${ok} funcionan y ${all.length - ok} están caídos.` : 'Todavía no se ha comprobado ningún enlace.'}</p>
         {all.length > 0 && <button style={opt(false)} onClick={clear}>Olvidar resultados</button>}
@@ -120,7 +127,10 @@ export function SystemSection() {
         const p = await updateProgress();
         if (p.phase === 'error') throw new Error(p.error);
         setBusy(p.percent);
-        if (p.phase === 'ready') return;
+        if (p.phase === 'ready') {
+          if (Capacitor.isNativePlatform()) { setBusy(null); setMsg('Confirma la instalación en el diálogo de Android.'); }
+          return;
+        }
       }
     } catch (e) { setBusy(null); setMsg(e instanceof Error ? e.message : String(e)); }
   };
@@ -131,7 +141,7 @@ export function SystemSection() {
   };
   return (
     <section className="mb-8">
-      <SLabel icon={Cpu} label="Sistema (Windows)" />
+      <SLabel icon={Cpu} label={Capacitor.isNativePlatform() ? 'Actualizaciones y diagnóstico' : 'Sistema (Windows)'} />
       <Card>
         <p style={title}>Actualizaciones</p>
         <p style={help}>TOPOTV mira en GitHub si hay una versión nueva y, si quieres, la descarga y abre el instalador por ti.</p>
@@ -147,8 +157,53 @@ export function SystemSection() {
         <p style={help}>Copia el diagnóstico (versión, servicios y últimas líneas del registro) para enviarlo, o abre el archivo de registro.</p>
         <div className="flex gap-2 flex-wrap">
           <button style={opt(false)} onClick={copyDiag}>Copiar diagnóstico</button>
-          <button style={opt(false)} onClick={() => void openLog()}>Abrir el registro</button>
+          {!Capacitor.isNativePlatform() && <button style={opt(false)} onClick={() => void openLog()}>Abrir el registro</button>}
         </div>
+        {msg && <p role="status" style={{ marginTop: 10, fontSize: '0.74rem', color: 'var(--text-secondary)' }}>{msg}</p>}
+      </Card>
+    </section>
+  );
+}
+
+export function BackupSection() {
+  const native = Capacitor.isNativePlatform();
+  const [msg, setMsg] = useState('');
+  const [pasted, setPasted] = useState('');
+  const doRestore = (text: string) => {
+    try { const n = restoreBackup(text); setMsg(`Copia restaurada (${n} apartados). Recargando…`); setTimeout(() => location.reload(), 900); }
+    catch (err) { setMsg(err instanceof Error ? err.message : String(err)); }
+  };
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; e.target.value = '';
+    if (!f) return;
+    try {
+      const n = restoreBackup(await f.text());
+      setMsg(`Copia restaurada (${n} apartados). Recargando…`);
+      setTimeout(() => location.reload(), 900);
+    } catch (err) { setMsg(err instanceof Error ? err.message : String(err)); }
+  };
+  return (
+    <section className="mb-8">
+      <SLabel icon={Archive} label="Copia de seguridad" />
+      <Card>
+        <p style={help}>Guarda en un archivo tus favoritos, historial, ajustes, equipos y avisos, para no perderlos al reinstalar o cambiar de equipo. Las grabaciones programadas y los vídeos grabados no van en la copia.</p>
+        {native ? (
+          <>
+            <p style={help}>En el móvil la copia se pasa por el portapapeles: pulsa «Copiar copia» y pégala en una nota o en un mensaje a ti mismo. Para restaurar, pega el texto aquí debajo.</p>
+            <div className="flex gap-2 flex-wrap mb-3">
+              <button style={opt(false)} onClick={async () => { try { await navigator.clipboard.writeText(buildBackup()); setMsg('Copia en el portapapeles. Pégala en un sitio seguro.'); } catch { setMsg('No se pudo copiar al portapapeles.'); } }}>Copiar copia</button>
+            </div>
+            <textarea value={pasted} onChange={e => setPasted(e.target.value)} placeholder="Pega aquí la copia para restaurarla" rows={3} style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '0.78rem', fontFamily: 'DM Mono, monospace', marginBottom: 8 }} />
+            <button style={opt(false)} onClick={() => doRestore(pasted)} disabled={!pasted.trim()}>Restaurar copia pegada</button>
+          </>
+        ) : (
+        <div className="flex gap-2 flex-wrap">
+          <button style={opt(false)} onClick={() => { downloadBackup(); setMsg('Copia guardada en tu carpeta de Descargas.'); }}>Guardar copia</button>
+          <label style={{ ...opt(false), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Restaurar copia
+            <input type="file" accept="application/json,.json" onChange={onFile} style={{ display: 'none' }} />
+          </label>
+        </div>
+        )}
         {msg && <p role="status" style={{ marginTop: 10, fontSize: '0.74rem', color: 'var(--text-secondary)' }}>{msg}</p>}
       </Card>
     </section>

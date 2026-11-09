@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 /** Avisos de eventos: «avísame antes de que empiece». La clave es la misma que usa el grabador (fecha hora título). */
-export interface Reminder { key: string; title: string; at: number; sport: string; notified: boolean; }
+interface Reminder { key: string; title: string; at: number; sport: string; notified: boolean; }
 
 interface ReminderState {
   items: Reminder[];

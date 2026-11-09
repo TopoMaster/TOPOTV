@@ -7,7 +7,7 @@ interface WarpPlugin {
 }
 
 /** Cloudflare WARP integrado (WarpPlugin.java): VPN por aplicación, solo para el tráfico de TOPOTV. */
-export const Warp = registerPlugin<WarpPlugin>('Warp');
+const Warp = registerPlugin<WarpPlugin>('Warp');
 
 const message = (e: unknown) => e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
 

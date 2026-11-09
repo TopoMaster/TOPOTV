@@ -26,6 +26,8 @@ interface SettingsState {
   onboardingDone: boolean;
   /** Comprobar enlaces en segundo plano (Windows) y dejar los caídos al final */
   autoCheck: boolean;
+  /** Ocultar (en vez de dejar al final) los canales cuyos enlaces están todos caídos */
+  hideDead: boolean;
   /** Avisar en Windows de que hay una versión nueva en GitHub */
   autoUpdateCheck: boolean;
   /** Minutos de antelación del aviso de un evento marcado con la campana */
@@ -47,6 +49,7 @@ interface SettingsState {
   setTvMode: (m: TvMode) => void;
   setOnboardingDone: (v: boolean) => void;
   setAutoCheck: (v: boolean) => void;
+  setHideDead: (v: boolean) => void;
   setAutoUpdateCheck: (v: boolean) => void;
   setReminderLead: (m: number) => void;
   setFavTeams: (t: string[]) => void;
@@ -62,7 +65,7 @@ export const useSettingsStore = create<SettingsState>()(
       preferredPlayer: 'vlc',
       m3uSourceUrls: [],
       includeTdt: true, warpAuto: true, engineAutoStart: true, engineApkUrl: '', engineApkToken: '', tvMode: 'auto', onboardingDone: false,
-      autoCheck: true, autoUpdateCheck: true, reminderLead: 10, favTeams: [], fontScale: 'normal',
+      autoCheck: true, hideDead: false, autoUpdateCheck: true, reminderLead: 10, favTeams: [], fontScale: 'normal',
       playback: {
         vlcNetworkCachingMs: 3000,
         vlcLiveCachingMs: 3000,
@@ -84,6 +87,7 @@ export const useSettingsStore = create<SettingsState>()(
       setTvMode: (tvMode) => set({ tvMode }),
       setOnboardingDone: (onboardingDone) => set({ onboardingDone }),
       setAutoCheck: (autoCheck) => set({ autoCheck }),
+      setHideDead: (hideDead) => set({ hideDead }),
       setAutoUpdateCheck: (autoUpdateCheck) => set({ autoUpdateCheck }),
       setReminderLead: (reminderLead) => set({ reminderLead }),
       setFavTeams: (favTeams) => set({ favTeams }),
