@@ -1,6 +1,9 @@
 package tv.topo.topotv;
 
+import android.app.UiModeManager;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
+import android.content.res.Configuration;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -30,6 +33,15 @@ public class ExternalPlayerPlugin extends Plugin {
     public void isInstalled(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("installed", installed(call.getString("package", VLC)));
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void isTv(PluginCall call) {
+        UiModeManager um = (UiModeManager) getContext().getSystemService(Context.UI_MODE_SERVICE);
+        boolean tv = um != null && um.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
+        JSObject ret = new JSObject();
+        ret.put("tv", tv);
         call.resolve(ret);
     }
 

@@ -5,7 +5,7 @@ import { useM3UStore } from '@/store/useM3UStore';
 import { usePlayerStore } from '@/store/usePlayerStore';
 import { useEPGStore } from '@/store/useEPGStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
-import { copyStreamUrl, buildStreamUrl } from '@/lib/aceApi';
+import { copyStreamUrl, streamPlayUrl } from '@/lib/aceApi';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { getNowPlaying, getUpNext, getProgressPercent, formatTime, formatDuration } from '@/lib/epg';
 import { ErrorState } from '@/components/shared/States';
@@ -184,7 +184,7 @@ export function ChannelPage() {
                 <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: isSelected ? 'var(--accent)' : 'var(--border-mid)', flexShrink: 0, boxShadow: isSelected ? '0 0 5px var(--accent)' : 'none' }} />
                 <div className="flex-1 min-w-0">
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'DM Mono, monospace' }}>{stream.label}</p>
-                  <p style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: '1px' }}>{buildStreamUrl(stream.aceId, backendConfig)}</p>
+                  <p style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: '1px' }}>{streamPlayUrl(stream, backendConfig)}</p>
                 </div>
                 <span style={{ fontSize: '0.58rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 7px', borderRadius: '100px', border: '1px solid var(--border-subtle)', flexShrink: 0 }}>
                   {stream.provider}

@@ -3,6 +3,7 @@ import { registerPlugin } from '@capacitor/core';
 interface ExternalPlayerPlugin {
   open(options: { url: string; title?: string; package?: string; chooser?: boolean }): Promise<{ opened: boolean }>;
   isInstalled(options?: { package?: string }): Promise<{ installed: boolean }>;
+  isTv(): Promise<{ tv: boolean }>;
 }
 
 /** Plugin nativo de Android (ExternalPlayerPlugin.java): abre el stream en VLC. */
@@ -21,4 +22,9 @@ export async function openInAndroidVlc(url: string, title: string): Promise<{ ok
     }
     return { ok: false, error: msg };
   }
+}
+
+/** true si la app corre en una tele con Android TV. */
+export async function isAndroidTv(): Promise<boolean> {
+  try { return (await ExternalPlayer.isTv()).tv; } catch { return false; }
 }

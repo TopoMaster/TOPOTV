@@ -1,6 +1,7 @@
 import type { Channel, Stream } from '@/types';
 import { Capacitor } from '@capacitor/core';
 import { buildStreamUrl } from '@/lib/aceApi';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import { buildAgendaM3U, nativeAgenda, nativeScrape, nativeStatus } from '@/lib/ciriacoNative';
 
 const isNative = () => Capacitor.isNativePlatform();
@@ -8,8 +9,10 @@ const isNative = () => Capacitor.isNativePlatform();
 export const CIRIACO_URL = 'http://localhost:3004';
 export const CIRIACO_PLAYLIST_URL = `${CIRIACO_URL}/api/ciriaco/playlist.m3u`;
 export const ELCANO_PLAYLIST_URL = 'https://tokyo.elcano-ipfs.workers.dev/k51qzi5uqu5dh5qej4b9wlcr5i6vhc7rcfkekhrxqek5c9lk6gdaiik820fecs/hashes_acestream.m3u';
-/** Listas que TOPOTV carga siempre: Elcano (categorías), las del usuario y, al final, la agenda de Ciriaco (que se fusiona con las anteriores). */
-export const withDefaultSources = (userUrls: string[] = []) => [...new Set([ELCANO_PLAYLIST_URL, ...userUrls, CIRIACO_PLAYLIST_URL])];
+/** Fuente interna: canales de TDT en abierto (lista incluida en la app, ver src/lib/tdt.ts). */
+export const TDT_SOURCE_URL = 'topotv://tdt';
+/** Listas que TOPOTV carga siempre: Elcano (categorías), TDT (si está activada), las del usuario y, al final, la agenda de Ciriaco (que se fusiona con las anteriores). */
+export const withDefaultSources = (userUrls: string[] = []) => [...new Set([ELCANO_PLAYLIST_URL, ...(useSettingsStore.getState().includeTdt ? [TDT_SOURCE_URL] : []), ...userUrls, CIRIACO_PLAYLIST_URL])];
 export const CIRIACO_SOURCE_URL = 'https://ciriaco.netlify.app/';
 export const ELCANO_SOURCE_URL = 'https://tokyo.elcano-ipfs.workers.dev/k51qzi5uqu5dh5qej4b9wlcr5i6vhc7rcfkekhrxqek5c9lk6gdaiik820fecs/';
 

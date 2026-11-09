@@ -3,6 +3,8 @@ import { Capacitor } from '@capacitor/core';
 import { Server, ShieldCheck, Upload, RotateCcw, Check, AlertTriangle, Tv2, RefreshCw, Wifi, Monitor, Share2, Smartphone } from 'lucide-react';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useM3UStore } from '@/store/useM3UStore';
+import { useUIStore } from '@/store/useUIStore';
+import { warpDown, warpState, warpUp } from '@/lib/warpAndroid';
 import { withDefaultSources } from '@/lib/ciriaco';
 import { useEPGStore } from '@/store/useEPGStore';
 import { shareStatus, tunnelStart, tunnelStop, shareRevoke, type ShareStatus } from '@/lib/share';
@@ -297,6 +299,67 @@ function ShareSection() {
   );
 }
 
+function InterfaceSection() {
+  const { tvMode, setTvMode, includeTdt, setIncludeTdt } = useSettingsStore();
+  const reloadSources = useM3UStore(s => s.reloadSources);
+  const setOnboardingOpen = useUIStore(s => s.setOnboardingOpen);
+  const opt = (active: boolean) => ({ flex: '1 1 110px', minHeight: 44, padding: '8px 12px', cursor: 'pointer', background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: active ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: active ? 700 : 500 } as const);
+  return (
+    <section className="mb-8">
+      <SLabel icon={Tv2} label="Interfaz y canales" />
+      <Card>
+        <p style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: 6 }}>Modo TV</p>
+        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 10 }}>Interfaz más grande y con selección clara para manejarla con mando. «Automático» se activa solo en Android TV.</p>
+        <div className="flex gap-2 flex-wrap mb-5">
+          {(['auto', 'on', 'off'] as const).map(m => <button key={m} style={opt(tvMode === m)} onClick={() => setTvMode(m)}>{m === 'auto' ? 'Automático' : m === 'on' ? 'Activado' : 'Desactivado'}</button>)}
+        </div>
+        <p style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: 6 }}>TDT en abierto</p>
+        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 10 }}>RTVE (La 1, La 2, 24 Horas, Teledeporte, Clan) y televisiones autonómicas con emisión oficial gratuita. No necesitan el motor AceStream.</p>
+        <div className="flex gap-2 flex-wrap mb-5">
+          <button style={opt(includeTdt)} onClick={() => { setIncludeTdt(true); void reloadSources(); }}>Incluir</button>
+          <button style={opt(!includeTdt)} onClick={() => { setIncludeTdt(false); void reloadSources(); }}>No incluir</button>
+        </div>
+        <button style={opt(false)} onClick={() => setOnboardingOpen(true)}>Ver la guía de uso otra vez</button>
+      </Card>
+    </section>
+  );
+}
+
+function WarpAndroidSection() {
+  const { warpAuto, setWarpAuto } = useSettingsStore();
+  const [state, setState] = useState<'idle' | 'busy' | 'ok' | 'error'>('idle');
+  const [msg, setMsg] = useState('');
+  const opt = (active: boolean) => ({ flex: '1 1 110px', minHeight: 44, padding: '8px 12px', cursor: 'pointer', background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: active ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: active ? 700 : 500 } as const);
+  async function test() {
+    setState('busy'); setMsg('');
+    const problem = await warpUp();
+    if (problem) { setState('error'); setMsg(problem); return; }
+    await new Promise(r => setTimeout(r, 2500));
+    const st = await warpState();
+    await warpDown();
+    setState(st.connected ? 'ok' : 'error'); setMsg(st.connected ? 'WARP conectó correctamente y se apagó de nuevo.' : 'El túnel no llegó a conectar.');
+  }
+  return (
+    <section className="mb-8">
+      <SLabel icon={ShieldCheck} label="WARP (agenda de Eventos)" />
+      <Card>
+        <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 12 }}>
+          Ciriaco puede estar bloqueado en tu red. TOPOTV incluye su propio túnel Cloudflare WARP: se conecta solo al pulsar «Actualizar» en Eventos y se apaga al terminar. Solo pasa por él el tráfico de TOPOTV, así que la reproducción y el resto del móvil no se ven afectados. La primera vez Android pedirá permiso de VPN.
+        </p>
+        <div className="flex gap-2 flex-wrap mb-3">
+          <button style={opt(warpAuto)} onClick={() => setWarpAuto(true)}>Automático</button>
+          <button style={opt(!warpAuto)} onClick={() => setWarpAuto(false)}>Desactivado</button>
+          <button style={opt(false)} onClick={test} disabled={state === 'busy'}>{state === 'busy' ? 'Probando…' : 'Probar conexión'}</button>
+        </div>
+        {msg && <p role="status" style={{ fontSize: '0.74rem', color: state === 'ok' ? 'var(--online-green)' : 'var(--offline-red)', marginBottom: 8 }}>{msg}</p>}
+        <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          ¿Prefieres la app oficial? <a href="https://play.google.com/store/apps/details?id=com.cloudflare.onedotonedotonedotone" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>Descargar 1.1.1.1 + WARP</a>. Con ella el cambio es manual: actívala antes de actualizar y desactívala después. Desactiva el modo automático para no mezclarlas.
+        </p>
+      </Card>
+    </section>
+  );
+}
+
 export function SettingsPage() {
   const isNativeApp = Capacitor.isNativePlatform();
   return (
@@ -305,6 +368,8 @@ export function SettingsPage() {
       {!isNativeApp&&<DepsSection />}
       {!isNativeApp&&<DevicesSection />}
       {!isNativeApp&&<ShareSection />}
+      <InterfaceSection />
+      {isNativeApp&&<WarpAndroidSection />}
       <BackendSection />
       <PlayerSection />
       <M3USection />

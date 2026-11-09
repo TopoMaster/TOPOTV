@@ -1,7 +1,8 @@
 /**
  * VLC Helper — puerto 3002
  *   GET /health
- *   GET /open?url=<streamUrl>   -> lanza VLC con la URL del motor local
+ *   GET /open?url=<streamUrl>[&direct=1] -> lanza VLC con la URL del motor local (o una emisión http/https directa)
+ *   GET /engine/start | /engine/stop -> enciende / apaga el motor AceStream
  *   GET /deps                   -> estado de VLC, WARP y AceStream (para la pantalla de Ajustes)
  */
 const http = require('http');
@@ -57,6 +58,14 @@ function engineOnline(host = '127.0.0.1', port = 6878) {
     req.on('error', () => resolve(false)); req.on('timeout', () => { req.destroy(); resolve(false); });
   });
 }
+/** Apaga el motor AceStream (cierra sus procesos). */
+function stopEngine() {
+  const names = process.platform === 'win32' ? ['ace_console.exe', 'ace_engine.exe'] : ['ace_engine', 'ace_console'];
+  for (const n of names) {
+    try { if (process.platform === 'win32') execFileSync('taskkill', ['/F', '/IM', n], { windowsHide: true, stdio: 'ignore' }); else execFileSync('pkill', ['-f', n], { stdio: 'ignore' }); }
+    catch { /* no estaba en marcha */ }
+  }
+}
 /** Arranca el motor AceStream si está instalado y no responde (best-effort). */
 async function ensureEngine(log = console.log) {
   if (await engineOnline()) return 'running';
@@ -80,9 +89,12 @@ function start(opts = {}) {
     if (u.pathname === '/health') return send(200, { ok: true, vlc });
     if (u.pathname === '/deps') return send(200, { vlc: !!vlc, warp: !!findWarp(), aceInstalled: !!findAceEngine(), aceRunning: await engineOnline() });
     if (u.pathname === '/engine/start') return send(200, { result: await ensureEngine(log) });
+    if (u.pathname === '/engine/stop') { stopEngine(); return send(200, { ok: true }); }
     if (u.pathname === '/open') {
       const target = u.searchParams.get('url');
-      if (!target || !/^https?:\/\/(127\.0\.0\.1|localhost)[:/]/i.test(target)) return send(400, { ok: false, error: 'URL no permitida (solo motor local)' });
+      const direct = u.searchParams.get('direct') === '1';   // emisión HLS normal (TDT), sin motor
+      const allowed = direct ? /^https?:\/\/[^\s"']+$/i : /^https?:\/\/(127\.0\.0\.1|localhost)[:/]/i;
+      if (!target || !allowed.test(target)) return send(400, { ok: false, error: 'URL no permitida (solo motor local o emisión directa http/https)' });
       if (!vlc) return send(500, { ok: false, error: 'No se encontró VLC. Instálalo o define VLC_PATH.' });
       try {
         const boundedCaching = (value, fallback) => {

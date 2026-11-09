@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Shield, Play, Check, X, Clock, Loader } from 'lucide-react';
 import { useM3UStore } from '@/store/useM3UStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
-import { buildStreamUrl } from '@/lib/aceApi';
+import { streamPlayUrl } from '@/lib/aceApi';
 
 type StreamStatus = 'pending'|'checking'|'online'|'offline'|'timeout';
-interface CheckResult { channelId:string; channelName:string; streamLabel:string; aceId:string; status:StreamStatus; responseMs?:number; }
+interface CheckResult { channelId:string; channelName:string; streamLabel:string; aceId:string; url:string; status:StreamStatus; responseMs?:number; }
 const SC: Record<StreamStatus,string> = {pending:'var(--text-muted)',checking:'var(--accent)',online:'var(--online-green)',offline:'var(--offline-red)',timeout:'#f59e0b'};
 const SL: Record<StreamStatus,string> = {pending:'Pendiente',checking:'Comprobando...',online:'Online',offline:'Offline',timeout:'Timeout'};
 
@@ -39,7 +39,7 @@ export function CheckerPage() {
   const stopRef = useRef(false);
   const targets = selectedGroup==='all'?allChannels:allChannels.filter(c=>c.group===selectedGroup);
   function buildList():CheckResult[] {
-    return targets.flatMap(ch=>(checkMode==='first'?ch.streams.slice(0,1):ch.streams).map(s=>({channelId:ch.id,channelName:ch.name,streamLabel:s.label,aceId:s.aceId,status:'pending' as StreamStatus})));
+    return targets.flatMap(ch=>(checkMode==='first'?ch.streams.slice(0,1):ch.streams).map(s=>({channelId:ch.id,channelName:ch.name,streamLabel:s.label,aceId:s.aceId,url:streamPlayUrl(s,backendConfig),status:'pending' as StreamStatus})));
   }
   async function runCheck() {
     stopRef.current=false; setIsRunning(true);
@@ -47,7 +47,7 @@ export function CheckerPage() {
     for(let i=0;i<list.length;i++){
       if(stopRef.current) break; setCurrentIdx(i);
       setResults(prev=>prev.map((r,idx)=>idx===i?{...r,status:'checking'}:r));
-      const {status,ms}=await checkStreamReal(buildStreamUrl(list[i].aceId,backendConfig),timeoutMs);
+      const {status,ms}=await checkStreamReal(list[i].url,timeoutMs);
       setResults(prev=>prev.map((r,idx)=>idx===i?{...r,status,responseMs:ms}:r));
     }
     setIsRunning(false);

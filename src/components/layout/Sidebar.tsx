@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Home,Search,Settings,Tv,LayoutGrid,CircleDot,ChevronLeft,ChevronRight,Heart,Activity,Shield,Power,Trophy } from 'lucide-react';
 import { LogoMark, LogoWord } from '@/components/brand/Logo';
@@ -29,6 +30,13 @@ export function Sidebar() {
   const setWarpConnected = useCiriacoStore(s=>s.setWarpConnected);
   const favCount = useFavoritesStore(s=>s.ids.size);
   const navigate = useNavigate();
+  const checkBackend = useSettingsStore(s=>s.checkBackend);
+  const [engineBusy,setEngineBusy] = useState(false);
+  async function toggleEngine() {
+    setEngineBusy(true);
+    try { await fetch(`http://localhost:3002/engine/${backendStatus==='online'?'stop':'start'}`,{signal:AbortSignal.timeout(50000)}); } catch { /* el asistente no responde */ }
+    await checkBackend(); setEngineBusy(false);
+  }
   return (
     <aside className="app-sidebar fixed left-0 top-0 h-full flex flex-col z-40 transition-all duration-300" style={{width:sidebarOpen?'240px':'64px',background:'var(--bg-surface)',borderRight:'1px solid var(--border-subtle)'}}>
       <div className="flex items-center gap-3 px-4 shrink-0" style={{height:'60px',borderBottom:'1px solid var(--border-subtle)'}}>
@@ -58,7 +66,8 @@ export function Sidebar() {
       </div>}
       <div className="px-2 pb-3 flex flex-col gap-0.5" style={{borderTop:'1px solid var(--border-subtle)',paddingTop:'12px'}}>
         {!isNativeApp&&sidebarOpen&&<div className="flex flex-col gap-1 px-3 py-1.5">
-          <div className="flex items-center gap-2"><span className={`status-dot ${backendStatus}`} /><span style={{fontSize:'0.7rem',color:'var(--text-muted)',letterSpacing:'0.04em'}}>{backendStatus==='online'?'AceStream online':backendStatus==='offline'?'AceStream offline':'Comprobando...'}</span></div>
+          <div className="flex items-center gap-2"><span className={`status-dot ${backendStatus}`} /><span style={{fontSize:'0.7rem',color:'var(--text-muted)',letterSpacing:'0.04em'}}>{backendStatus==='online'?'AceStream online':backendStatus==='offline'?'AceStream offline':'Comprobando...'}</span>
+            <button onClick={toggleEngine} disabled={engineBusy} aria-label={backendStatus==='online'?'Apagar el motor AceStream':'Encender el motor AceStream'} style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',gap:4,padding:'3px 8px',background:'var(--bg-elevated)',border:'1px solid var(--border-mid)',borderRadius:'100px',color:'var(--text-secondary)',fontSize:'0.62rem',cursor:engineBusy?'wait':'pointer'}}><Power size={10} />{engineBusy?'…':backendStatus==='online'?'Apagar':'Encender'}</button></div>
           <div className="flex items-center gap-2" title="WARP afecta a la conexión de todo el equipo. Úsalo solo para actualizar eventos y canales; desconéctalo antes de reproducir.">
             <span className={`status-dot ${!ciriacoStatus || ciriacoStatus.warp.connected === null ? 'unknown' : ciriacoStatus.warp.connected ? 'online' : 'offline'}`} />
             <span style={{fontSize:'0.7rem',color:'var(--text-muted)',letterSpacing:'0.04em'}}>

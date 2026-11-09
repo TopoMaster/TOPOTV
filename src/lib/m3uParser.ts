@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
-import { CIRIACO_PLAYLIST_URL, ciriacoPlaylistText } from '@/lib/ciriaco';
+import { CIRIACO_PLAYLIST_URL, TDT_SOURCE_URL, ciriacoPlaylistText } from '@/lib/ciriaco';
+import { tdtPlaylistText } from '@/lib/tdt';
 import { canon } from '@/lib/ciriacoNative';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import type { Channel, Group, M3UMeta, ParsedM3U, Stream } from '@/types';
@@ -7,6 +8,7 @@ function slugify(t: string) { return t.toLowerCase().replace(/\s+/g,'-').replace
 function extractAceId(url: string) {
   return url.match(/^acestream:\/\/([a-f0-9]+)/i)?.[1] ?? url.match(/[?&]id=([a-f0-9]+)/i)?.[1] ?? '';
 }
+function directKey(url: string) { let h = 5381; for (let i = 0; i < url.length; i++) h = ((h << 5) + h + url.charCodeAt(i)) >>> 0; return 'direct-' + h.toString(16); }
 function extractProvider(label: string) { return label.match(/-->\s*(.+)$/)?.[1]?.trim() ?? 'DEFAULT'; }
 function cleanName(raw: string) {
   return raw.replace(/\s*-->.*$/,'').replace(/[\s*]+$/,'').replace(/\s+(4K|2160p|1080p|720p|576p|480p|FHD|HD|SD)\s*$/i,'').replace(/[\s*]+$/,'').trim() || raw.trim();
@@ -36,11 +38,15 @@ export function parseM3U(content: string, source = 'unknown'): ParsedM3U {
     if (j < lines.length && /^(https?:\/\/|acestream:\/\/)/i.test(lines[j])) url = lines[j];
     i = url ? j+1 : j;
     if (!url) continue;
-    const aceId = extractAceId(url);
-    if (!aceId) continue;
+    let aceId = extractAceId(url);
+    let direct = false;
+    if (!aceId) {
+      if (!/^https?:\/\//i.test(url)) continue;
+      aceId = directKey(url); direct = true;   // emisión HLS normal: clave estable derivada de la URL
+    }
     const cleanName_ = cleanName(rawName);
     const channelId = buildId(tvgId, groupTitle, cleanName_);
-    const stream: Stream = { aceId, url, label: rawName, provider: extractProvider(rawName) };
+    const stream: Stream = { aceId, url, label: rawName, provider: extractProvider(rawName), ...(direct ? { direct: true } : {}) };
     if (channelMap.has(channelId)) { channelMap.get(channelId)!.streams.push(stream); }
     else {
       const ch: Channel = { id: channelId, tvgId, name: cleanName_, rawName, logo: tvgLogo, group: groupTitle, streams: [stream] };
@@ -61,6 +67,7 @@ export function parseM3U(content: string, source = 'unknown'): ParsedM3U {
 }
 export async function loadM3UFromFile(file: File): Promise<ParsedM3U> { return parseM3U(await file.text(), file.name); }
 export async function loadM3UFromUrl(url: string): Promise<ParsedM3U> {
+  if (url === TDT_SOURCE_URL) return parseM3U(tdtPlaylistText(), url);   // lista de TDT incluida en la app
   // En Android no hay servidor local: la agenda de Ciriaco se genera en el propio dispositivo.
   if (url === CIRIACO_PLAYLIST_URL && Capacitor.isNativePlatform()) {
     return parseM3U(await ciriacoPlaylistText(useSettingsStore.getState().backendConfig), url);
@@ -129,6 +136,9 @@ export function mergeM3ULists(sources: ParsedM3U[]): ParsedM3U {
       } else {
         target = groupFor(sourceGroup.title, sourceGroup.logo, sourceGroup.id);
       }
+      // mismo nombre dentro de la misma categoría (aunque venga de otra lista o con otro tvg-id): se fusionan
+      const sameGroup = (byName.get(nameKey) ?? []).find(c => c.group === target.group.title);
+      if (sameGroup) { addStreams(sameGroup, sourceChannel); continue; }
       const channelKey = target.key + ':' + (canonical(sourceChannel.tvgId) || canonical(sourceChannel.name));
       let channel = channels.get(channelKey);
       if (!channel) {

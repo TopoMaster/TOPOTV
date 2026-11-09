@@ -1,9 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { AppShell } from '@/components/layout/AppShell';
 import { ChannelsPage } from '@/pages/ChannelsPage';
 import { RecordingsPage } from '@/pages/RecordingsPage';
+import { Onboarding } from '@/components/shared/Onboarding';
+import { isAndroidTv } from '@/lib/externalPlayer';
 import { useRecorderStore } from '@/store/useRecorderStore';
 import { HomePage } from '@/pages/HomePage';
 import { CategoryPage } from '@/pages/CategoryPage';
@@ -56,6 +58,15 @@ function BackgroundPreloader() {
     const interval = setInterval(syncCiriacoStatus, 10000);
     return () => clearInterval(interval);
   }, [syncCiriacoStatus]);
+
+  // Modo TV: clase en <html> según el ajuste (automático = solo en Android TV)
+  const tvMode = useSettingsStore(s => s.tvMode);
+  const [deviceTv, setDeviceTv] = useState(false);
+  useEffect(() => { if (Capacitor.isNativePlatform()) void isAndroidTv().then(setDeviceTv); }, []);
+  useEffect(() => {
+    const active = tvMode === 'on' || (tvMode === 'auto' && deviceTv);
+    document.documentElement.classList.toggle('tv-mode', active);
+  }, [tvMode, deviceTv]);
 
   // Estado del grabador de escritorio (botón «Grabar» en Eventos)
   useEffect(() => {
@@ -140,6 +151,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <BackgroundPreloader />
+      <Onboarding />
       <AppShell>
         <Routes>
           <Route path="/"               element={<HomePage />} />

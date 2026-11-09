@@ -3,7 +3,7 @@ import { X, Loader2, AlertCircle, MonitorPlay } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { usePlayerStore } from '@/store/usePlayerStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
-import { buildHlsUrl } from '@/lib/aceApi';
+import { streamHlsUrl } from '@/lib/aceApi';
 
 /** Reproductor integrado (modo Navegador, hls.js) + aviso de estado para VLC. */
 export function PlayerOverlay() {
@@ -18,7 +18,7 @@ export function PlayerOverlay() {
     if (!browserMode || !stream || !video || status === 'error') return;
     let hls: { destroy: () => void } | null = null;
     let cancelled = false;
-    const src = buildHlsUrl(stream.aceId, backendConfig);
+    const src = streamHlsUrl(stream, backendConfig);
     const onPlaying = () => setStatus('playing');
     video.addEventListener('playing', onPlaying);
     (async () => {

@@ -5,6 +5,8 @@
  */
 import { CapacitorHttp, registerPlugin } from '@capacitor/core';
 import logoIndex from './channel-logos.json';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { warpDown, warpUp } from '@/lib/warpAndroid';
 import type { CiriacoData, CiriacoDay, CiriacoLink, CiriacoStatus } from './ciriaco';
 
 const SOURCE = 'https://ciriaco.netlify.app/';
@@ -37,7 +39,7 @@ export function clean(raw: string) {
     .replace(/^M\.\s*/, 'M+ ').replace(/^Movistar\s+(?!plus|\+)/i, 'M+ ').replace(/^Movistar\s*(Plus\s*\+?|\+)\s*$/i, 'M+')
     .replace(/\s+/g, ' ').trim();
 }
-function logoFor(key: string) {
+export function logoFor(key: string) {
   let file = INDEX[key];
   if (!file) for (const [re, k] of FALLBACKS) if (re.test(key) && INDEX[k]) { file = INDEX[k]; break; }
   return file ? LOGO_BASE + file : '';
@@ -141,7 +143,7 @@ export function normalizeAgenda(rawDays: RawDay[]): Pick<CiriacoData, 'days' | '
 }
 
 /* ── Estado y caché local ───────────────────────────────────── */
-const state = { updating: false, phase: '', lastError: '' };
+const state = { updating: false, phase: '', lastError: '', via: 'directo' };
 let cached: { fetchedAt: string; data: CiriacoData } | null = null;
 function readCache() {
   if (cached) return cached;
@@ -152,7 +154,7 @@ const sameDay = (iso: string) => new Date(iso).toDateString() === new Date().toD
 
 export function nativeStatus(): CiriacoStatus {
   const c = readCache();
-  return { fetchedAt: c?.fetchedAt ?? null, via: c ? 'directo' : null, fresh: !!c && sameDay(c.fetchedAt), updating: state.updating, phase: state.phase, lastError: state.lastError, warp: { available: false, connected: null, mode: 'off' } };
+  return { fetchedAt: c?.fetchedAt ?? null, via: c ? (c.data.via || 'directo') : null, fresh: !!c && sameDay(c.fetchedAt), updating: state.updating, phase: state.phase, lastError: state.lastError, warp: { available: false, connected: null, mode: 'off' } };
 }
 
 /** Plugin nativo (AgendaScraperPlugin.java): carga la web en un WebView oculto y ejecuta un script cuando ya se ha dibujado. */
@@ -204,17 +206,28 @@ async function readAgenda(): Promise<RawDay[]> {
   } catch { /* se informa abajo */ }
   const blocked = /TIMEOUT|NETWORK/.test(webError);
   throw new Error(blocked
-    ? 'No se pudo abrir Ciriaco (tu red puede estar bloqueándolo). Activa una VPN, pulsa Actualizar y desactívala después.'
+    ? 'No se pudo abrir Ciriaco (tu red puede estar bloqueándolo). Comprueba que el WARP integrado esté en «Automático» en Ajustes, o usa tu propia VPN y vuelve a pulsar Actualizar.'
     : 'No se encontraron eventos en la página de Ciriaco (puede haber cambiado de formato).');
 }
 
 export async function nativeScrape(): Promise<CiriacoData> {
   state.updating = true; state.phase = 'Leyendo Ciriaco…'; state.lastError = '';
   try {
-    const raw = await readAgenda();
+    // WARP integrado: se conecta solo mientras se lee la agenda y se apaga siempre al terminar
+    let warpOn = false;
+    if (useSettingsStore.getState().warpAuto) {
+      state.phase = 'Conectando WARP…';
+      const problem = await warpUp();
+      warpOn = problem === null;
+      if (problem) console.warn('[WARP]', problem);   // se sigue sin WARP
+    }
+    let raw: RawDay[];
+    try { state.phase = warpOn ? 'Leyendo Ciriaco vía WARP…' : 'Leyendo Ciriaco…'; raw = await readAgenda(); }
+    finally { if (warpOn) { state.phase = 'Desconectando WARP…'; await warpDown(); } }
+    state.via = warpOn ? 'warp' : 'directo';
     const { days, channels } = normalizeAgenda(raw);
     const fetchedAt = new Date().toISOString();
-    const data: CiriacoData = { source: SOURCE, fetchedAt, via: 'directo', days, channels, status: { ...nativeStatus(), fetchedAt, fresh: true, updating: false } };
+    const data: CiriacoData = { source: SOURCE, fetchedAt, via: state.via, days, channels, status: { ...nativeStatus(), fetchedAt, fresh: true, updating: false } };
     cached = { fetchedAt, data };
     try { localStorage.setItem(CACHE_KEY, JSON.stringify(cached)); } catch { /* sin espacio */ }
     return data;

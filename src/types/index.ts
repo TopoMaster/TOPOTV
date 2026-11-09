@@ -1,4 +1,5 @@
-export interface Stream { aceId: string; url: string; label: string; provider: string; }
+/** direct = emisión HLS normal (p. ej. TDT) que no pasa por el motor AceStream; aceId es solo una clave única. */
+export interface Stream { aceId: string; url: string; label: string; provider: string; direct?: boolean; }
 export interface Channel { id: string; tvgId: string; name: string; rawName: string; logo: string; group: string; streams: Stream[]; }
 export interface Group { id: string; title: string; logo: string; channels: Channel[]; }
 export interface M3UMeta { epgUrls: string[]; refreshInterval: number; loadedAt: Date; source: string; }

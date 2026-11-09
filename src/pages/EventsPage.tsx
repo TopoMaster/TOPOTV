@@ -64,7 +64,7 @@ export function CiriacoAccessNotice() {
         <WifiOff size={15} style={{ color: 'var(--accent)', marginTop: '2px', flexShrink: 0 }} />
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.76rem', lineHeight: 1.5 }}>
           <strong style={{ color: 'var(--accent)' }}>Aviso VPN:</strong> {Capacitor.isNativePlatform()
-            ? 'Ciriaco puede bloquear el acceso desde algunas redes. Si la agenda no carga, activa una VPN, pulsa Actualizar y desactívala antes de reproducir.'
+            ? 'Al actualizar, TOPOTV conecta su WARP integrado (solo para la app; la primera vez Android pide permiso de VPN) y lo apaga al terminar. Se puede desactivar en Ajustes.'
             : 'Al actualizar, TOPOTV conecta Cloudflare WARP automáticamente (Ciriaco lo necesita) y lo desconecta en cuanto termina, así la reproducción va siempre sin VPN.'}
         </p>
       </div>

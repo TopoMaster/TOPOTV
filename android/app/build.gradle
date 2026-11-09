@@ -12,6 +12,9 @@ def androidVersionCode = System.getenv('ANDROID_VERSION_CODE')
 android {
     namespace = "tv.topo.topotv"
     compileSdk = rootProject.ext.compileSdkVersion
+    compileOptions {
+        coreLibraryDesugaringEnabled true
+    }
     defaultConfig {
         applicationId "tv.topo.topotv"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -77,6 +80,8 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    implementation 'com.wireguard.android:tunnel:1.0.20230706'   // túnel WARP integrado
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
