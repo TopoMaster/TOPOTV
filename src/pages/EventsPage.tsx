@@ -182,7 +182,7 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
             <button onClick={scheduleIt} disabled={winEnd <= Date.now()} style={{ minHeight: 40, padding: '0 18px', background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', borderRadius: 100, fontSize: '0.78rem', fontWeight: 700, cursor: winEnd <= Date.now() ? 'not-allowed' : 'pointer', opacity: winEnd <= Date.now() ? 0.5 : 1 }}>Programar grabación</button>
           </div>
           <p style={{ marginTop: 8, fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-            {winEnd <= Date.now() ? 'Este evento ya terminó.' : `Grabará de ${hhmm(winStart)} a ${hhmm(winEnd)} (la duración del evento es una estimación). El PC debe estar encendido con TOPOTV abierto.`}
+            {winEnd <= Date.now() ? 'Este evento ya terminó.' : `Grabará de ${hhmm(winStart)} a ${hhmm(winEnd)} (la duración del evento es una estimación). ${Capacitor.isNativePlatform() ? 'El móvil debe estar encendido con el motor AceStream en marcha.' : 'El PC debe estar encendido con TOPOTV abierto.'}`}
           </p>
           {recMsg && <p role="alert" style={{ marginTop: 4, fontSize: '0.72rem', color: 'var(--offline-red)' }}>{recMsg}</p>}
         </div>

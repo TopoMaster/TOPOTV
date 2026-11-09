@@ -79,7 +79,6 @@ function BackgroundPreloader() {
 
   // Estado del grabador de escritorio (botón «Grabar» en Eventos)
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
     const refresh = useRecorderStore.getState().refresh;
     void refresh();
     const interval = setInterval(refresh, 15000);
@@ -171,7 +170,7 @@ export default function App() {
           <Route path="/tv-guide" element={<Navigate to="/events" replace />} />
           <Route path="/epg-xmltv" element={<TVGuidePage />} />
           <Route path="/events" element={<EventsPage />} />
-          {!isNativeApp&&<Route path="/recordings" element={<RecordingsPage />} />}
+          <Route path="/recordings" element={<RecordingsPage />} />
           <Route path="/scores" element={<EventsPage />} />
           <Route path="/flashscore" element={<FlashscorePage />} />
           <Route path="/checker"        element={<CheckerPage />} />

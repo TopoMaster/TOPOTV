@@ -1,5 +1,20 @@
-/** Cliente del grabador de eventos de escritorio (desktop/tools/recorder.cjs, puerto 3007). */
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+/**
+ * Grabador de eventos. En Windows habla con tools/recorder.cjs (puerto 3007); en Android con el plugin
+ * nativo RecorderPlugin (servicio en segundo plano + alarma). El contrato de las funciones es el mismo.
+ */
 const REC = 'http://localhost:3007';
+const isNative = () => Capacitor.isNativePlatform();
+interface RecorderNative {
+  list(): Promise<{ dir: string; recordings: Recording[] }>;
+  schedule(input: ScheduleInput): Promise<Recording>;
+  cancel(o: { id: string }): Promise<Recording>;
+  remove(o: { id: string }): Promise<void>;
+  open(o: { id: string }): Promise<void>;
+}
+const Native = registerPlugin<RecorderNative>('Recorder');
+const nativeError = (e: unknown): never => { throw new Error(e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e)); };
 
 export type RecStatus = 'scheduled' | 'recording' | 'done' | 'failed' | 'cancelled' | 'missed';
 export interface Recording {
@@ -16,13 +31,14 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function recorderAvailable(): Promise<boolean> {
+  if (isNative()) return true;
   try { return (await fetch(`${REC}/health`, { signal: AbortSignal.timeout(1500) })).ok; } catch { return false; }
 }
-export const listRecordings = () => call<{ dir: string; recordings: Recording[] }>('/recordings');
-export const scheduleRecording = (input: ScheduleInput) => call<Recording>('/recordings', { method: 'POST', body: JSON.stringify(input) });
-export const cancelRecording = (id: string) => call<Recording>(`/recordings/${id}/cancel`, { method: 'POST' });
-export const openRecording = (id: string) => call<{ ok: boolean }>(`/recordings/${id}/open`, { method: 'POST' });
-export const deleteRecording = (id: string) => call<{ ok: boolean }>(`/recordings/${id}`, { method: 'DELETE' });
+export const listRecordings = () => isNative() ? Native.list().catch(nativeError) : call<{ dir: string; recordings: Recording[] }>('/recordings');
+export const scheduleRecording = (input: ScheduleInput) => isNative() ? Native.schedule(input).catch(nativeError) : call<Recording>('/recordings', { method: 'POST', body: JSON.stringify(input) });
+export const cancelRecording = (id: string) => isNative() ? Native.cancel({ id }).catch(nativeError) : call<Recording>(`/recordings/${id}/cancel`, { method: 'POST' });
+export const openRecording = (id: string) => isNative() ? Native.open({ id }).then(() => ({ ok: true })).catch(nativeError) : call<{ ok: boolean }>(`/recordings/${id}/open`, { method: 'POST' });
+export const deleteRecording = (id: string) => isNative() ? Native.remove({ id }).then(() => ({ ok: true })).catch(nativeError) : call<{ ok: boolean }>(`/recordings/${id}`, { method: 'DELETE' });
 export const openRecordingsFolder = () => call<{ ok: boolean }>('/recordings/open-folder', { method: 'POST' });
 
 export function formatBytes(n: number) {

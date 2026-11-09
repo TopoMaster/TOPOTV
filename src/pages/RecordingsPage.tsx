@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Circle, FolderOpen, Play, Square, Trash2, WifiOff } from 'lucide-react';
 import { cancelRecording, deleteRecording, formatBytes, openRecording, openRecordingsFolder, type RecStatus } from '@/lib/recorder';
 import { useRecorderStore } from '@/store/useRecorderStore';
@@ -34,20 +35,20 @@ export function RecordingsPage() {
           <Circle size={22} strokeWidth={1.8} fill="var(--live-red)" style={{ color: 'var(--live-red)' }} />
           <h1 className="font-display" style={{ fontSize: 'clamp(2rem,4vw,3rem)', lineHeight: 1, letterSpacing: '0.06em' }}>Grabaciones</h1>
         </div>
-        {available && <button style={btn} onClick={() => run(openRecordingsFolder)}><FolderOpen size={14} />Abrir carpeta</button>}
+        {available && !Capacitor.isNativePlatform() && <button style={btn} onClick={() => run(openRecordingsFolder)}><FolderOpen size={14} />Abrir carpeta</button>}
       </div>
 
       {!available && (
         <div style={{ padding: 20, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-lg)' }}>
           <div className="flex items-center gap-2 mb-1"><WifiOff size={14} style={{ color: 'var(--offline-red)' }} /><strong style={{ color: 'var(--offline-red)', fontSize: '0.82rem' }}>El grabador no está disponible</strong></div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', lineHeight: 1.5 }}>Las grabaciones solo funcionan en la app de Windows. Ábrela con TOPOTV de escritorio y recarga esta pantalla.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', lineHeight: 1.5 }}>El grabador no responde. En Windows, abre la app de escritorio de TOPOTV y recarga esta pantalla.</p>
         </div>
       )}
 
       {available && (
         <>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.74rem', lineHeight: 1.6, marginBottom: 14 }}>
-            Programa una grabación desde <strong style={{ color: 'var(--text-secondary)' }}>Eventos</strong> con el botón «Grabar». El PC debe estar encendido, con TOPOTV abierto (puede estar minimizado) y el motor AceStream activo; TOPOTV evita que Windows se suspenda mientras graba.
+            Programa una grabación desde <strong style={{ color: 'var(--text-secondary)' }}>Eventos</strong> con el botón «Grabar». {Capacitor.isNativePlatform() ? 'El móvil debe estar encendido, con el motor AceStream en marcha (ábrelo antes si no lo tienes en automático) y sin un ahorro de batería que cierre TOPOTV. Graba aunque apagues la pantalla y verás un aviso mientras lo hace.' : 'El PC debe estar encendido, con TOPOTV abierto (puede estar minimizado) y el motor AceStream activo; TOPOTV evita que Windows se suspenda mientras graba.'}
             {dir && <> Se guardan en <code style={{ color: 'var(--accent)' }}>{dir}</code>.</>}
           </p>
           {(msg || error) && <p role="alert" style={{ color: 'var(--offline-red)', fontSize: '0.78rem', marginBottom: 10 }}>{msg || error}</p>}

@@ -16,11 +16,11 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 
 | Plataforma | Descarga |
 | --- | --- |
-| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.0.7.exe) |
-| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.0.7.apk) |
-| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.0.7.zip) |
+| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.0.8.exe) |
+| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.0.8.apk) |
+| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.0.8.zip) |
 
-**Versión actual: v1.0.7.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
+**Versión actual: v1.0.8.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
 
 ## Qué incluye
 
@@ -31,7 +31,7 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 - Agenda de eventos y guía EPG también en Android (se descargan directamente en el móvil).
 - Canales organizados por categorías: la lista de Elcano se fusiona con la agenda de Ciriaco.
 - En Android, reproducción dentro de la app o en VLC for Android (Ajustes → Reproductor).
-- Grabación programada de eventos (app de Windows): botón «Grabar» en Eventos y sección Grabaciones para verlas después en VLC.
+- Grabación programada de eventos (Windows y Android): botón «Grabar» en Eventos y sección Grabaciones para verlas después en VLC. En Android graba en segundo plano y guarda en Películas/TOPOTV.
 - TDT en abierto (RTVE y televisiones autonómicas con emisión oficial gratuita), sin necesidad del motor AceStream.
 - Guía interactiva en el primer arranque (se puede repetir desde Ajustes).
 - Modo TV (Ajustes): interfaz grande y manejable con mando; automático en Android TV.

@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ExternalPlayerPlugin.class);
         registerPlugin(AgendaScraperPlugin.class);
         registerPlugin(WarpPlugin.class);
+        registerPlugin(RecorderPlugin.class);
         super.onCreate(savedInstanceState);
         getBridge().getWebView().getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
     }
