@@ -6,7 +6,7 @@ import { useM3UStore } from '@/store/useM3UStore';
 import { useUIStore } from '@/store/useUIStore';
 import { warpDown, warpState, warpUp } from '@/lib/warpAndroid';
 import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
-import { ENGINE_DOCS_URL, findEngineApp, installEngine, openEngineAppSettings, startEngineApp, type EngineApp } from '@/lib/engineAndroid';
+import { ENGINE_DOCS_URL, findEngineApp, installEngine, installEngineFromFile, openEngineAppSettings, startEngineApp, type EngineApp } from '@/lib/engineAndroid';
 import { withDefaultSources } from '@/lib/ciriaco';
 import { useEPGStore } from '@/store/useEPGStore';
 import { shareStatus, tunnelStart, tunnelStop, shareRevoke, type ShareStatus } from '@/lib/share';
@@ -342,6 +342,13 @@ function EngineAndroidSection() {
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
+  async function installFromFile() {
+    setMsg('');
+    const r = await installEngineFromFile();
+    if (r.needsPermission) setMsg('Activa «Permitir desde esta fuente» para TOPOTV en la pantalla que se ha abierto, vuelve y pulsa de nuevo.');
+    else if (r.error) setMsg(r.error);
+    else if (r.ok) setMsg('Confirma la instalación en el diálogo de Android. Al terminar vuelve a TOPOTV.');
+  }
   async function install() {
     setMsg(''); setInstalling(null);
     const r = await installEngine(setInstalling);
@@ -380,6 +387,9 @@ function EngineAndroidSection() {
           <button style={opt(engineAutoStart)} onClick={() => setEngineAutoStart(true)}>Encender al abrir TOPOTV</button>
           <button style={opt(!engineAutoStart)} onClick={() => setEngineAutoStart(false)}>Solo a mano</button>
         </div>
+        <p style={{ fontSize: '0.74rem', fontWeight: 600, margin: '16px 0 6px' }}>Instalar el motor desde un archivo</p>
+        <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 8 }}>Si ya tienes el APK en el móvil (por ejemplo, bajado de tu repositorio privado desde el navegador), elígelo aquí y TOPOTV lo instala. No hace falta ningún token.</p>
+        <button style={opt(false)} onClick={installFromFile}>Elegir el APK del motor</button>
         <p style={{ fontSize: '0.74rem', fontWeight: 600, margin: '16px 0 6px' }}>Origen privado del instalador (opcional)</p>
         <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 8 }}>Pega un enlace https a tu copia del APK del motor (Dropbox, Google Drive, tu servidor o un archivo de una release privada de GitHub). Se guarda solo en este dispositivo y TOPOTV lo usa antes que cualquier otro origen. El token solo hace falta si el sitio lo exige.</p>
         <input type="url" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="https://…/motor.apk" style={{ ...inp, width: '100%', marginBottom: 8 }} />

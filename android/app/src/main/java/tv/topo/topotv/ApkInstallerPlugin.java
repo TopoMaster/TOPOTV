@@ -1,5 +1,6 @@
 package tv.topo.topotv;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.res.AssetManager;
 import android.content.Intent;
@@ -7,12 +8,14 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 
+import androidx.activity.result.ActivityResult;
 import androidx.core.content.FileProvider;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.File;
@@ -69,6 +72,57 @@ public class ApkInstallerPlugin extends Plugin {
     }
 
     /** Copia el APK incluido en TOPOTV y abre el instalador de Android (el usuario confirma). */
+    /** Elegir un APK del móvil (p. ej. el que bajaste de tu repositorio privado en Descargas) e instalarlo. */
+    @PluginMethod
+    public void pickAndInstall(final PluginCall call) {
+        final Context c = getContext();
+        if (Build.VERSION.SDK_INT >= 26 && !c.getPackageManager().canRequestPackageInstalls()) {
+            Intent perm = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + c.getPackageName()));
+            perm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            try { c.startActivity(perm); } catch (Exception ignored) { }
+            call.reject("NEEDS_PERMISSION");
+            return;
+        }
+        Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        pick.addCategory(Intent.CATEGORY_OPENABLE);
+        pick.setType("*/*");
+        pick.putExtra(Intent.EXTRA_MIME_TYPES, new String[] { "application/vnd.android.package-archive", "application/octet-stream" });
+        startActivityForResult(call, pick, "pickResult");
+    }
+
+    @ActivityCallback
+    private void pickResult(final PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) {
+            call.reject("CANCELLED");
+            return;
+        }
+        final Uri src = result.getData().getData();
+        final Context c = getContext();
+        io.execute(() -> {
+            File apk = new File(c.getCacheDir(), "motor-acestream.apk");
+            try {
+                long total = 0;
+                try (InputStream in = c.getContentResolver().openInputStream(src); FileOutputStream out = new FileOutputStream(apk)) {
+                    if (in == null) { call.reject("No se pudo leer el archivo elegido."); return; }
+                    byte[] buf = new byte[256 * 1024];
+                    int n;
+                    while ((n = in.read(buf)) > 0) { out.write(buf, 0, n); total += n; }
+                }
+                if (total < 1024 * 1024) { call.reject("El archivo elegido no parece un APK."); return; }
+                Uri uri = FileProvider.getUriForFile(c, c.getPackageName() + ".fileprovider", apk);
+                Intent install = new Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                c.startActivity(install);
+                JSObject ret = new JSObject();
+                ret.put("opened", true);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("No se pudo preparar la instalación: " + e.getMessage());
+            }
+        });
+    }
+
     @PluginMethod
     public void installBundled(final PluginCall call) {
         final Context c = getContext();

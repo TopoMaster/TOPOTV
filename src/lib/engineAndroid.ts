@@ -50,6 +50,7 @@ export async function openEngineAppSettings(app: EngineApp) {
 interface ApkInstaller {
   hasBundled(): Promise<{ bundled: boolean; arm64: boolean }>;
   installBundled(): Promise<{ opened: boolean }>;
+  pickAndInstall(): Promise<{ opened: boolean }>;
   abi(): Promise<{ abi: string }>;
   install(o: { url: string; token?: string }): Promise<{ opened: boolean }>;
   addListener(name: 'progress', cb: (p: { bytes: number; total: number }) => void): Promise<{ remove: () => void }>;
@@ -106,4 +107,15 @@ export async function installEngine(onProgress: (pct: number | null) => void): P
     const msg = message(e);
     return msg.includes('NEEDS_PERMISSION') ? { ok: false, needsPermission: true } : { ok: false, error: msg };
   } finally { sub.remove(); }
+}
+
+/** Elegir el APK del motor desde el almacenamiento del móvil (p. ej. descargado de tu repositorio privado) e instalarlo. */
+export async function installEngineFromFile(): Promise<{ ok: boolean; needsPermission?: boolean; cancelled?: boolean; error?: string }> {
+  try { await Installer.pickAndInstall(); return { ok: true }; }
+  catch (e) {
+    const msg = e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
+    if (msg.includes('NEEDS_PERMISSION')) return { ok: false, needsPermission: true };
+    if (msg.includes('CANCELLED')) return { ok: false, cancelled: true };
+    return { ok: false, error: msg };
+  }
 }
