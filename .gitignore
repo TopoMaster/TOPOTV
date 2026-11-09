@@ -49,3 +49,6 @@ desktop.ini
 
 # Software de terceros que no se redistribuye (p. ej. el APK del motor AceStream para estudiarlo)
 /third_party/
+
+# Configuración local de Claude Code (skills, ajustes): no se publica
+/.claude/
