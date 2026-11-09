@@ -28,6 +28,21 @@ let DIR = path.join(__dirname, 'recordings');
 let log = console.log;
 let opts = {};
 const active = new Map();   // id -> { stop() }
+let settings = { retentionDays: 0 };   // 0 = no borrar nunca
+const MIN_FREE = 400 * 1024 * 1024;   // si queda menos, se para la grabación para no llenar el disco
+const freeBytes = () => { try { fs.mkdirSync(DIR, { recursive: true }); const st = fs.statfsSync(DIR); return Number(st.bavail) * Number(st.bsize); } catch { return -1; } };
+const SETTINGS_FILE = () => FILE + '.settings';
+const loadSettings = () => { try { settings = { retentionDays: 0, ...JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8')) }; } catch { /* valores por defecto */ } };
+const saveSettings = () => { try { fs.writeFileSync(SETTINGS_FILE(), JSON.stringify(settings)); } catch { /* sin guardar */ } };
+/** Borra grabaciones terminadas más viejas que los días elegidos. */
+function prune() {
+  const days = Number(settings.retentionDays) || 0;
+  if (!days) return;
+  const limit = Date.now() - days * 86400e3;
+  const old = recs.filter(r => ['done', 'failed', 'cancelled', 'missed'].includes(r.status) && r.end < limit);
+  for (const r of old) { if (r.file) { try { fs.unlinkSync(r.file); } catch { /* ya borrado */ } } log(`[rec] borrada por antigüedad: ${r.title}`); }
+  if (old.length) { recs = recs.filter(r => !old.includes(r)); save(); }
+}
 
 const save = () => { try { fs.writeFileSync(FILE, JSON.stringify(recs, null, 1)); } catch (e) { log('[rec] no se pudo guardar', e.message); } };
 const load = () => { try { recs = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch { recs = []; } };
@@ -40,12 +55,15 @@ const pub = r => ({ id: r.id, key: r.key || '', title: r.title, sport: r.sport, 
 /** Una conexión al motor: resuelve con los bytes recibidos cuando termina, falla o se pide parar. */
 function pullStream(rec, hash, ws, handle) {
   return new Promise(resolve => {
-    let got = 0, finished = false, firstTimer = null;
+    let got = 0, finished = false, firstTimer = null, lastDiskCheck = 0;
     const done = () => { if (finished) return; finished = true; clearTimeout(firstTimer); resolve(got); };
     const req = http.get({ host: rec.host, port: rec.port, path: `/ace/getstream?id=${hash}` }, res => {
       if (res.statusCode !== 200) { res.resume(); return done(); }
       handle.res = res;
-      res.on('data', chunk => { got += chunk.length; rec.bytes = (rec.bytes || 0) + chunk.length; ws.write(chunk); });
+      res.on('data', chunk => {
+        got += chunk.length; rec.bytes = (rec.bytes || 0) + chunk.length; ws.write(chunk);
+        if (Date.now() - lastDiskCheck > 10000) { lastDiskCheck = Date.now(); const f = freeBytes(); if (f >= 0 && f < MIN_FREE) { rec.error = 'Disco casi lleno: grabación detenida para no llenarlo.'; handle.stop(); } }
+      });
       res.on('end', done); res.on('error', done); res.on('close', done);
     });
     handle.req = req;
@@ -117,7 +135,7 @@ function start(o = {}) {
   opts = o; log = o.log || console.log;
   if (o.file) FILE = o.file;
   if (o.dir) DIR = o.dir;
-  load();
+  load(); loadSettings(); prune(); setInterval(prune, 3600e3);
   const server = http.createServer(async (req, res) => {
     const hostOk = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || '');
     if (!hostOk) { res.writeHead(403); return res.end(); }
@@ -132,7 +150,11 @@ function start(o = {}) {
     const parts = u.pathname.split('/').filter(Boolean);
     try {
       if (parts[0] === 'file' && parts[1]) return serveFile(req, res, recs.find(r => r.id === parts[1]));
-      if (parts[0] === 'health') return json(200, { ok: true, dir: DIR });
+      if (parts[0] === 'health') return json(200, { ok: true, dir: DIR, freeBytes: freeBytes() });
+      if (parts[0] === 'settings') {
+        if (req.method === 'POST') { let body = ''; for await (const c of req) { body += c; if (body.length > 2000) break; } const d = JSON.parse(body || '{}'); settings.retentionDays = Math.max(0, Math.min(365, Number(d.retentionDays) || 0)); saveSettings(); prune(); }
+        return json(200, settings);
+      }
       if (parts[0] !== 'recordings') return json(404, { error: 'not found' });
       if (req.method === 'GET' && parts.length === 1) return json(200, { dir: DIR, recordings: [...recs].sort((a, b) => b.start - a.start).map(pub) });
       if (req.method === 'POST' && parts[1] === 'open-folder') { fs.mkdirSync(DIR, { recursive: true }); opts.openFolder && opts.openFolder(DIR); return json(200, { ok: true }); }

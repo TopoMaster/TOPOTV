@@ -6,6 +6,8 @@ import { useHistoryStore } from '@/store/useHistoryStore';
 import { FeaturedBanner } from '@/components/catalog/FeaturedBanner';
 import { CategoryRow } from '@/components/catalog/CategoryRow';
 import { LiveRail } from '@/components/catalog/LiveRail';
+import { ContinueWatching } from '@/components/catalog/ContinueWatching';
+import { TeamsToday } from '@/components/catalog/TeamsToday';
 import { ChannelCard } from '@/components/catalog/ChannelCard';
 import { EmptyState, LoadingState } from '@/components/shared/States';
 import type { Channel } from '@/types';
@@ -42,7 +44,9 @@ export function HomePage() {
   const historyChannels = historyEntries.map(e=>e.channel);
   return (
     <div className="fade-in" style={{paddingBottom:'40px'}}>
+      <ContinueWatching />
       <LiveRail />
+      <TeamsToday />
       <FeaturedBanner groups={groups} />
       <QuickRow title="Favoritos" icon={Heart} channels={favChannels} accentColor="var(--accent)" />
       <QuickRow title="Recientes" icon={Clock} channels={historyChannels} accentColor="var(--text-secondary)" />

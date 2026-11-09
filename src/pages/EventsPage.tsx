@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Circle, CalendarDays, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, ExternalLink } from 'lucide-react';
+import { Circle, CalendarDays, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, ExternalLink, Bell, BellRing, Star } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useNavigate } from 'react-router-dom';
-import { scheduleRecording } from '@/lib/recorder';
+import { BYTES_PER_HOUR, formatBytes, scheduleRecording } from '@/lib/recorder';
+import { useReminderStore } from '@/store/useReminderStore';
+import { ensureNotifyPermission } from '@/components/shared/Reminders';
+import { isMyEvent } from '@/lib/teams';
+import { matchScore } from '@/lib/text';
 import { useRecorderStore } from '@/store/useRecorderStore';
 import { createShareLink } from '@/lib/share';
 import { useM3UStore } from '@/store/useM3UStore';
@@ -92,6 +96,9 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
   const navigate = useNavigate();
   const recAvailable = useRecorderStore(s => s.available);
   const recordings = useRecorderStore(s => s.recordings);
+  const freeBytes = useRecorderStore(s => s.freeBytes);
+  const favTeams = useSettingsStore(s => s.favTeams);
+  const mine = isMyEvent(ev, favTeams);
   const refreshRec = useRecorderStore(s => s.refresh);
   const recKey = `${date} ${ev.time} ${ev.title}`;
   const existing = recordings.find(r => r.key === recKey && ['scheduled', 'recording', 'done'].includes(r.status));
@@ -100,6 +107,13 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
   const [dur, setDur] = useState(eventDuration(ev.sport) + 20);
   const [recMsg, setRecMsg] = useState<string | null>(null);
   const evStart = new Date(`${date}T${ev.time}:00`).getTime();
+  const reminder = useReminderStore(s => s.items.find(i => i.key === recKey));
+  const toggleReminder = async () => {
+    if (reminder) { useReminderStore.getState().remove(recKey); return; }
+    const granted = await ensureNotifyPermission();
+    useReminderStore.getState().add({ key: recKey, title: `${ev.time} · ${ev.title || ev.competition}`, at: evStart, sport: ev.sport });
+    if (!granted) window.alert('Para avisarte, Windows debe permitir las notificaciones de TOPOTV (Configuración → Sistema → Notificaciones).');
+  };
   const winStart = evStart - pre * 60000;
   const winEnd = evStart + dur * 60000;
   const hhmm = (ms: number) => new Date(ms).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -138,7 +152,7 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
           </div>
         )}
         <div className="ev-info">
-          <p className="ev-title" style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{ev.title}</p>
+          <p className="ev-title" style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{mine && <Star size={13} fill="var(--accent)" style={{ color: 'var(--accent)', display: 'inline', marginRight: 6, verticalAlign: '-1px' }} aria-label="Tu equipo" />}{ev.title}</p>
           <p className="ev-sub" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
             {ev.competition}{ev.round ? ` · ${ev.round}` : ''}
           </p>
@@ -159,6 +173,10 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
                 {existing ? (existing.status === 'done' ? 'Grabado' : existing.status === 'recording' ? 'Grabando' : 'Programada') : 'Grabar'}
               </button>
             )}
+            {status !== 'finished' && status !== 'live' && <button onClick={toggleReminder} title={reminder ? 'Quitar el aviso' : 'Avisarme antes de que empiece'} aria-label={reminder ? 'Quitar el aviso' : 'Avisarme antes de que empiece'} aria-pressed={!!reminder}
+              style={{ padding: '8px 10px', background: reminder ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${reminder ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: reminder ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+              {reminder ? <BellRing size={14} /> : <Bell size={14} />}
+            </button>}
             {!Capacitor.isNativePlatform() && <button onClick={share} title="Copiar enlace para ver en otro dispositivo (navegador)"
               style={{ padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', color: shared === 'ok' ? 'var(--online-green)' : shared === 'err' ? 'var(--offline-red)' : 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
               {shared === 'ok' ? <Check size={14} /> : shared === 'busy' ? <RefreshCw size={14} className="animate-spin" /> : <Share2 size={14} />}
@@ -184,6 +202,7 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
           <p style={{ marginTop: 8, fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
             {winEnd <= Date.now() ? 'Este evento ya terminó.' : `Grabará de ${hhmm(winStart)} a ${hhmm(winEnd)} (la duración del evento es una estimación). ${Capacitor.isNativePlatform() ? 'El móvil debe estar encendido con el motor AceStream en marcha.' : 'El PC debe estar encendido con TOPOTV abierto.'}`}
           </p>
+          {freeBytes >= 0 && (winEnd - winStart) / 3600000 * BYTES_PER_HOUR * 1.2 > freeBytes && <p role="alert" style={{ marginTop: 4, fontSize: '0.72rem', color: '#f59e0b' }}>Poco espacio en disco: quedan {formatBytes(freeBytes)} y esta grabación puede ocupar unos {formatBytes((winEnd - winStart) / 3600000 * BYTES_PER_HOUR)}. Libera espacio antes de que empiece.</p>}
           {recMsg && <p role="alert" style={{ marginTop: 4, fontSize: '0.72rem', color: 'var(--offline-red)' }}>{recMsg}</p>}
         </div>
       )}
@@ -209,6 +228,8 @@ export function EventsPage() {
   const [sport, setSport] = useState(ALL);
   const [query, setQuery] = useState('');
   const [onlyLinks, setOnlyLinks] = useState(false);
+  const [onlyMine, setOnlyMine] = useState(false);
+  const favTeams = useSettingsStore(s => s.favTeams);
 
   useEffect(() => { if (!useCiriacoStore.getState().data) load(); }, [load]);
   useEffect(() => { if (data && day !== ALL && !data.days.some(d => d.date === day)) setDay(data.days[0]?.date ?? ALL); }, [data, day]);
@@ -217,13 +238,13 @@ export function EventsPage() {
   const channels = data?.channels ?? {};
   const visibleDays = useMemo(() => (data?.days ?? []).filter(d => day === ALL || d.date === day), [data, day]);
   const sports = useMemo(() => [ALL, ...Array.from(new Set(visibleDays.flatMap(d => d.events.map(e => e.sport)).filter(Boolean)))], [visibleDays]);
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
   const filtered = useMemo(() => visibleDays.map(d => ({
     ...d,
     events: d.events.filter(e =>
-      (sport === ALL || e.sport === sport) && (!onlyLinks || e.links.length > 0) &&
-      (!q || `${e.title} ${e.competition} ${e.channelKeys.map(k => channels[k]?.name ?? k).join(' ')}`.toLowerCase().includes(q))),
-  })).filter(d => d.events.length), [visibleDays, sport, onlyLinks, q, channels]);
+      (sport === ALL || e.sport === sport) && (!onlyLinks || e.links.length > 0) && (!onlyMine || isMyEvent(e, favTeams)) &&
+      (!q || matchScore(q, `${e.title} ${e.competition} ${e.channelKeys.map(k => channels[k]?.name ?? k).join(' ')}`) > 0)),
+  })).filter(d => d.events.length), [visibleDays, sport, onlyLinks, onlyMine, favTeams, q, channels]);
   const total = filtered.reduce((n, d) => n + d.events.length, 0);
 
   const pill = (active: boolean) => ({ padding: '7px 16px', background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: '100px', color: active ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: active ? 600 : 400, cursor: 'pointer' as const, whiteSpace: 'nowrap' as const, flexShrink: 0 });
@@ -267,6 +288,7 @@ export function EventsPage() {
                 style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '0.78rem' }} />
             </div>
             <button onClick={() => setOnlyLinks(v => !v)} style={pill(onlyLinks)}>Solo con enlaces</button>
+            {favTeams.length > 0 && <button onClick={() => setOnlyMine(v => !v)} style={pill(onlyMine)}>★ Mis equipos</button>}
           </div>
           <div className="scroll-x mb-5">
             {sports.map(s => <button key={s} onClick={() => setSport(s)} style={pill(sport === s)}>{s === ALL ? 'Todos los deportes' : `${emoji(s)} ${s}`}</button>)}

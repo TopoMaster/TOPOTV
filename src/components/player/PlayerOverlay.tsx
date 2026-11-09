@@ -4,10 +4,11 @@ import { Capacitor } from '@capacitor/core';
 import { usePlayerStore } from '@/store/usePlayerStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { streamHlsUrl } from '@/lib/aceApi';
+import { useHealthStore } from '@/store/useHealthStore';
 
 /** Reproductor integrado (modo Navegador, hls.js) + aviso de estado para VLC. */
 export function PlayerOverlay() {
-  const { channel, stream, status, errorMessage, stop, setStatus } = usePlayerStore();
+  const { channel, stream, status, errorMessage, tried, stop, setStatus, playNext } = usePlayerStore();
   const { preferredPlayer, backendConfig, playback } = useSettingsStore();
   const videoRef = useRef<HTMLVideoElement>(null);
   const browserMode = preferredPlayer === 'browser';
@@ -19,7 +20,7 @@ export function PlayerOverlay() {
     let hls: { destroy: () => void } | null = null;
     let cancelled = false;
     const src = streamHlsUrl(stream, backendConfig);
-    const onPlaying = () => setStatus('playing');
+    const onPlaying = () => { setStatus('playing'); useHealthStore.getState().mark(stream.aceId, true); };
     video.addEventListener('playing', onPlaying);
     (async () => {
       try {
@@ -35,7 +36,7 @@ export function PlayerOverlay() {
           });
           hls = h;
           h.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
-          h.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) setStatus('error', `No se pudo reproducir el stream (${d.details}). Prueba otro enlace o VLC.`); });
+          h.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) void usePlayerStore.getState().reportFailure(`No se pudo reproducir el stream (${d.details}). Prueba otro enlace o VLC.`, stream.aceId); });
           h.loadSource(src); h.attachMedia(video);
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = src; video.play().catch(() => {});
@@ -77,6 +78,7 @@ export function PlayerOverlay() {
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: '0.8rem', fontWeight: 600 }}>{err ? 'No se pudo reproducir' : status === 'connecting' ? 'Abriendo VLC...' : 'Enviado a VLC'}</p>
         <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{err ? errorMessage : `${channel.name} · ${stream.label}. VLC puede tardar unos segundos en buscar peers.`}</p>
+        {channel.streams.length > 1 && tried.length < channel.streams.length && <button onClick={() => void playNext()} style={{ marginTop: 8, minHeight: 32, padding: '0 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 100, color: 'var(--text-secondary)', fontSize: '0.72rem', cursor: 'pointer' }}>Probar otro enlace ({tried.length}/{channel.streams.length})</button>}
       </div>
       <button onClick={stop} title="Cerrar" style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}><X size={16} /></button>
     </div>

@@ -7,6 +7,7 @@ import { useEPGStore } from '@/store/useEPGStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { copyStreamUrl, streamPlayUrl } from '@/lib/aceApi';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { orderStreams, streamHealth, useHealthStore } from '@/store/useHealthStore';
 import { getNowPlaying, getUpNext, getProgressPercent, formatTime, formatDuration } from '@/lib/epg';
 import { ErrorState } from '@/components/shared/States';
 import type { EPGSchedule, Stream } from '@/types';
@@ -73,6 +74,7 @@ export function ChannelPage() {
   const { play, status, channel: playingChannel } = usePlayerStore();
   const backendConfig = useSettingsStore(s => s.backendConfig);
   const { toggle: toggleFav, isFavorite } = useFavoritesStore();
+  const healthMap = useHealthStore(s => s.streams);
   const epgStatus = useEPGStore(s => s.status);
   const getScheduleForChannel = useEPGStore(s => s.getScheduleForChannel);
   const [selectedStream, setSelectedStream] = useState<Stream | null>(null);
@@ -92,7 +94,8 @@ export function ChannelPage() {
 
   if (!channel) return <ErrorState message={`Canal "${id}" no encontrado.`} />;
 
-  const activeStream = selectedStream ?? channel.streams[0];
+  const streamsOrdered = orderStreams(channel.streams, healthMap);
+  const activeStream = selectedStream ?? streamsOrdered[0];
   const isThisPlaying = playingChannel?.id === channel.id;
   const isFav = isFavorite(channel.id);
   const nowPlaying = getNowPlaying(schedule ?? undefined);
@@ -173,8 +176,9 @@ export function ChannelPage() {
         {/* Streams */}
         <h2 className="font-display mb-3" style={{ fontSize: '1.3rem', letterSpacing: '0.05em' }}>Streams disponibles</h2>
         <div className="flex flex-col gap-2 mb-6">
-          {channel.streams.map((stream, i) => {
-            const isSelected = stream.aceId === (activeStream?.aceId ?? channel.streams[0]?.aceId);
+          {streamsOrdered.map((stream, i) => {
+            const isSelected = stream.aceId === (activeStream?.aceId ?? streamsOrdered[0]?.aceId);
+            const health = streamHealth(healthMap, stream);
             const isCopied = copiedId === stream.aceId;
             return (
               <div key={stream.aceId} onClick={() => setSelectedStream(stream)} className="slide-up"
@@ -183,7 +187,7 @@ export function ChannelPage() {
                 onMouseLeave={e => { if (!isSelected) { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border-subtle)'; (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-card)'; } }}>
                 <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: isSelected ? 'var(--accent)' : 'var(--border-mid)', flexShrink: 0, boxShadow: isSelected ? '0 0 5px var(--accent)' : 'none' }} />
                 <div className="flex-1 min-w-0">
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'DM Mono, monospace' }}>{stream.label}</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'DM Mono, monospace' }}>{stream.label}{health !== 'unknown' && <span style={{ marginLeft: 8, fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: health === 'ok' ? 'var(--online-green)' : 'var(--offline-red)' }}>{health === 'ok' ? '● funciona' : '● caído'}</span>}</p>
                   <p style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: '1px' }}>{streamPlayUrl(stream, backendConfig)}</p>
                 </div>
                 <span style={{ fontSize: '0.58rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 7px', borderRadius: '100px', border: '1px solid var(--border-subtle)', flexShrink: 0 }}>

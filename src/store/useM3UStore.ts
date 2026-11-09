@@ -4,6 +4,7 @@ import type { Channel, Group, M3UMeta, ParsedM3U } from '@/types';
 import { withDefaultSources } from '@/lib/ciriaco';
 import { useSettingsStore } from './useSettingsStore';
 import { loadM3UFromFile, loadM3UFromUrl, mergeM3ULists } from '@/lib/m3uParser';
+import { matchScore } from '@/lib/text';
 
 interface M3UState {
   meta: M3UMeta | null; groups: Group[]; allChannels: Channel[];
@@ -57,8 +58,9 @@ export const useM3UStore = create<M3UState>()(
       getChannel: (id) => get().allChannels.find(c => c.id === id),
       searchChannels: (query) => {
         if (!query.trim()) return [];
-        const q = query.toLowerCase();
-        return get().allChannels.filter(c => c.name.toLowerCase().includes(q) || c.group.toLowerCase().includes(q));
+        return get().allChannels
+          .map(c => ({ c, s: Math.max(matchScore(query, c.name), matchScore(query, c.group) * 0.5) }))
+          .filter(x => x.s > 0).sort((a, b) => b.s - a.s).map(x => x.c);
       },
     }),
     { name: 'acestream-tv-m3u', partialize: (s) => ({ lastSource: s.lastSource }) as any }

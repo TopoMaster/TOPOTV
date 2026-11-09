@@ -46,3 +46,17 @@ export function formatBytes(n: number) {
   if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(0)} MB`;
   return `${(n / 1024 ** 3).toFixed(2)} GB`;
 }
+
+/** Espacio libre en el disco de las grabaciones (bytes; -1 si no se sabe) y días tras los que se borran solas (0 = nunca). */
+export async function recorderInfo(): Promise<{ freeBytes: number; retentionDays: number } | null> {
+  if (isNative()) return { freeBytes: -1, retentionDays: 0 };
+  try {
+    const [h, st] = await Promise.all([call<{ freeBytes?: number }>('/health'), call<{ retentionDays?: number }>('/settings')]);
+    return { freeBytes: h.freeBytes ?? -1, retentionDays: st.retentionDays ?? 0 };
+  } catch { return null; }   // el grabador no contestó: se conserva lo último que se sabía
+}
+export const setRetentionDays = (retentionDays: number) => call<{ retentionDays: number }>('/settings', { method: 'POST', body: JSON.stringify({ retentionDays }) });
+/** Dirección del archivo de una grabación para verla dentro de la app. */
+export const recordingFileUrl = (id: string) => `${REC}/file/${id}`;
+/** Gasto aproximado de disco de una grabación de HD, por hora. */
+export const BYTES_PER_HOUR = 2.5 * 1024 ** 3;

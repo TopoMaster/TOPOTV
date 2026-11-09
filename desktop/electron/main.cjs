@@ -14,7 +14,8 @@ const TOOLS = path.join(__dirname, '..', 'tools');
 const LOG = () => path.join(app.getPath('userData'), 'topotv.log');
 const log = (...a) => { const line = `${new Date().toISOString()} ${a.join(' ')}\n`; try { fs.appendFileSync(LOG(), line); } catch { /* sin log */ } console.log(...a); };
 
-if (!app.requestSingleInstanceLock()) app.quit();
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) app.quit();
 
 /* ── Servidor de la web (SPA) ───────────────────────────────── */
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ico': 'image/x-icon' };
@@ -72,7 +73,7 @@ function createWindow() {
 app.on('second-instance', () => { if (mainWin) { if (mainWin.isMinimized()) mainWin.restore(); mainWin.focus(); } });
 app.on('window-all-closed', () => app.quit());
 
-app.whenReady().then(async () => {
+if (gotLock) app.whenReady().then(async () => {
   log('TOPOTV arrancando', app.getVersion());
   // El motor AceStream no envía CORS en todas las versiones: lo permitimos para la web local.
   session.defaultSession.webRequest.onHeadersReceived((d, cb) => {
@@ -101,6 +102,12 @@ app.whenReady().then(async () => {
       },
       openFile: file => { const exe = vlc.findVlc(); if (exe) require('child_process').spawn(exe, [file], { detached: true, stdio: 'ignore' }).unref(); else shell.openPath(file); },
       openFolder: dir => shell.openPath(dir),
+    });
+    // Sistema: actualizaciones desde GitHub, registro y diagnóstico (puerto 3008)
+    require(path.join(TOOLS, 'system-server.cjs')).start({
+      log, version: app.getVersion(), logFile: LOG(),
+      openLog: () => shell.showItemInFolder(LOG()),
+      runInstaller: file => { try { require('child_process').spawn(file, [], { detached: true, stdio: 'ignore' }).unref(); } catch (e) { log('no se pudo abrir el instalador', e.message); return; } setTimeout(() => app.quit(), 1500); },
     });
     require(path.join(TOOLS, 'share-server.cjs')).start({ log, binDir: path.join(app.getPath('userData'), 'bin') });
     createWindow();

@@ -53,6 +53,18 @@ Proyecto: `c:\Users\Usuario\Desktop\TOPOCODE\topotv-proyecto` · repo `TopoMaste
 
 Anota siempre en la respuesta final qué NO se ha probado en dispositivo real. Pendientes conocidos: la lectura de `ciriaco.netlify.app` desde la APK (depende de que la web entregue las tablas sin JavaScript), la apertura de VLC en un Android real, la guía EPG con una lista real y WARP automático en un Windows con Cloudflare WARP instalado.
 
+## Novedades de la versión de Windows (ronda de mejoras)
+
+- **Servicio del sistema** `tools/system-server.cjs` (puerto 3008, lo arranca `desktop/electron/main.cjs`; está en la lista de `prepare.cjs`): `/update/check` mira `releases/latest` de GitHub, `/update/install` descarga `TOPOTV-Setup-X.Y.Z.exe` (solo hosts de GitHub, comprueba el tamaño) y lo abre, `/diagnostic`, `/log`, `/log/open`. Cliente: `src/lib/system.ts`; aviso: `UpdateBanner` (arriba, cada 6 h); botones en Ajustes → Sistema (`SettingsExtras.tsx`). El actualizador solo ve versiones cuya release ya está publicada: para probarlo hace falta una versión por detrás.
+- **Una sola instancia**: `main.cjs` solo arranca servicios si consigue el candado.
+- **Enlaces caídos**: `useHealthStore` (resultado válido 24 h), `BackgroundChecker` (un enlace cada 20 s, favoritos primero, solo con motor online, sin reproducir ni grabar y 30 min después de reproducir), `orderStreams` / `sortAlive` / `channelDead`. `usePlayerStore` elige primero el enlace que funciona, `playNext` y `reportFailure` saltan al siguiente (en modo Navegador el fallo fatal de hls.js lo dispara solo; con VLC hay botón «Probar otro enlace»).
+- **Portada**: `ContinueWatching`, `TeamsToday`; semáforo `StatusPills` en la barra superior. **Equipos favoritos** (`favTeams`, `lib/teams.ts`) con estrella y filtro en Eventos. **Avisos**: campana en cada evento, `useReminderStore` + `Reminders` (Notification API del sistema).
+- **Búsqueda**: `lib/text.ts` (`norm`, `matchScore`: sin tildes, palabras desordenadas, una errata); la página une canales, eventos y grabaciones.
+- **Teclado y mando**: `InputControls` («/» y Ctrl+K buscan, Esc cierra el reproductor o vuelve; flechas con modo TV o mando; Gamepad API).
+- **Grabaciones**: el grabador informa de `freeBytes` en `/health`, para solo si quedan menos de 400 MB, borra solo según `/settings` (`retentionDays`), y la página las reproduce dentro de la app con `mpegts.js` (`RecordingPlayer`); si el códec no vale, ofrece VLC.
+- **Apariencia**: tema claro (`html[data-theme=light]`) y tamaño (`fs-large`, `fs-xl`, con `zoom` como el modo TV).
+- Trampa de pruebas: en este entorno `ELECTRON_RUN_AS_NODE=1` está definida; lanza Electron con `env -u ELECTRON_RUN_AS_NODE npx electron .` desde `desktop/` (tras `npm run build` y `node scripts/prepare.cjs`). En Bash, las barras invertidas en `node -e` se pierden: usa Write.
+
 ## Otras skills que conviene invocar
 
 - `code-review` (o `/code-review`) antes de publicar cambios grandes o de lógica de listas/reproducción.

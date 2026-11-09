@@ -2,9 +2,11 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import type { Group } from '@/types';
 import { ChannelCard } from './ChannelCard';
+import { sortAlive, useHealthStore } from '@/store/useHealthStore';
 export function CategoryRow({ group, maxVisible=12 }: { group: Group; maxVisible?: number }) {
   const navigate = useNavigate();
-  const visible = group.channels.slice(0, maxVisible);
+  const health = useHealthStore(s => s.streams);
+  const visible = sortAlive(group.channels, health).slice(0, maxVisible);
   if (!group.channels.length) return null;
   return (
     <section className="slide-up" style={{marginBottom:'36px'}}>

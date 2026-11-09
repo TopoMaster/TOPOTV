@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Upload } from 'lucide-react';
 import { useRef } from 'react';
 import { useM3UStore } from '@/store/useM3UStore';
+import { StatusPills } from './StatusPills';
 export function TopBar() {
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -12,6 +13,7 @@ export function TopBar() {
         <Search size={15} strokeWidth={1.8} />Buscar canales
       </button>
       <div className="flex items-center gap-3">
+        <StatusPills />
         {allChannels.length>0&&<span style={{fontSize:'0.75rem',color:'var(--text-muted)',letterSpacing:'0.04em'}}>{allChannels.length} canales</span>}
         <button onClick={()=>fileRef.current?.click()} disabled={isLoading} className="flex items-center gap-2 px-3" style={{height:'36px',borderRadius:'var(--radius-md)',background:isLoading?'var(--bg-elevated)':'var(--bg-elevated)',color:isLoading?'var(--text-muted)':'var(--text-primary)',border:'1px solid var(--border-mid)',fontSize:'0.78rem',fontWeight:600,letterSpacing:'0.04em',cursor:isLoading?'not-allowed':'pointer'}}>
           <Upload size={14} strokeWidth={2.5} />{isLoading?'Cargando...':'Cargar M3U'}

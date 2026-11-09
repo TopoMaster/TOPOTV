@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { Circle, FolderOpen, Play, Square, Trash2, WifiOff } from 'lucide-react';
-import { cancelRecording, deleteRecording, formatBytes, openRecording, openRecordingsFolder, type RecStatus } from '@/lib/recorder';
+import { Circle, FolderOpen, MonitorPlay, Play, Square, Trash2, WifiOff, HardDrive } from 'lucide-react';
+import { cancelRecording, deleteRecording, formatBytes, openRecording, openRecordingsFolder, setRetentionDays, type RecStatus } from '@/lib/recorder';
+import { RecordingPlayer } from '@/components/shared/RecordingPlayer';
 import { useRecorderStore } from '@/store/useRecorderStore';
 import { LoadingState } from '@/components/shared/States';
 import { emoji, sportColor } from '@/lib/sports';
@@ -18,8 +19,10 @@ const when = (ms: number) => new Date(ms).toLocaleString('es-ES', { weekday: 'sh
 const btn = { display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, padding: '0 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 100, color: 'var(--text-secondary)', fontSize: '0.75rem', cursor: 'pointer' } as const;
 
 export function RecordingsPage() {
-  const { available, dir, recordings, error, refresh } = useRecorderStore();
+  const { available, dir, recordings, error, refresh, freeBytes, retentionDays } = useRecorderStore();
   const [msg, setMsg] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<{ id: string; title: string } | null>(null);
+  const desktop = !Capacitor.isNativePlatform();
 
   useEffect(() => { void refresh(); const i = setInterval(refresh, 4000); return () => clearInterval(i); }, [refresh]);
   const run = async (fn: () => Promise<unknown>) => {
@@ -51,6 +54,17 @@ export function RecordingsPage() {
             Programa una grabación desde <strong style={{ color: 'var(--text-secondary)' }}>Eventos</strong> con el botón «Grabar». {Capacitor.isNativePlatform() ? 'El móvil debe estar encendido, con el motor AceStream en marcha (ábrelo antes si no lo tienes en automático) y sin un ahorro de batería que cierre TOPOTV. Graba aunque apagues la pantalla y verás un aviso mientras lo hace.' : 'El PC debe estar encendido, con TOPOTV abierto (puede estar minimizado) y el motor AceStream activo; TOPOTV evita que Windows se suspenda mientras graba.'}
             {dir && <> Se guardan en <code style={{ color: 'var(--accent)' }}>{dir}</code>.</>}
           </p>
+          {desktop && (
+            <div className="flex items-center gap-3 flex-wrap" style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--bg-elevated)', border: `1px solid ${freeBytes >= 0 && freeBytes < 5 * 1024 ** 3 ? 'rgba(245,158,11,0.5)' : 'var(--border-subtle)'}`, borderRadius: 'var(--radius-md)', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+              <HardDrive size={15} style={{ color: freeBytes >= 0 && freeBytes < 5 * 1024 ** 3 ? '#f59e0b' : 'var(--text-muted)' }} />
+              <span>{freeBytes >= 0 ? `Quedan ${formatBytes(freeBytes)} libres en el disco${freeBytes < 5 * 1024 ** 3 ? ' — conviene liberar espacio' : ''}.` : 'Espacio en disco: sin datos.'}</span>
+              <label className="flex items-center gap-2" style={{ marginLeft: 'auto' }}>Borrar solas las grabaciones de más de
+                <select value={retentionDays} onChange={e => run(() => setRetentionDays(Number(e.target.value)))} style={{ padding: '4px 8px', background: 'var(--bg-card)', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '0.74rem' }}>
+                  <option value={0}>nunca borrar</option><option value={7}>7 días</option><option value={14}>14 días</option><option value={30}>30 días</option><option value={90}>90 días</option>
+                </select>
+              </label>
+            </div>
+          )}
           {(msg || error) && <p role="alert" style={{ color: 'var(--offline-red)', fontSize: '0.78rem', marginBottom: 10 }}>{msg || error}</p>}
           {recordings.length === 0 && <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Todavía no hay grabaciones.</div>}
           <div className="flex flex-col gap-2">
@@ -72,7 +86,8 @@ export function RecordingsPage() {
                     </div>
                     <span className={live ? 'live-pulse' : ''} style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: st.color, padding: '4px 10px', border: `1px solid ${st.color}`, borderRadius: 100 }}>{st.text}</span>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {r.status === 'done' && <button style={{ ...btn, background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', fontWeight: 700 }} onClick={() => run(() => openRecording(r.id))}><Play size={13} fill="#080a0e" />Ver en VLC</button>}
+                      {r.status === 'done' && desktop && <button style={{ ...btn, background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', fontWeight: 700 }} onClick={() => setViewing({ id: r.id, title: r.title })}><MonitorPlay size={13} />Ver aquí</button>}
+                      {r.status === 'done' && <button style={desktop ? btn : { ...btn, background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', fontWeight: 700 }} onClick={() => run(() => openRecording(r.id))}><Play size={13} fill={desktop ? 'currentColor' : '#080a0e'} />Ver en VLC</button>}
                       {(r.status === 'scheduled' || r.status === 'recording') && <button style={btn} onClick={() => run(() => cancelRecording(r.id))}><Square size={12} />{live ? 'Parar' : 'Cancelar'}</button>}
                       {r.status !== 'recording' && <button style={btn} onClick={() => run(() => deleteRecording(r.id))} title="Borrar la grabación y su archivo"><Trash2 size={13} />Borrar</button>}
                     </div>
@@ -83,6 +98,7 @@ export function RecordingsPage() {
           </div>
         </>
       )}
+      {viewing && <RecordingPlayer id={viewing.id} title={viewing.title} onClose={() => setViewing(null)} onOpenVlc={() => { void run(() => openRecording(viewing.id)); setViewing(null); }} />}
     </div>
   );
 }

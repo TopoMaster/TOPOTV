@@ -5,6 +5,9 @@ import { AppShell } from '@/components/layout/AppShell';
 import { ChannelsPage } from '@/pages/ChannelsPage';
 import { RecordingsPage } from '@/pages/RecordingsPage';
 import { Onboarding } from '@/components/shared/Onboarding';
+import { BackgroundChecker } from '@/components/shared/BackgroundChecker';
+import { Reminders } from '@/components/shared/Reminders';
+import { InputControls } from '@/components/shared/InputControls';
 import { isAndroidTv } from '@/lib/externalPlayer';
 import { findEngineApp, installEngine, startEngineApp } from '@/lib/engineAndroid';
 import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
@@ -69,6 +72,16 @@ function BackgroundPreloader() {
     const active = tvMode === 'on' || (tvMode === 'auto' && deviceTv);
     document.documentElement.classList.toggle('tv-mode', active);
   }, [tvMode, deviceTv]);
+
+  // Tema (oscuro/claro) y tamaño de la interfaz
+  const theme = useSettingsStore(s => s.theme);
+  const fontScale = useSettingsStore(s => s.fontScale);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = theme;
+    root.classList.toggle('fs-large', fontScale === 'large');
+    root.classList.toggle('fs-xl', fontScale === 'xl');
+  }, [theme, fontScale]);
 
   // Android: encender el motor AceStream (su app) al entrar, si está activado y no responde
   useEffect(() => {
@@ -168,6 +181,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <BackgroundPreloader />
+      <BackgroundChecker />
+      <Reminders />
+      <InputControls />
       <Onboarding />
       <AppShell>
         <Routes>
