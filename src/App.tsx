@@ -7,6 +7,7 @@ import { RecordingsPage } from '@/pages/RecordingsPage';
 import { Onboarding } from '@/components/shared/Onboarding';
 import { isAndroidTv } from '@/lib/externalPlayer';
 import { startEngineApp } from '@/lib/engineAndroid';
+import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
 import { useRecorderStore } from '@/store/useRecorderStore';
 import { HomePage } from '@/pages/HomePage';
 import { CategoryPage } from '@/pages/CategoryPage';
@@ -85,6 +86,17 @@ function BackgroundPreloader() {
     return () => clearInterval(interval);
   }, []);
 
+  // La guía se renueva cada 6 horas (si no, al día siguiente seguiría mostrando la de ayer)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const { meta: m, allChannels: chs } = useM3UStore.getState();
+      if (!m || !chs.length) return;
+      useEPGStore.getState().reset();
+      setTimeout(() => void useEPGStore.getState().load(epgSourceUrls(m.epgUrls ?? [], useSettingsStore.getState().manualEpgUrl), epgKnownIds(chs)), 300);
+    }, 6 * 3600e3);
+    return () => clearInterval(interval);
+  }, []);
+
   // Al arrancar: Elcano + listas del usuario + agenda de Ciriaco, fusionadas por categorías.
   useEffect(() => {
     let cancelled = false;
@@ -121,15 +133,8 @@ function BackgroundPreloader() {
     if (!meta || allChannels.length === 0) return;
     if (epgStatus === 'ready' || epgStatus === 'loading' || epgStatus === 'parsing') return;
 
-    const fromM3U = meta.epgUrls ?? [];
-    const urls = [
-      ...(manualEpgUrl.trim() ? [manualEpgUrl.trim()] : []),
-      ...fromM3U,
-    ].filter(Boolean);
-
-    if (urls.length === 0) return;
-
-    const knownIds = allChannels.map(c => c.tvgId).filter(Boolean);
+    const urls = epgSourceUrls(meta.epgUrls ?? [], manualEpgUrl);
+    const knownIds = epgKnownIds(allChannels);
 
     // Small delay so initial render finishes first
     const timer = setTimeout(() => loadEPG(urls, knownIds), 500);
@@ -146,9 +151,7 @@ function BackgroundPreloader() {
   // Re-trigger when manual URL changes
   useEffect(() => {
     if (!manualEpgUrl.trim() || !meta) return;
-    const knownIds = allChannels.map(c => c.tvgId).filter(Boolean);
-    const urls = [manualEpgUrl.trim(), ...(meta.epgUrls ?? [])];
-    loadEPG(urls, knownIds);
+    loadEPG(epgSourceUrls(meta.epgUrls ?? [], manualEpgUrl), epgKnownIds(allChannels));
   }, [manualEpgUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;

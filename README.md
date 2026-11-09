@@ -16,11 +16,11 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 
 | Plataforma | Descarga |
 | --- | --- |
-| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.0.6.exe) |
-| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.0.6.apk) |
-| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.0.6.zip) |
+| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.0.7.exe) |
+| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.0.7.apk) |
+| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.0.7.zip) |
 
-**Versión actual: v1.0.6.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
+**Versión actual: v1.0.7.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
 
 ## Qué incluye
 
@@ -35,6 +35,7 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 - TDT en abierto (RTVE y televisiones autonómicas con emisión oficial gratuita), sin necesidad del motor AceStream.
 - Guía interactiva en el primer arranque (se puede repetir desde Ajustes).
 - Modo TV (Ajustes): interfaz grande y manejable con mando; automático en Android TV.
+- Guía de programación (EPG) siempre cargada con las guías de la lista de Elcano, en Windows y en Android.
 - Motor AceStream en Android: TOPOTV detecta la app del motor (Ace Serve, Ace Stream Media…), la abre al entrar si lo activas y espera a que arranque (el motor no se incluye en TOPOTV).
 - WARP integrado en Android: se conecta solo al actualizar la agenda y se apaga al terminar (solo para el tráfico de TOPOTV).
 - Interfaz compatible con Android TV y adaptada a móvil.

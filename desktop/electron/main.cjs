@@ -87,6 +87,7 @@ app.whenReady().then(async () => {
     startCiriaco({ scrape: electronScrape(extractInBrowser), cacheFile: path.join(app.getPath('userData'), 'agenda-cache.json') });
     const vlc = require(path.join(TOOLS, 'vlc-helper.cjs'));
     vlc.start({ log });
+    require(path.join(TOOLS, 'epg-server.cjs')).start({ log });   // guía de programación (puerto 3003)
     // Grabaciones programadas: evitan que Windows suspenda el equipo mientras se graba
     let sleepBlock = null;
     require(path.join(TOOLS, 'recorder.cjs')).start({

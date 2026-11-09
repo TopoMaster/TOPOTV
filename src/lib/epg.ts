@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import type { EPGEvent, EPGSchedule } from '@/types';
+import type { Channel, EPGEvent, EPGSchedule } from '@/types';
 import { nativeEPGClear, nativeEPGLoad, nativeEPGStatus, nativeEPGToday } from '@/lib/epgNative';
 export interface EPGData { schedules: Map<string, EPGSchedule>; fetchedAt: Date; }
 const EPG = 'http://localhost:3003';
@@ -46,3 +46,17 @@ export function formatDuration(s: Date, e: Date) {
   if(m<60) return `${m}min`; const h=Math.floor(m/60),mm=m%60; return mm>0?`${h}h ${mm}min`:`${h}h`;
 }
 export function clearEPGCache() { nativeEPGClear(); }
+
+/** Guías que anuncia la lista de Elcano (cabecera url-tvg): se cargan siempre, aunque la lista no llegue a descargarse. */
+export const ELCANO_EPG_URLS = [
+  'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/refs/heads/master/guiatv.xml',
+  'https://epgshare01.online/epgshare01/epg_ripper_NL1.xml.gz',
+];
+/** Guías a cargar: la manual, las de las listas y las de Elcano (sin repetir). */
+export function epgSourceUrls(m3uEpgUrls: string[] = [], manual = ''): string[] {
+  return [...new Set([manual.trim(), ...m3uEpgUrls, ...ELCANO_EPG_URLS].filter(Boolean))];
+}
+/** Ids por los que se buscan canales en la guía: tvg-id y nombre. */
+export function epgKnownIds(channels: Channel[]): string[] {
+  return [...new Set(channels.flatMap(c => [c.tvgId, c.name]).filter(Boolean))];
+}

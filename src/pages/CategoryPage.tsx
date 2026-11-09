@@ -2,15 +2,16 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useM3UStore } from '@/store/useM3UStore';
 import { ChannelCard } from '@/components/catalog/ChannelCard';
-import { ErrorState } from '@/components/shared/States';
+import { ErrorState, LoadingState } from '@/components/shared/States';
 import { TDT_PRIVADAS } from '@/lib/tdt';
 
 export function CategoryPage() {
   const {slug} = useParams<{slug:string}>();
   const navigate = useNavigate();
   const getGroup = useM3UStore(s=>s.getGroup);
+  const loading = useM3UStore(s=>s.isLoading||s.allChannels.length===0);
   const group = getGroup(slug??'');
-  if (!group) return <ErrorState message={`Categoría no encontrada.`} />;
+  if (!group) return loading ? <LoadingState message="Cargando canales..." /> : <ErrorState message={`Categoría no encontrada.`} />;
   return (
     <div className="fade-in" style={{padding:'24px',paddingBottom:'48px'}}>
       <div className="flex items-center gap-4 mb-8">

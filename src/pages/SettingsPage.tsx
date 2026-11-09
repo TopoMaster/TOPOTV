@@ -5,6 +5,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useM3UStore } from '@/store/useM3UStore';
 import { useUIStore } from '@/store/useUIStore';
 import { warpDown, warpState, warpUp } from '@/lib/warpAndroid';
+import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
 import { ENGINE_STORE_URL, findEngineApp, openEngineAppSettings, startEngineApp, type EngineApp } from '@/lib/engineAndroid';
 import { withDefaultSources } from '@/lib/ciriaco';
 import { useEPGStore } from '@/store/useEPGStore';
@@ -164,9 +165,9 @@ function EPGSection() {
   function handleSave() {
     setManualEpgUrl(inputUrl.trim());
     setSaved(true); setTimeout(()=>setSaved(false),2000);
-    const urls=[...(inputUrl.trim()?[inputUrl.trim()]:[]),...m3uEpgUrls].filter(Boolean);
-    const knownIds=allChannels.map(c=>c.tvgId).filter(Boolean);
-    if(urls.length){resetEPG();setTimeout(()=>loadEPG(urls,knownIds),100);}
+    const urls=epgSourceUrls(m3uEpgUrls,inputUrl);
+    const knownIds=epgKnownIds(allChannels);
+    resetEPG();setTimeout(()=>loadEPG(urls,knownIds),100);
   }
   return (
     <section className="mb-8">
@@ -182,7 +183,7 @@ function EPGSection() {
           </div>
           <div className="flex items-center gap-2">
             <button onClick={()=>syncStatus()} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)',color:'var(--text-secondary)',fontSize:'0.7rem',padding:'5px 10px',cursor:'pointer',display:'flex',alignItems:'center',gap:'5px'}}><RefreshCw size={11} strokeWidth={2} />Sync</button>
-            {(epgStatus==='ready'||epgStatus==='error')&&<button onClick={()=>{const urls=[...(manualEpgUrl.trim()?[manualEpgUrl.trim()]:[]),...m3uEpgUrls].filter(Boolean);const ids=allChannels.map(c=>c.tvgId).filter(Boolean);resetEPG();setTimeout(()=>loadEPG(urls,ids),100);}} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)',color:'var(--text-secondary)',fontSize:'0.75rem',padding:'6px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:'6px'}}><RefreshCw size={12} strokeWidth={2} />Recargar</button>}
+            {(epgStatus==='ready'||epgStatus==='error')&&<button onClick={()=>{const urls=epgSourceUrls(m3uEpgUrls,manualEpgUrl);const ids=epgKnownIds(allChannels);resetEPG();setTimeout(()=>loadEPG(urls,ids),100);}} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)',color:'var(--text-secondary)',fontSize:'0.75rem',padding:'6px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:'6px'}}><RefreshCw size={12} strokeWidth={2} />Recargar</button>}
           </div>
         </div>
         {(epgStatus==='loading'||epgStatus==='parsing')&&<div style={{height:'3px',background:'var(--bg-elevated)',borderRadius:'2px',overflow:'hidden',marginBottom:'16px'}}><div style={{height:'100%',width:`${epgStatus==='parsing'?95:progress}%`,background:'var(--accent)',borderRadius:'2px',transition:'width 0.5s ease'}} /></div>}

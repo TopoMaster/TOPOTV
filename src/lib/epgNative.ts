@@ -18,6 +18,29 @@ function xmltvDate(v: string | null): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+const decode = (v: string | undefined) => (v ?? '')
+  .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+  .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&amp;/g, '&').trim();
+
+/** Recorre el XMLTV con expresiones regulares (sin DOM) y guarda solo lo que cae en la ventana y en los canales pedidos. */
+export function parseXmltv(xml: string, wanted: Set<string>, from: number, to: number) {
+  const names = new Map<string, string[]>();
+  for (const m of xml.matchAll(/<channel\s+id="([^"]*)"[^>]*>([\s\S]*?)<\/channel>/g)) {
+    names.set(decode(m[1]), [...m[2].matchAll(/<display-name[^>]*>([\s\S]*?)<\/display-name>/g)].map(x => decode(x[1])));
+  }
+  for (const m of xml.matchAll(/<programme\s+([^>]*)>([\s\S]*?)<\/programme>/g)) {
+    const id = decode(m[1].match(/channel="([^"]*)"/)?.[1]);
+    const start = xmltvDate(m[1].match(/start="([^"]*)"/)?.[1] ?? null), end = xmltvDate(m[1].match(/stop="([^"]*)"/)?.[1] ?? null);
+    if (!id || !start || !end || end.getTime() < from || start.getTime() > to) continue;
+    const keys = [...new Set([norm(id), ...(names.get(id) ?? []).map(norm)].filter(Boolean))];
+    if (wanted.size && !keys.some(k => wanted.has(k))) continue;
+    const pick = (tag: string) => decode(m[2].match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`))?.[1]);
+    const icon = m[2].match(/<icon\s+src="([^"]*)"/)?.[1];
+    const ev: EPGEvent = { channelId: id, title: pick('title'), description: pick('desc'), startTime: start, endTime: end, category: pick('category') || undefined, poster: icon ? decode(icon) : undefined };
+    for (const k of keys) { const list = programmes.get(k) ?? []; list.push(ev); programmes.set(k, list); }
+  }
+}
+
 async function download(url: string): Promise<string> {
   const res = await CapacitorHttp.get({ url, responseType: 'blob', connectTimeout: 20000, readTimeout: 120000 });
   if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status} en ${url}`);
@@ -45,26 +68,7 @@ export async function nativeEPGLoad(urls: string[], knownIds: string[]): Promise
         try {
           const xml = await download(url);
           status = { ...status, status: 'parsing', progress: 70 };
-          const doc = new DOMParser().parseFromString(xml, 'text/xml');
-          const names = new Map<string, string>();
-          doc.querySelectorAll('channel').forEach(ch => {
-            const id = ch.getAttribute('id') || '';
-            const dn = ch.querySelector('display-name')?.textContent || '';
-            if (id) names.set(id, dn);
-          });
-          doc.querySelectorAll('programme').forEach(p => {
-            const id = p.getAttribute('channel') || '';
-            const start = xmltvDate(p.getAttribute('start')), end = xmltvDate(p.getAttribute('stop'));
-            if (!id || !start || !end || end.getTime() < from || start.getTime() > to) return;
-            const keys = [norm(id), norm(names.get(id) || '')].filter(Boolean);
-            if (wanted.size && !keys.some(k => wanted.has(k))) return;
-            const ev: EPGEvent = {
-              channelId: id, title: p.querySelector('title')?.textContent?.trim() || '', description: p.querySelector('desc')?.textContent?.trim() || '',
-              startTime: start, endTime: end, category: p.querySelector('category')?.textContent?.trim() || undefined,
-              poster: p.querySelector('icon')?.getAttribute('src') || undefined,
-            };
-            for (const k of keys) { const list = programmes.get(k) ?? []; list.push(ev); programmes.set(k, list); }
-          });
+          parseXmltv(xml, wanted, from, to);
           ok++;
         } catch (e) { lastErr = e instanceof Error ? e.message : String(e); }
       }
