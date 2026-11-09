@@ -6,7 +6,7 @@ import { useM3UStore } from '@/store/useM3UStore';
 import { useUIStore } from '@/store/useUIStore';
 import { warpDown, warpState, warpUp } from '@/lib/warpAndroid';
 import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
-import { ENGINE_STORE_URL, findEngineApp, openEngineAppSettings, startEngineApp, type EngineApp } from '@/lib/engineAndroid';
+import { ENGINE_DOCS_URL, findEngineApp, installEngine, openEngineAppSettings, startEngineApp, type EngineApp } from '@/lib/engineAndroid';
 import { withDefaultSources } from '@/lib/ciriaco';
 import { useEPGStore } from '@/store/useEPGStore';
 import { shareStatus, tunnelStart, tunnelStop, shareRevoke, type ShareStatus } from '@/lib/share';
@@ -332,7 +332,22 @@ function EngineAndroidSection() {
   const [app, setApp] = useState<EngineApp | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [installing, setInstalling] = useState<number | null | 'idle'>('idle');
   useEffect(() => { void findEngineApp().then(setApp); void checkBackend(); }, [checkBackend]);
+  // al volver de la instalación (o de los permisos) se vuelve a buscar el motor
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') void findEngineApp().then(setApp); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+  async function install() {
+    setMsg(''); setInstalling(null);
+    const r = await installEngine(setInstalling);
+    setInstalling('idle');
+    if (r.needsPermission) setMsg('Activa «Permitir desde esta fuente» para TOPOTV en la pantalla que se ha abierto, vuelve y pulsa de nuevo.');
+    else if (!r.ok) setMsg((r.error ?? 'No se pudo instalar.') + ' Puedes bajarlo a mano desde la web oficial.');
+    else setMsg('Confirma la instalación en el diálogo de Android. Al terminar vuelve a TOPOTV.');
+  }
   const online = backendStatus === 'online';
   const opt = (active: boolean) => ({ flex: '1 1 110px', minHeight: 44, padding: '8px 12px', cursor: 'pointer', background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: active ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: active ? 700 : 500 } as const);
   async function turnOn() {
@@ -351,12 +366,13 @@ function EngineAndroidSection() {
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{app === undefined ? '' : app ? `· ${app.name}` : '· no hay ninguna app con motor instalada'}</span>
         </div>
         <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 12 }}>
-          El motor AceStream es software propietario y vive en su propia app (por ejemplo Ace Serve o Ace Stream Media): TOPOTV no puede llevarlo dentro. Lo que sí hace es encontrarlo, abrirlo por ti y esperar a que arranque. Para apagarlo, Android solo deja cerrarlo desde la información de la app («Forzar detención»).
+          El motor AceStream vive en su propia app (Android no permite fusionar dos apps en una). TOPOTV la lleva incluida: si falta, la instala por ti con un toque, y después la encuentra, la abre y espera a que arranque. Para apagarlo, Android solo deja cerrarlo desde la información de la app («Forzar detención»).
         </p>
         <div className="flex gap-2 flex-wrap mb-3">
           <button style={opt(false)} onClick={turnOn} disabled={busy || online || !app}>{busy ? 'Encendiendo…' : online ? 'Ya está encendido' : 'Encender motor'}</button>
           {app && <button style={opt(false)} onClick={() => openEngineAppSettings(app)}>Apagar (Ajustes de Android)</button>}
-          {app === null && <a href={ENGINE_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ ...opt(false), display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>Instalar Ace Stream Media</a>}
+          {app === null && <button style={opt(false)} onClick={install} disabled={installing !== 'idle'}>{installing === 'idle' ? 'Instalar el motor (oficial)' : installing === null ? 'Descargando…' : `Descargando ${installing}%`}</button>}
+          {app === null && <a href={ENGINE_DOCS_URL} target="_blank" rel="noopener noreferrer" style={{ ...opt(false), display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>Descargar a mano</a>}
         </div>
         <div className="flex gap-2 flex-wrap">
           <button style={opt(engineAutoStart)} onClick={() => setEngineAutoStart(true)}>Encender al abrir TOPOTV</button>

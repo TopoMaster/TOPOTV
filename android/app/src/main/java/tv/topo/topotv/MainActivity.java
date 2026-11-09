@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AgendaScraperPlugin.class);
         registerPlugin(WarpPlugin.class);
         registerPlugin(RecorderPlugin.class);
+        registerPlugin(ApkInstallerPlugin.class);
         super.onCreate(savedInstanceState);
         getBridge().getWebView().getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
     }

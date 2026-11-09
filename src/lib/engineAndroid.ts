@@ -1,5 +1,6 @@
 import { checkBackendStatus } from '@/lib/aceApi';
-import { ExternalPlayer } from '@/lib/externalPlayer';
+import { registerPlugin } from '@capacitor/core';
+import { ExternalPlayer, isAndroidTv } from '@/lib/externalPlayer';
 import type { AceBackendConfig } from '@/types';
 
 /**
@@ -42,4 +43,48 @@ export async function startEngineApp(cfg: AceBackendConfig): Promise<{ ok: boole
 /** Android no deja cerrar apps ajenas: se abre su pantalla de información para «Forzar detención». */
 export async function openEngineAppSettings(app: EngineApp) {
   try { await ExternalPlayer.openAppSettings({ package: app.pkg }); } catch { /* sin acción */ }
+}
+
+/* ── Instalación del motor oficial ────────────────────────────── */
+interface ApkInstaller {
+  hasBundled(): Promise<{ bundled: boolean; arm64: boolean }>;
+  installBundled(): Promise<{ opened: boolean }>;
+  abi(): Promise<{ abi: string }>;
+  install(o: { url: string }): Promise<{ opened: boolean }>;
+  addListener(name: 'progress', cb: (p: { bytes: number; total: number }) => void): Promise<{ remove: () => void }>;
+}
+const Installer = registerPlugin<ApkInstaller>('ApkInstaller');
+export const ENGINE_DOCS_URL = 'https://docs.acestream.net/products/';
+
+/** Enlace oficial (docs.acestream.net/products) del motor «Ace Stream Engine» para esta arquitectura. */
+export async function engineDownloadUrl(): Promise<string> {
+  const { abi } = await Installer.abi();
+  const tv = await isAndroidTv();
+  return `https://download.acestream.media/products/${tv ? 'android-tv' : 'android'}/acestream-core/${abi}/latest`;
+}
+
+/** ¿Lleva esta versión de TOPOTV el motor dentro y es compatible con este móvil? */
+export async function bundledEngineAvailable(): Promise<boolean> {
+  try { const r = await Installer.hasBundled(); return r.bundled && r.arm64; } catch { return false; }
+}
+
+/**
+ * Instala el motor: si TOPOTV lo lleva incluido (assets/engine/aceserve.apk) se instala ese;
+ * si no (o el móvil no es de 64 bits) se descarga el oficial de la web de AceStream.
+ * Android nunca instala en silencio: el usuario confirma en su diálogo.
+ */
+export async function installEngine(onProgress: (pct: number | null) => void): Promise<{ ok: boolean; needsPermission?: boolean; error?: string }> {
+  const message = (e: unknown) => e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
+  if (await bundledEngineAvailable()) {
+    try { await Installer.installBundled(); return { ok: true }; }
+    catch (e) { if (message(e).includes('NEEDS_PERMISSION')) return { ok: false, needsPermission: true }; /* otro fallo: se prueba la descarga */ }
+  }
+  const sub = await Installer.addListener('progress', p => onProgress(p.total > 0 ? Math.round(100 * p.bytes / p.total) : null));
+  try {
+    await Installer.install({ url: await engineDownloadUrl() });
+    return { ok: true };
+  } catch (e) {
+    const msg = message(e);
+    return msg.includes('NEEDS_PERMISSION') ? { ok: false, needsPermission: true } : { ok: false, error: msg };
+  } finally { sub.remove(); }
 }

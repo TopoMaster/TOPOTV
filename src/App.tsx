@@ -6,7 +6,7 @@ import { ChannelsPage } from '@/pages/ChannelsPage';
 import { RecordingsPage } from '@/pages/RecordingsPage';
 import { Onboarding } from '@/components/shared/Onboarding';
 import { isAndroidTv } from '@/lib/externalPlayer';
-import { startEngineApp } from '@/lib/engineAndroid';
+import { findEngineApp, installEngine, startEngineApp } from '@/lib/engineAndroid';
 import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
 import { useRecorderStore } from '@/store/useRecorderStore';
 import { HomePage } from '@/pages/HomePage';
@@ -74,7 +74,14 @@ function BackgroundPreloader() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const { engineAutoStart, backendConfig } = useSettingsStore.getState();
-    if (engineAutoStart) void startEngineApp(backendConfig).then(() => useSettingsStore.getState().checkBackend());
+    if (!engineAutoStart) return;
+    void findEngineApp().then(async app => {
+      if (app) { await startEngineApp(backendConfig); void useSettingsStore.getState().checkBackend(); return; }
+      // sin motor: se ofrece instalar el oficial una sola vez (luego, desde Ajustes → Motor AceStream)
+      let asked = false;
+      try { asked = localStorage.getItem('topotv-engine-asked') === '1'; localStorage.setItem('topotv-engine-asked', '1'); } catch { /* sin almacenamiento */ }
+      if (!asked && window.confirm('Para ver los canales de AceStream hace falta el motor oficial de AceStream. ¿Descargarlo e instalarlo ahora? (Android te pedirá confirmar)')) void installEngine(() => undefined);
+    });
   }, []);
 
   // Estado del grabador de escritorio (botón «Grabar» en Eventos)
