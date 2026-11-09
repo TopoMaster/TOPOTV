@@ -328,7 +328,9 @@ function InterfaceSection() {
 }
 
 function EngineAndroidSection() {
-  const { backendConfig, backendStatus, checkBackend, engineAutoStart, setEngineAutoStart } = useSettingsStore();
+  const { backendConfig, backendStatus, checkBackend, engineAutoStart, setEngineAutoStart, engineApkUrl, engineApkToken, setEngineApk } = useSettingsStore();
+  const [urlInput, setUrlInput] = useState(engineApkUrl);
+  const [tokenInput, setTokenInput] = useState(engineApkToken);
   const [app, setApp] = useState<EngineApp | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -366,7 +368,7 @@ function EngineAndroidSection() {
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{app === undefined ? '' : app ? `· ${app.name}` : '· no hay ninguna app con motor instalada'}</span>
         </div>
         <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 12 }}>
-          El motor AceStream vive en su propia app (Android no permite fusionar dos apps en una). TOPOTV la lleva incluida: si falta, la instala por ti con un toque, y después la encuentra, la abre y espera a que arranque. Para apagarlo, Android solo deja cerrarlo desde la información de la app («Forzar detención»).
+          El motor AceStream vive en su propia app (Android no permite fusionar dos apps en una). Si falta, TOPOTV la instala por ti con un toque (desde tu enlace privado, desde el APK incluido en tu compilación o, si no hay ninguno, desde la web oficial) y después la encuentra, la abre y espera a que arranque. Para apagarlo, Android solo deja cerrarlo desde la información de la app («Forzar detención»).
         </p>
         <div className="flex gap-2 flex-wrap mb-3">
           <button style={opt(false)} onClick={turnOn} disabled={busy || online || !app}>{busy ? 'Encendiendo…' : online ? 'Ya está encendido' : 'Encender motor'}</button>
@@ -377,6 +379,14 @@ function EngineAndroidSection() {
         <div className="flex gap-2 flex-wrap">
           <button style={opt(engineAutoStart)} onClick={() => setEngineAutoStart(true)}>Encender al abrir TOPOTV</button>
           <button style={opt(!engineAutoStart)} onClick={() => setEngineAutoStart(false)}>Solo a mano</button>
+        </div>
+        <p style={{ fontSize: '0.74rem', fontWeight: 600, margin: '16px 0 6px' }}>Origen privado del instalador (opcional)</p>
+        <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 8 }}>Pega un enlace https a tu copia del APK del motor (Dropbox, Google Drive, tu servidor o un archivo de una release privada de GitHub). Se guarda solo en este dispositivo y TOPOTV lo usa antes que cualquier otro origen. El token solo hace falta si el sitio lo exige.</p>
+        <input type="url" value={urlInput} onChange={e => setUrlInput(e.target.value)} placeholder="https://…/motor.apk" style={{ ...inp, width: '100%', marginBottom: 8 }} />
+        <input type="password" value={tokenInput} onChange={e => setTokenInput(e.target.value)} placeholder="Token (opcional)" style={{ ...inp, width: '100%', marginBottom: 8 }} />
+        <div className="flex gap-2 flex-wrap">
+          <button style={opt(false)} onClick={() => { setEngineApk(urlInput, tokenInput); setMsg(urlInput.trim() ? 'Enlace guardado.' : 'Enlace borrado: se usará el instalador incluido o el oficial.'); }}>Guardar enlace</button>
+          {(engineApkUrl || urlInput.trim()) && <button style={opt(false)} onClick={install} disabled={installing !== 'idle'}>{installing === 'idle' ? 'Instalar ahora desde el enlace' : installing === null ? 'Descargando…' : `Descargando ${installing}%`}</button>}
         </div>
         <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.5, marginTop: 10 }}>Al encenderlo automáticamente verás la app del motor un instante; vuelve a TOPOTV con «Atrás».</p>
         {msg && <p role="alert" style={{ fontSize: '0.74rem', color: 'var(--offline-red)', marginTop: 8 }}>{msg}</p>}

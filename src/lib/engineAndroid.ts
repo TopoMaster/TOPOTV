@@ -1,6 +1,7 @@
 import { checkBackendStatus } from '@/lib/aceApi';
 import { registerPlugin } from '@capacitor/core';
 import { ExternalPlayer, isAndroidTv } from '@/lib/externalPlayer';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import type { AceBackendConfig } from '@/types';
 
 /**
@@ -50,7 +51,7 @@ interface ApkInstaller {
   hasBundled(): Promise<{ bundled: boolean; arm64: boolean }>;
   installBundled(): Promise<{ opened: boolean }>;
   abi(): Promise<{ abi: string }>;
-  install(o: { url: string }): Promise<{ opened: boolean }>;
+  install(o: { url: string; token?: string }): Promise<{ opened: boolean }>;
   addListener(name: 'progress', cb: (p: { bytes: number; total: number }) => void): Promise<{ remove: () => void }>;
 }
 const Installer = registerPlugin<ApkInstaller>('ApkInstaller');
@@ -63,18 +64,36 @@ export async function engineDownloadUrl(): Promise<string> {
   return `https://download.acestream.media/products/${tv ? 'android-tv' : 'android'}/acestream-core/${abi}/latest`;
 }
 
+/** Convierte enlaces de «compartir» de Google Drive y Dropbox en enlaces de descarga directa. */
+export function directDownloadUrl(raw: string): string {
+  const url = raw.trim();
+  const drive = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([\w-]+)/);
+  if (drive) return `https://drive.usercontent.google.com/download?id=${drive[1]}&export=download&confirm=t`;
+  if (/dropbox\.com\//.test(url)) return url.replace(/([?&])dl=0/, '$1dl=1').replace(/^(https:\/\/www\.dropbox\.com\/[^?]+)$/, '$1?dl=1');
+  return url;
+}
+
 /** ¿Lleva esta versión de TOPOTV el motor dentro y es compatible con este móvil? */
 export async function bundledEngineAvailable(): Promise<boolean> {
   try { const r = await Installer.hasBundled(); return r.bundled && r.arm64; } catch { return false; }
 }
 
 /**
- * Instala el motor: si TOPOTV lo lleva incluido (assets/engine/aceserve.apk) se instala ese;
- * si no (o el móvil no es de 64 bits) se descarga el oficial de la web de AceStream.
+ * Instala el motor, por orden: el enlace privado configurado en Ajustes; el APK incluido en la app
+ * (assets/engine/aceserve.apk, solo en compilaciones locales); o la descarga oficial de AceStream.
  * Android nunca instala en silencio: el usuario confirma en su diálogo.
  */
 export async function installEngine(onProgress: (pct: number | null) => void): Promise<{ ok: boolean; needsPermission?: boolean; error?: string }> {
   const message = (e: unknown) => e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
+  const { engineApkUrl, engineApkToken } = useSettingsStore.getState();
+  // 1) enlace privado del usuario (Ajustes → Motor AceStream)
+  if (engineApkUrl) {
+    const sub = await Installer.addListener('progress', p => onProgress(p.total > 0 ? Math.round(100 * p.bytes / p.total) : null));
+    try { await Installer.install({ url: directDownloadUrl(engineApkUrl), token: engineApkToken || undefined }); return { ok: true }; }
+    catch (e) { const msg = message(e); if (msg.includes('NEEDS_PERMISSION')) return { ok: false, needsPermission: true }; return { ok: false, error: msg }; }
+    finally { sub.remove(); }
+  }
+  // 2) el APK incluido en la app, si lo hay
   if (await bundledEngineAvailable()) {
     try { await Installer.installBundled(); return { ok: true }; }
     catch (e) { if (message(e).includes('NEEDS_PERMISSION')) return { ok: false, needsPermission: true }; /* otro fallo: se prueba la descarga */ }

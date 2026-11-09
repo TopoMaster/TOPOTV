@@ -1,7 +1,7 @@
 {
   "name": "topotv",
   "productName": "TOPOTV",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "TOPOTV - deportes en directo con AceStream",
   "author": "TOPOTV",
   "main": "electron/main.cjs",

@@ -17,6 +17,9 @@ interface SettingsState {
   warpAuto: boolean;
   /** Android: abrir la app del motor AceStream al iniciar TOPOTV si no está en marcha */
   engineAutoStart: boolean;
+  /** Enlace privado (https) desde el que instalar el APK del motor, y token opcional si el sitio lo exige */
+  engineApkUrl: string;
+  engineApkToken: string;
   /** Modo TV: interfaz grande y navegable con mando. 'auto' lo activa solo en Android TV. */
   tvMode: TvMode;
   onboardingDone: boolean;
@@ -30,6 +33,7 @@ interface SettingsState {
   setIncludeTdt: (v: boolean) => void;
   setWarpAuto: (v: boolean) => void;
   setEngineAutoStart: (v: boolean) => void;
+  setEngineApk: (url: string, token: string) => void;
   setTvMode: (m: TvMode) => void;
   setOnboardingDone: (v: boolean) => void;
   setPlayback: (cfg: Partial<PlaybackConfig>) => void;
@@ -42,7 +46,7 @@ export const useSettingsStore = create<SettingsState>()(
       backendStatus: 'unknown', theme: 'dark', manualEpgUrl: '',
       preferredPlayer: 'vlc',
       m3uSourceUrls: [],
-      includeTdt: true, warpAuto: true, engineAutoStart: true, tvMode: 'auto', onboardingDone: false,
+      includeTdt: true, warpAuto: true, engineAutoStart: true, engineApkUrl: '', engineApkToken: '', tvMode: 'auto', onboardingDone: false,
       playback: {
         vlcNetworkCachingMs: 3000,
         vlcLiveCachingMs: 3000,
@@ -60,6 +64,7 @@ export const useSettingsStore = create<SettingsState>()(
       setIncludeTdt: (includeTdt) => set({ includeTdt }),
       setWarpAuto: (warpAuto) => set({ warpAuto }),
       setEngineAutoStart: (engineAutoStart) => set({ engineAutoStart }),
+      setEngineApk: (engineApkUrl, engineApkToken) => set({ engineApkUrl: engineApkUrl.trim(), engineApkToken: engineApkToken.trim() }),
       setTvMode: (tvMode) => set({ tvMode }),
       setOnboardingDone: (onboardingDone) => set({ onboardingDone }),
       setPlayback: (cfg) => set(s => ({ playback: { ...s.playback, ...cfg } })),

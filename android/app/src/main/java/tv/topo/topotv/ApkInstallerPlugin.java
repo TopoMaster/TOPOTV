@@ -105,8 +105,9 @@ public class ApkInstallerPlugin extends Plugin {
     @PluginMethod
     public void install(final PluginCall call) {
         final String url = call.getString("url", "");
-        if (!url.startsWith("https://download.acestream.media/")) {   // solo la web oficial del motor
-            call.reject("Dirección no permitida.");
+        final String token = call.getString("token", "");
+        if (!url.startsWith("https://")) {   // solo conexiones cifradas
+            call.reject("La dirección debe empezar por https://");
             return;
         }
         final Context c = getContext();
@@ -121,11 +122,26 @@ public class ApkInstallerPlugin extends Plugin {
         io.execute(() -> {
             File apk = new File(c.getCacheDir(), "motor-acestream.apk");
             try {
-                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-                conn.setInstanceFollowRedirects(true);
-                conn.setConnectTimeout(20000);
-                conn.setReadTimeout(30000);
-                if (conn.getResponseCode() / 100 != 2) { call.reject("La descarga falló (HTTP " + conn.getResponseCode() + ")."); return; }
+                // redirecciones a mano: el token solo se envía al primer servidor (GitHub redirige a otro host que lo rechazaría)
+                String current = url;
+                HttpURLConnection conn = null;
+                for (int hop = 0; hop < 6; hop++) {
+                    conn = (HttpURLConnection) new URL(current).openConnection();
+                    conn.setInstanceFollowRedirects(false);
+                    conn.setConnectTimeout(20000);
+                    conn.setReadTimeout(30000);
+                    conn.setRequestProperty("Accept", "application/octet-stream");
+                    if (hop == 0 && !token.isEmpty()) conn.setRequestProperty("Authorization", "Bearer " + token);
+                    int code = conn.getResponseCode();
+                    if (code / 100 == 3 && conn.getHeaderField("Location") != null) {
+                        current = new URL(new URL(current), conn.getHeaderField("Location")).toString();
+                        if (!current.startsWith("https://")) { call.reject("La descarga redirige a una dirección no cifrada."); return; }
+                        conn.disconnect();
+                        continue;
+                    }
+                    break;
+                }
+                if (conn == null || conn.getResponseCode() / 100 != 2) { call.reject("La descarga falló (HTTP " + (conn == null ? 0 : conn.getResponseCode()) + "). Revisa el enlace y el permiso del archivo."); return; }
                 long total = conn.getContentLengthLong();
                 long got = 0, lastNotify = 0;
                 try (InputStream in = conn.getInputStream(); FileOutputStream out = new FileOutputStream(apk)) {
