@@ -190,19 +190,19 @@ jobs:
       contents: write
     steps:
       - name: Download Windows installer
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: topotv-windows
           path: release-assets
 
       - name: Download signed Android APK
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: topotv-android
           path: release-assets
 
       - name: Download web distribution
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: topotv-web
           path: web-release
