@@ -19,6 +19,8 @@ const HASH_RE = /^[0-9a-f]{40}$/i;
 const TRACKER_RE = /^(udp|http|https|ws|wss):\/\/[^\s]{4,300}$/i;
 const READY_TIMEOUT_MS = Number(process.env.TORRENT_READY_MS || 90000);
 const IDLE_MS = 10 * 60 * 1000;
+/** Trackers públicos de apoyo: algunos addons (p. ej. Torrentio) no mandan ninguno y solo con DHT tarda en encontrar pares. */
+const FALLBACK_TRACKERS = ['udp://tracker.opentrackr.org:1337/announce', 'udp://open.demonii.com:1337/announce', 'udp://tracker.openbittorrent.com:6969/announce', 'udp://exodus.desync.com:6969/announce', 'udp://tracker.torrent.eu.org:451/announce', 'udp://open.stealth.si:80/announce'];
 
 let DIR = path.join(os.tmpdir(), 'topotv-torrents');
 let log = console.log;
@@ -55,7 +57,8 @@ function start(spec) {
   if (existing) { existing.lastUse = Date.now(); return existing; }
   stopAll();   // un torrent activo a la vez
 
-  const trackers = (Array.isArray(spec.trackers) ? spec.trackers : []).filter(t => typeof t === 'string' && TRACKER_RE.test(t)).slice(0, 30);
+  const given = (Array.isArray(spec.trackers) ? spec.trackers : []).filter(t => typeof t === 'string' && TRACKER_RE.test(t)).slice(0, 30);
+  const trackers = given.length ? given : FALLBACK_TRACKERS;
   const magnet = `magnet:?xt=urn:btih:${infoHash}${trackers.map(t => '&tr=' + encodeURIComponent(t)).join('')}`;
   const dir = path.join(DIR, id);
   fs.mkdirSync(dir, { recursive: true });
@@ -65,6 +68,9 @@ function start(spec) {
   const engine = peerflix(magnet, opts);
   const s = { id, engine, dir, state: 'starting', url: null, name: '', size: 0, error: '', started: Date.now(), lastUse: Date.now() };
   sessions.set(id, s);
+  // peerflix lanza una excepción si el addon pide un archivo (fileIdx) que no existe en el torrent: se convierte en un error normal
+  const emit = engine.emit.bind(engine);
+  engine.emit = (ev, ...args) => { try { return emit(ev, ...args); } catch (e) { s.state = 'error'; s.error = fileIdx === undefined ? String(e && e.message || e) : 'Ese torrent no tiene el archivo que pide el addon.'; log('[torrent] error', s.error); return false; } };
   log('[torrent] iniciado', id);
 
   engine.on('ready', () => {

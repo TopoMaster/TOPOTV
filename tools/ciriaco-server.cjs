@@ -221,6 +221,12 @@ const scrapeOnce = async (proxy, timeout) => normalize(await scrapeRaw(proxy, ti
 /** Intenta directo; si falla y hay WARP, lo conecta solo durante el scrape. */
 async function scrapeSmart() {
   if (PROXY) { phase = 'Leyendo Ciriaco (proxy)…'; return { ...(await scrapeOnce(PROXY, 45000)), via: 'proxy' }; }
+  if (WARP_MODE === 'always') {
+    // WARP obligatorio: Ciriaco se bloquea en muchas redes y, sin WARP, la agenda no se actualiza (se sigue viendo la última guardada)
+    if (!WARP_CLI) throw new Error('Falta Cloudflare WARP (gratis, one.one.one.one). Instálalo y reinicia TOPOTV: sin él no se puede actualizar la agenda.');
+    try { return await scrapeViaWarp(); }
+    catch (warpError) { throw new Error(`No se pudo usar WARP (${warpError.message.split('\n')[0]}). Sin WARP no se puede actualizar la agenda.`); }
+  }
   if (WARP_MODE !== 'always' || !WARP_CLI) {
     try { phase = 'Leyendo Ciriaco…'; return { ...(await scrapeOnce('', 20000)), via: 'directo' }; }
     catch (e) { if (WARP_MODE === 'off' || !WARP_CLI) throw new Error(`Ciriaco no carga${WARP_CLI ? '' : ' y no se encontró warp-cli'} (${e.message.split('\n')[0]})`); log('directo falló, probando WARP:', e.message.split('\n')[0]); }

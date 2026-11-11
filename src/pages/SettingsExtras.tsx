@@ -229,7 +229,7 @@ export function AddonsSection() {
     <section className="mb-8">
       <SLabel icon={Puzzle} label="Addons de Stremio" />
       <Card>
-        <p style={help}>Los addons añaden catálogos de películas, series y canales (pestaña «Cine y series») y enlaces para verlos. TOPOTV no incluye ninguno ni recomienda ninguno: pega la dirección del que quieras usar (acaba en <code>manifest.json</code>, o empieza por <code>stremio://</code>). Usa solo fuentes propias o autorizadas. Los enlaces directos funcionan en Windows y Android; los torrents solo en Windows, con el motor de torrents integrado.</p>
+        <p style={help}>Los addons añaden catálogos de películas, series y canales (pestaña «Cine y series») y enlaces para verlos. TOPOTV solo lleva de serie el catálogo oficial (Cinemeta: listas y fichas, sin ningún enlace); los addons de enlaces los pones tú, y no recomienda ninguno: pega la dirección del que quieras usar (acaba en <code>manifest.json</code>, o empieza por <code>stremio://</code>). Usa solo fuentes propias o autorizadas. Los enlaces directos funcionan en Windows y Android; los torrents solo en Windows, con el motor de torrents integrado.</p>
         <div className="flex gap-2 mb-3">
           <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && void add()} placeholder="https://…/manifest.json" aria-label="Dirección del addon"
             style={{ flex: 1, minWidth: 0, padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '0.82rem', outline: 'none' }} />
@@ -242,11 +242,11 @@ export function AddonsSection() {
             <div key={a.base} className="flex items-center gap-3" style={{ padding: '10px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', opacity: a.enabled ? 1 : 0.55 }}>
               {a.manifest.logo ? <img src={a.manifest.logo} alt="" width={32} height={32} style={{ borderRadius: 6, objectFit: 'contain', flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : null}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: '0.82rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.manifest.name} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{a.manifest.version ? `v${a.manifest.version}` : ''}</span></p>
+                <p style={{ fontSize: '0.82rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.manifest.name} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{a.manifest.version ? `v${a.manifest.version}` : ''}</span>{a.builtin && <span style={{ marginLeft: 8, fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent)' }}>Incluido</span>}</p>
                 <p style={{ fontSize: '0.66rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{kinds(a)} · {(a.manifest.types ?? []).join(', ')}</p>
               </div>
               <button onClick={() => toggle(a.base)} style={{ ...opt(a.enabled), flex: '0 0 auto', minHeight: 36, padding: '4px 12px' }}>{a.enabled ? 'Activo' : 'Apagado'}</button>
-              <button onClick={() => remove(a.base)} aria-label={`Quitar ${a.manifest.name}`} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
+              {!a.builtin && <button onClick={() => remove(a.base)} aria-label={`Quitar ${a.manifest.name}`} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>}
             </div>
           ))}
         </div>

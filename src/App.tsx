@@ -9,6 +9,7 @@ import { MetaPage } from '@/pages/MetaPage';
 import { RecordingsPage } from '@/pages/RecordingsPage';
 import { Onboarding } from '@/components/shared/Onboarding';
 import { BackgroundChecker } from '@/components/shared/BackgroundChecker';
+import { useAddonsStore } from '@/store/useAddonsStore';
 import { Reminders } from '@/components/shared/Reminders';
 import { InputControls } from '@/components/shared/InputControls';
 import { isAndroidTv } from '@/lib/externalPlayer';
@@ -75,6 +76,9 @@ function BackgroundPreloader() {
     const active = tvMode === 'on' || (tvMode === 'auto' && deviceTv);
     document.documentElement.classList.toggle('tv-mode', active);
   }, [tvMode, deviceTv]);
+
+  // Catálogo de películas y series que viene de serie (Cinemeta)
+  useEffect(() => { void useAddonsStore.getState().ensureDefaults(); }, []);
 
   // Tema (oscuro/claro) y tamaño de la interfaz
   const theme = useSettingsStore(s => s.theme);

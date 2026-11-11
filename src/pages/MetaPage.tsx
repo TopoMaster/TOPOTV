@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Play, Loader2, ExternalLink, Magnet, X, Film, Subtitles } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useAddonsStore } from '@/store/useAddonsStore';
 import { usePlayerStore } from '@/store/usePlayerStore';
 import { useProgressStore, progressKey } from '@/store/useProgressStore';
-import { fetchMeta, fetchStreams, type Addon, type Meta, type MetaVideo, type StreamOption } from '@/lib/stremio';
+import { fetchMeta, fetchStreamsDetailed, type Addon, type Meta, type MetaPreview, type MetaVideo, type StreamOption } from '@/lib/stremio';
 import { torrentAvailable } from '@/lib/torrent';
 import type { Channel } from '@/types';
 
@@ -15,6 +15,7 @@ export function MetaPage() {
   const { type = '', id = '' } = useParams();
   const [qs] = useSearchParams();
   const navigate = useNavigate();
+  const preview = (useLocation().state as { preview?: MetaPreview } | null)?.preview;
   const all = useAddonsStore(s => s.addons);
   const addons = useMemo(() => all.filter(a => a.enabled), [all]);
   const progress = useProgressStore(s => s.items);
@@ -22,12 +23,18 @@ export function MetaPage() {
   const [season, setSeason] = useState<number | null>(null);
   const [picker, setPicker] = useState<{ videoId: string; title: string } | null>(null);
   const [options, setOptions] = useState<StreamOption[] | null>(null);
+  const [streamInfo, setStreamInfo] = useState<{ failed: string[]; asked: number }>({ failed: [], asked: 0 });
   const [torrents, setTorrents] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setData(undefined);
-    void fetchMeta(addons, type, id, qs.get('a') ?? undefined).then(r => { if (!cancelled) setData(r); });
+    void fetchMeta(addons, type, id, qs.get('a') ?? undefined).then(r => {
+      if (cancelled) return;
+      // sin ficha completa se usa lo que ya sabemos del catálogo (suficiente para ver una película)
+      const from = all.find(a => a.base === qs.get('a')) ?? all[0];
+      setData(r ?? (preview && from ? { meta: { ...preview, type, id } as Meta, addon: from } : null));
+    });
     void torrentAvailable().then(ok => { if (!cancelled) setTorrents(ok); });
     return () => { cancelled = true; };
   }, [type, id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -42,7 +49,7 @@ export function MetaPage() {
 
   function openPicker(videoId: string, title: string) {
     setPicker({ videoId, title }); setOptions(null);
-    void fetchStreams(addons, type, videoId).then(setOptions);
+    void fetchStreamsDetailed(addons, type, videoId).then(r => { setOptions(r.options); setStreamInfo({ failed: r.failed, asked: r.asked }); });
   }
   // «Seguir viendo» → abre directamente el selector del episodio que dejaste
   useEffect(() => { if (resumeId && meta && !picker) { const v = videos.find(x => x.id === resumeId); openPicker(resumeId, v ? epTitle(v) : meta.name); } }, [resumeId, meta]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -132,7 +139,13 @@ export function MetaPage() {
             </div>
             <div style={{ overflowY: 'auto', padding: 12 }}>
               {options === null && <p className="flex items-center gap-2" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', padding: 12 }}><Loader2 size={14} style={{ animation: 'spin 0.8s linear infinite' }} />Preguntando a los addons…</p>}
-              {options?.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', padding: 12, lineHeight: 1.6 }}>Ningún addon activo ha dado enlaces para este título. Instala un addon que ofrezca «stream» en Ajustes → Addons.</p>}
+              {options?.length === 0 && (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', padding: 12, lineHeight: 1.6 }}>
+                  {streamInfo.asked === 0
+                    ? <>Ningún addon activo ofrece enlaces para este título. Carga un addon de enlaces en <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Ajustes → Addons</button>.</>
+                    : <>Los addons de enlaces no han dado ningún enlace para este título.</>}
+                </div>
+              )}
               <div className="flex flex-col gap-2">
                 {options?.map(o => {
                   const blocked = o.kind === 'torrent' && !torrents;
@@ -150,6 +163,11 @@ export function MetaPage() {
                   );
                 })}
               </div>
+              {streamInfo.failed.length > 0 && (
+                <p role="status" style={{ fontSize: '0.72rem', color: '#f59e0b', padding: '10px 4px 0', lineHeight: 1.5 }}>
+                  No respondieron: {streamInfo.failed.join(', ')}. <button onClick={() => picker && openPicker(picker.videoId, picker.title)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Reintentar</button>
+                </p>
+              )}
               <p style={{ fontSize: '0.64rem', color: 'var(--text-muted)', lineHeight: 1.5, padding: '12px 4px 4px' }}>TOPOTV no incluye contenido ni addons: usa solo fuentes propias o autorizadas.</p>
             </div>
           </div>

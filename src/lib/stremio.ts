@@ -16,7 +16,7 @@ export interface AddonManifest {
   id: string; name: string; version?: string; description?: string; logo?: string;
   types?: string[]; resources: (string | AddonResource)[]; catalogs?: AddonCatalog[]; idPrefixes?: string[];
 }
-export interface Addon { base: string; manifest: AddonManifest; enabled: boolean; addedAt: number }
+export interface Addon { base: string; manifest: AddonManifest; enabled: boolean; addedAt: number; /** Viene de serie con TOPOTV (no se puede quitar, sí apagar) */ builtin?: boolean }
 
 export interface MetaPreview { id: string; type: string; name: string; poster?: string; posterShape?: string; year?: string | number; releaseInfo?: string; description?: string; imdbRating?: string; genres?: string[] }
 export interface MetaVideo { id: string; title?: string; name?: string; season?: number; episode?: number; released?: string; thumbnail?: string; overview?: string }
@@ -36,7 +36,11 @@ export interface StreamOption {
   subtitles: { url: string; lang: string }[];
 }
 
+/** Catálogo oficial de Stremio (Cinemeta): da listas y fichas de películas y series, pero ningún enlace de vídeo. */
+export const DEFAULT_ADDON_URL = 'https://v3-cinemeta.strem.io/manifest.json';
+const DEFAULT_ADDON_BASE = 'https://v3-cinemeta.strem.io';
 const TIMEOUT_MS = 12000;
+const STREAM_TIMEOUT_MS = 25000;   // los addons de enlaces a veces tardan (buscan en muchos sitios)
 const MAX_BYTES = 6_000_000;
 
 /** «stremio://host/ruta/manifest.json» o una dirección normal → base del addon y dirección del manifiesto. */
@@ -52,9 +56,9 @@ export function normalizeAddonUrl(input: string): { base: string; manifestUrl: s
   return { base, manifestUrl: `${base}/manifest.json${url.search}` };
 }
 
-async function getJson<T>(url: string): Promise<T> {
+async function getJson<T>(url: string, timeoutMs = TIMEOUT_MS): Promise<T> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const r = await fetch(url, { signal: ctrl.signal });
     if (!r.ok) throw new Error(`El addon respondió ${r.status}`);
@@ -64,7 +68,7 @@ async function getJson<T>(url: string): Promise<T> {
   } catch (e) {
     // Android: algunos addons no envían CORS; se pide desde el sistema
     if (Capacitor.isNativePlatform()) {
-      const r = await CapacitorHttp.get({ url, readTimeout: TIMEOUT_MS, connectTimeout: TIMEOUT_MS });
+      const r = await CapacitorHttp.get({ url, readTimeout: timeoutMs, connectTimeout: timeoutMs });
       if (r.status < 200 || r.status >= 300) throw new Error(`El addon respondió ${r.status}`);
       return (typeof r.data === 'string' ? JSON.parse(r.data) : r.data) as T;
     }
@@ -78,10 +82,13 @@ export async function fetchManifest(manifestUrl: string): Promise<AddonManifest>
   return m;
 }
 
-export async function installAddon(input: string): Promise<Addon> {
+export async function installAddon(input: string, builtin = false): Promise<Addon> {
   const { base, manifestUrl } = normalizeAddonUrl(input);
-  return { base, manifest: await fetchManifest(manifestUrl), enabled: true, addedAt: Date.now() };
+  return { base, manifest: await fetchManifest(manifestUrl), enabled: true, addedAt: Date.now(), ...(builtin ? { builtin: true } : {}) };
 }
+
+/** ¿Da enlaces de vídeo este addon? (los catálogos solos no bastan para ver nada) */
+export const providesStream = (a: Addon) => a.enabled && resourceInfo(a, 'stream') !== null;
 
 const typesOf = (a: Addon) => a.manifest.types ?? [];
 function resourceInfo(a: Addon, resource: string): AddonResource | null {
@@ -131,6 +138,13 @@ export async function fetchMeta(addons: Addon[], type: string, id: string, prefe
       if (r.meta && r.meta.name) return { meta: { ...r.meta, type: r.meta.type || type, id: r.meta.id || id }, addon: a };
     } catch { /* se prueba el siguiente addon */ }
   }
+  // Ningún addon instalado da fichas (p. ej. solo hay catálogos y addons de enlaces): se pide la ficha a Cinemeta, que es público
+  if ((type === 'movie' || type === 'series') && /^tt\d+/.test(id)) {
+    try {
+      const r = await getJson<{ meta?: Meta }>(`${DEFAULT_ADDON_BASE}/meta/${enc(type)}/${enc(id)}.json`);
+      if (r.meta && r.meta.name) return { meta: { ...r.meta, type: r.meta.type || type, id: r.meta.id || id }, addon: { base: DEFAULT_ADDON_BASE, manifest: { id: 'org.cinemeta', name: 'Cinemeta', resources: ['meta'] }, enabled: true, addedAt: 0 } };
+    } catch { /* sin red o sin ficha */ }
+  }
   return null;
 }
 
@@ -155,13 +169,21 @@ function classify(a: Addon, s: AddonStream): StreamOption | null {
   return null;
 }
 
-/** Pide los enlaces a todos los addons activos que los dan para este tipo e identificador (cada uno con su plazo). */
-export async function fetchStreams(addons: Addon[], type: string, id: string): Promise<StreamOption[]> {
-  const jobs = addons.filter(a => supports(a, 'stream', type, id)).map(async a => {
-    const r = await getJson<{ streams?: AddonStream[] }>(`${a.base}/stream/${enc(type)}/${enc(id)}.json`);
-    return (r.streams ?? []).slice(0, 60).map(s => classify(a, s)).filter((x): x is StreamOption => !!x);
-  });
-  return (await Promise.allSettled(jobs)).flatMap(r => r.status === 'fulfilled' ? r.value : []);
+/**
+ * Pide los enlaces a todos los addons activos que los dan para este tipo e identificador (cada uno con su plazo).
+ * Devuelve también cuántos addons se consultaron y los nombres de los que no respondieron.
+ */
+export async function fetchStreamsDetailed(addons: Addon[], type: string, id: string): Promise<{ options: StreamOption[]; failed: string[]; asked: number }> {
+  const list = addons.filter(a => supports(a, 'stream', type, id));
+  const results = await Promise.allSettled(list.map(async a => {
+    const r = await getJson<{ streams?: AddonStream[] }>(`${a.base}/stream/${enc(type)}/${enc(id)}.json`, STREAM_TIMEOUT_MS);
+    return (r.streams ?? []).slice(0, 80).map(s => classify(a, s)).filter((x): x is StreamOption => !!x);
+  }));
+  return {
+    options: results.flatMap(r => r.status === 'fulfilled' ? r.value : []),
+    failed: results.flatMap((r, i) => r.status === 'rejected' ? [list[i].manifest.name] : []),
+    asked: list.length,
+  };
 }
 
 export const typeLabel = (t: string) => ({ movie: 'Películas', series: 'Series', tv: 'TV', channel: 'Canales', anime: 'Anime' } as Record<string, string>)[t] ?? t[0].toUpperCase() + t.slice(1);

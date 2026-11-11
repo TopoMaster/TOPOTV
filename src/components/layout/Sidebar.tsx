@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Home,Search,Settings,Tv,LayoutGrid,CircleDot,ChevronLeft,ChevronRight,Heart,Activity,Shield,Power,Trophy,Film,Columns2,CalendarRange } from 'lucide-react';
-import { useAddonsStore, hasLibrary } from '@/store/useAddonsStore';
 import { LogoMark, LogoWord } from '@/components/brand/Logo';
 import { useUIStore } from '@/store/useUIStore';
 import { useM3UStore } from '@/store/useM3UStore';
@@ -33,8 +32,7 @@ export function Sidebar() {
   const warpError = useCiriacoStore(s=>s.warpError);
   const setWarpConnected = useCiriacoStore(s=>s.setWarpConnected);
   const favCount = useFavoritesStore(s=>s.ids.size);
-  const addons = useAddonsStore(s=>s.addons);
-  const visibleNav = TOP_NAV.filter(i => i.to !== '/library' || hasLibrary(addons));
+  const visibleNav = TOP_NAV;
   const navigate = useNavigate();
   const checkBackend = useSettingsStore(s=>s.checkBackend);
   const [engineBusy,setEngineBusy] = useState(false);

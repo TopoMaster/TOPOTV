@@ -125,7 +125,7 @@ function M3USection() {
     <section className="mb-8">
       <SLabel icon={Upload} label="Lista M3U" />
       <Card>
-        {meta&&<div style={{padding:'10px 14px',background:'var(--bg-elevated)',borderRadius:'var(--radius-md)',border:'1px solid var(--border-subtle)',marginBottom:'16px'}}><div className="flex items-center gap-2 mb-1"><Check size={14} style={{color:'var(--online-green)'}} strokeWidth={2.5} /><span style={{fontSize:'0.78rem',color:'var(--online-green)',fontWeight:600}}>Lista cargada</span></div><p style={{fontSize:'0.72rem',color:'var(--text-muted)'}}>{meta.source} · {allChannels.length} canales · {meta.epgUrls.length} URLs EPG</p></div>}
+        {meta&&<div style={{padding:'10px 14px',background:'var(--bg-elevated)',borderRadius:'var(--radius-md)',border:'1px solid var(--border-subtle)',marginBottom:'16px'}}><div className="flex items-center gap-2 mb-1"><Check size={14} style={{color:'var(--online-green)'}} strokeWidth={2.5} /><span style={{fontSize:'0.78rem',color:'var(--online-green)',fontWeight:600}}>Lista cargada</span></div><p style={{fontSize:'0.72rem',color:'var(--text-muted)'}}>{allChannels.length} canales · guía de programación incluida</p></div>}
         <div className="flex flex-col gap-4">
           <div>
             <p style={{fontSize:'0.72rem',color:'var(--text-muted)',marginBottom:'8px',textTransform:'uppercase',letterSpacing:'0.04em'}}>Desde archivo</p>

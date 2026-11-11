@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Film, Search, Puzzle, ChevronRight, Loader2 } from 'lucide-react';
 import { useAddonsStore } from '@/store/useAddonsStore';
 import { useProgressStore } from '@/store/useProgressStore';
-import { browsableCatalogs, fetchCatalog, searchAddons, typeLabel, type Addon, type MetaPreview } from '@/lib/stremio';
+import { browsableCatalogs, fetchCatalog, providesStream, searchAddons, typeLabel, type Addon, type MetaPreview } from '@/lib/stremio';
 
 const ORDER = ['movie', 'series', 'tv', 'channel', 'anime'];
 const cache = new Map<string, MetaPreview[]>();
@@ -14,7 +14,7 @@ export function PosterCard({ meta, addon, width = 130 }: { meta: MetaPreview; ad
   const [bad, setBad] = useState(false);
   const year = meta.releaseInfo ?? meta.year;
   return (
-    <button onClick={() => navigate(`/library/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}?a=${encodeURIComponent(addon.base)}`)}
+    <button onClick={() => navigate(`/library/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}?a=${encodeURIComponent(addon.base)}`, { state: { preview: meta } })}
       className="shrink-0 text-left" style={{ width, alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-primary)' }} title={meta.name}>
       <div style={{ width, aspectRatio: meta.posterShape === 'landscape' ? '16 / 9' : '2 / 3', borderRadius: 'var(--radius-md)', overflow: 'hidden', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {meta.poster && !bad ? <img src={meta.poster} alt="" loading="lazy" onError={() => setBad(true)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Film size={28} strokeWidth={1.2} style={{ color: 'var(--text-muted)' }} />}
@@ -78,8 +78,9 @@ export function LibraryPage() {
       <div className="fade-in page-pad flex flex-col items-center text-center" style={{ paddingTop: 64, gap: 14 }}>
         <Puzzle size={44} strokeWidth={1.2} style={{ color: 'var(--text-muted)' }} />
         <h1 className="font-display" style={{ fontSize: '2rem' }}>Cine y series</h1>
-        <p style={{ maxWidth: 440, color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6 }}>Aquí aparecen los catálogos de los addons de Stremio que instales. TOPOTV no incluye ninguno: añade los tuyos pegando su dirección.</p>
-        <button onClick={() => navigate('/settings')} style={{ minHeight: 44, padding: '0 22px', background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', borderRadius: 100, fontWeight: 700, cursor: 'pointer' }}>Instalar un addon</button>
+        <p style={{ maxWidth: 460, color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6 }}>Para ver películas y series tienes que cargar addons de Stremio.</p>
+        <p style={{ maxWidth: 460, color: 'var(--text-muted)', fontSize: '0.8rem', lineHeight: 1.6 }}>El catálogo (listas y fichas) viene de serie y se está cargando; si no aparece, comprueba tu conexión. Los enlaces para ver los pones tú: pega la dirección de un addon de enlaces en Ajustes → Addons. TOPOTV no incluye ninguno y solo debes usar fuentes propias o autorizadas.</p>
+        <button onClick={() => navigate('/settings')} style={{ minHeight: 44, padding: '0 22px', background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', borderRadius: 100, fontWeight: 700, cursor: 'pointer' }}>Cargar addons</button>
       </div>
     );
   }
@@ -87,6 +88,11 @@ export function LibraryPage() {
   return (
     <div className="fade-in page-pad" style={{ paddingBottom: 48 }}>
       <div className="flex items-center gap-3 mb-4"><Film size={22} strokeWidth={1.8} style={{ color: 'var(--accent)' }} /><h1 className="font-display" style={{ fontSize: 'clamp(2rem,4vw,3rem)', lineHeight: 1, letterSpacing: '0.06em' }}>Cine y series</h1></div>
+      {!addons.some(providesStream) && (
+        <div role="note" style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(226,201,126,0.06)', border: '1px solid rgba(226,201,126,0.2)', borderRadius: 'var(--radius-lg)', fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          Tienes catálogo pero ningún addon de enlaces, así que no se podrá ver nada todavía. <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Cargar un addon de enlaces</button>
+        </div>
+      )}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <div className="flex items-center gap-2" style={{ flex: '1 1 240px', padding: '8px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 100 }}>
           <Search size={14} style={{ color: 'var(--text-muted)' }} />

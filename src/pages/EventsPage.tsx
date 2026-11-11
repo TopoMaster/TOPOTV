@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Circle, CalendarDays, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, ExternalLink, Bell, BellRing, Star, X, SlidersHorizontal } from 'lucide-react';
+import { Circle, CalendarDays, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, Bell, BellRing, Star, X, SlidersHorizontal } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useNavigate } from 'react-router-dom';
 import { BYTES_PER_HOUR, formatBytes, scheduleRecording } from '@/lib/recorder';
@@ -16,7 +16,7 @@ import { useCiriacoStore } from '@/store/useCiriacoStore';
 import { LoadingState } from '@/components/shared/States';
 import { ChannelLogo } from '@/components/shared/ChannelLogo';
 import { emoji, sportColor } from '@/lib/sports';
-import { CIRIACO_SOURCE_URL, ELCANO_SOURCE_URL, eventDuration, eventProgress, eventStatus, eventToChannel, linkTag, sortLinks, todayIso, type CiriacoChannel, type CiriacoEvent, type CiriacoStatus } from '@/lib/ciriaco';
+import { eventDuration, eventProgress, eventStatus, eventToChannel, linkTag, sortLinks, todayIso, type CiriacoChannel, type CiriacoEvent, type CiriacoStatus } from '@/lib/ciriaco';
 
 const ALL = 'all';
 
@@ -31,6 +31,14 @@ function updatedLabel(st: CiriacoStatus | null) {
 /** Botón + estado de la actualización diaria (WARP lo gestiona el servidor). */
 function UpdateControl() {
   const { status, updating, refresh } = useCiriacoStore();
+  const warpMissing = !Capacitor.isNativePlatform() && !!status?.warp && status.warp.mode === 'always' && !status.warp.available;
+  if (warpMissing) return (
+    <div role="alert" className="flex items-center gap-2 flex-wrap" style={{ fontSize: '0.72rem', color: 'var(--offline-red)' }}>
+      Falta Cloudflare WARP: es obligatorio para actualizar la agenda.
+      <a href="https://one.one.one.one/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', fontWeight: 600 }}>Instalarlo (gratis)</a>
+      <span style={{ color: 'var(--text-muted)' }}>y reinicia TOPOTV.</span>
+    </div>
+  );
   return (
     <div className="flex items-center gap-2">
       <span className="flex items-center gap-1.5" style={{ fontSize: '0.68rem', color: status?.lastError ? 'var(--offline-red)' : 'var(--text-muted)' }}>
@@ -70,16 +78,10 @@ function CiriacoAccessNotice() {
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.76rem', lineHeight: 1.5 }}>
           <strong style={{ color: 'var(--accent)' }}>Aviso VPN:</strong> {Capacitor.isNativePlatform()
             ? 'Al actualizar, TOPOTV conecta su WARP integrado (solo para la app; la primera vez Android pide permiso de VPN) y lo apaga al terminar. Se puede desactivar en Ajustes.'
-            : 'Al actualizar, TOPOTV conecta Cloudflare WARP automáticamente (Ciriaco lo necesita) y lo desconecta en cuanto termina, así la reproducción va siempre sin VPN.'}
+            : 'Para actualizar la agenda hace falta Cloudflare WARP (gratis): TOPOTV lo conecta solo y lo desconecta en cuanto termina, así la reproducción va siempre sin VPN. Sin WARP la agenda no se actualiza.'}
         </p>
       </div>
       <div className="flex items-center gap-2">
-        <a href={CIRIACO_SOURCE_URL} target="_blank" rel="noopener noreferrer" style={sourceLinkStyle}>
-          Ciriaco <ExternalLink size={12} />
-        </a>
-        <a href={ELCANO_SOURCE_URL} target="_blank" rel="noopener noreferrer" style={sourceLinkStyle}>
-          Elcano <ExternalLink size={12} />
-        </a>
         <button onClick={() => { setClosed(true); try { localStorage.setItem('topotv-vpn-notice', '1'); } catch { /* sin almacenamiento */ } }} aria-label="Entendido, no volver a mostrar" title="Entendido, no volver a mostrar" style={{ ...sourceLinkStyle, cursor: 'pointer', background: 'none' }}>Entendido <X size={12} /></button>
       </div>
     </aside>
