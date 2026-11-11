@@ -16,11 +16,11 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 
 | Plataforma | Descarga |
 | --- | --- |
-| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.3.1.exe) |
-| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.3.1.apk) |
-| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.3.1.zip) |
+| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.3.2.exe) |
+| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.3.2.apk) |
+| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.3.2.zip) |
 
-**Versión actual: v1.3.1.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
+**Versión actual: v1.3.2.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
 
 ## Qué incluye
 
@@ -69,6 +69,14 @@ La guía EPG se carga desde la información incluida en tu lista. Si tu proveedo
 ### 6. Usa la versión web
 
 El ZIP web contiene la interfaz para alojarla en un servicio web compatible. La reproducción con AceStream y algunas funciones de eventos o de compartir requieren servicios adicionales en el dispositivo; el ZIP por sí solo no los instala.
+
+## Seguridad y privacidad
+
+- Tus datos (favoritos, historial, ajustes, addons y listas) se guardan **solo en tu dispositivo**; TOPOTV no tiene servidores propios.
+- En Windows, los servicios internos solo atienden a la propia app: ninguna web que abras puede usarlos.
+- Las actualizaciones se descargan solo de las *releases* de este proyecto y se verifican antes de instalarse.
+- TOPOTV no incluye ni recomienda listas, addons ni enlaces de terceros: usa solo fuentes propias o autorizadas.
+- Más detalle y cómo avisar de un fallo: [SECURITY.md](SECURITY.md).
 
 ## Ayuda rápida
 

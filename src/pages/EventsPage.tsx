@@ -30,7 +30,7 @@ function updatedLabel(st: CiriacoStatus | null) {
 
 /** Botón + estado de la actualización diaria (WARP lo gestiona el servidor). */
 function UpdateControl() {
-  const { status, updating, refresh } = useCiriacoStore();
+  const { status, updating, refresh, step } = useCiriacoStore();
   const warpMissing = !Capacitor.isNativePlatform() && !!status?.warp && status.warp.mode === 'always' && !status.warp.available;
   if (warpMissing) return (
     <div role="alert" className="flex items-center gap-2 flex-wrap" style={{ fontSize: '0.72rem', color: 'var(--offline-red)' }}>
@@ -43,9 +43,9 @@ function UpdateControl() {
     <div className="flex items-center gap-2">
       <span className="flex items-center gap-1.5" style={{ fontSize: '0.68rem', color: status?.lastError ? 'var(--offline-red)' : 'var(--text-muted)' }}>
         {updating && <ShieldCheck size={13} style={{ color: 'var(--accent)' }} />}
-        {updating ? (status?.phase || 'Actualizando agenda…') : status?.lastError ? `Error: ${status.lastError}` : updatedLabel(status)}
+        {updating ? (step || status?.phase || 'Actualizando agenda…') : status?.lastError ? `Error: ${status.lastError}` : updatedLabel(status)}
       </span>
-      <button onClick={refresh} disabled={updating} title="Actualizar la agenda ahora (conecta WARP solo mientras actualiza)"
+      <button onClick={refresh} disabled={updating} title="Actualizar la agenda, las listas de canales y la guía (conecta WARP solo mientras lee la agenda)"
         className="flex items-center gap-1.5"
         style={{ padding: '7px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: '100px', color: 'var(--text-secondary)', fontSize: '0.75rem', cursor: updating ? 'wait' : 'pointer' }}>
         <RefreshCw size={13} strokeWidth={1.8} style={{ animation: updating ? 'spin 0.8s linear infinite' : 'none' }} />Actualizar

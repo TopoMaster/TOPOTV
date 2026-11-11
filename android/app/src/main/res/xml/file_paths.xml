@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Solo lo imprescindible: el APK descargado (caché) y las grabaciones en Android 9 o anterior. Antes se compartía todo el almacenamiento externo. -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="my_images" path="." />
     <external-files-path name="topotv_files" path="." />
     <cache-path name="my_cache_images" path="." />
 </paths>

@@ -7,6 +7,15 @@ $ProgressPreference = 'SilentlyContinue'
 function Have-Winget { return [bool](Get-Command winget -ErrorAction SilentlyContinue) }
 function Download($url, $out) { Write-Host "Descargando $url"; Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing }
 
+# No se ejecuta nada descargado sin comprobar su firma digital (y, si se conoce, quién la firma).
+function Test-Signed($file, $publisher) {
+  $sig = Get-AuthenticodeSignature -FilePath $file
+  if ($sig.Status -ne 'Valid') { Write-Host "ERROR: $file no tiene una firma digital válida ($($sig.Status)). No se instala."; return $false }
+  $subject = $sig.SignerCertificate.Subject
+  if ($publisher -and $subject -notmatch $publisher) { Write-Host "ERROR: el archivo está firmado por '$subject', no por el editor esperado. No se instala."; return $false }
+  Write-Host "Firma válida: $subject"; return $true
+}
+
 switch ($Dep) {
   'warp' {
     if (Have-Winget) {
@@ -15,6 +24,7 @@ switch ($Dep) {
     }
     $f = Join-Path $env:TEMP 'Cloudflare_WARP.msi'
     Download 'https://downloads.cloudflareclient.com/v1/download/windows/ga' $f
+    if (-not (Test-Signed $f 'Cloudflare')) { Remove-Item $f -ErrorAction SilentlyContinue; exit 1 }
     Start-Process msiexec.exe -ArgumentList "/i `"$f`" /qn /norestart" -Wait
   }
   'vlc' {
@@ -24,6 +34,7 @@ switch ($Dep) {
     }
     $f = Join-Path $env:TEMP 'vlc-setup.exe'
     Download 'https://get.videolan.org/vlc/last/win64/vlc-3.0.21-win64.exe' $f
+    if (-not (Test-Signed $f 'VideoLAN')) { Remove-Item $f -ErrorAction SilentlyContinue; exit 1 }
     Start-Process $f -ArgumentList '/S' -Wait
   }
   'ace' {
@@ -33,6 +44,8 @@ switch ($Dep) {
       $f = Join-Path $env:TEMP 'Ace_Stream_Media.exe'
       Download 'https://download.acestream.media/products/acestream-full/win/latest' $f
     }
+    # Si el instalador no está firmado, no se ejecuta: se abre la web oficial para bajarlo a mano
+    if (-not (Test-Signed $f $null)) { Remove-Item (Join-Path $env:TEMP 'Ace_Stream_Media.exe') -ErrorAction SilentlyContinue; Start-Process 'https://acestream.org'; exit 1 }
     Start-Process $f -Wait
     # Arranca el motor en modo consola y espera a que responda en el puerto 6878
     $dir = $null

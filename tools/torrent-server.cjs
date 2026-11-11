@@ -9,6 +9,7 @@
  * TOPOTV no incluye ni recomienda contenido: reproduce lo que el usuario elija de sus propios addons.
  */
 const http = require('http');
+const { check: guardCheck } = require('./guard.cjs');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -16,7 +17,7 @@ const os = require('os');
 const PORT = Number(process.env.TORRENT_PORT || 3009);
 const TRUSTED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1):(5173|5174|4173)$/;
 const HASH_RE = /^[0-9a-f]{40}$/i;
-const TRACKER_RE = /^(udp|http|https|ws|wss):\/\/[^\s]{4,300}$/i;
+const TRACKER_RE = /^(udp|http|https):\/\/[^\s]{4,300}$/i;
 const READY_TIMEOUT_MS = Number(process.env.TORRENT_READY_MS || 90000);
 const IDLE_MS = 10 * 60 * 1000;
 /** Trackers públicos de apoyo: algunos addons (p. ej. Torrentio) no mandan ninguno y solo con DHT tarda en encontrar pares. */
@@ -27,7 +28,7 @@ let log = console.log;
 const sessions = new Map();   // id -> { engine, state, url, name, size, error, started, lastUse, timers }
 
 function loadPeerflix() {
-  try { return require('peerflix'); } catch (e) { throw new Error('Falta el módulo peerflix (' + e.message + ')'); }
+  try { return require('./vendor/peerflix.cjs'); } catch (e) { throw new Error('Falta el módulo peerflix (' + e.message + ')'); }
 }
 
 function pub(s) {
@@ -98,6 +99,7 @@ function begin(o = {}) {
     if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || '')) { res.writeHead(403); return res.end(); }
     const origin = req.headers.origin || '';
     if (origin && !TRUSTED_ORIGIN.test(origin)) { res.writeHead(403); return res.end(); }
+    if (guardCheck(req)) { res.writeHead(403); return res.end(); }   // petición de otra web sin Origin
     if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

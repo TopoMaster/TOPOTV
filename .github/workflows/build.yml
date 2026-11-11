@@ -98,7 +98,7 @@ jobs:
           cache-dependency-path: android/**/*.gradle*
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
         with:
           packages: platform-tools
 
@@ -213,7 +213,7 @@ jobs:
           zip -r "../release-assets/TOPOTV-Web-${GITHUB_REF_NAME}.zip" .
 
       - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: release-assets/*
           generate_release_notes: true

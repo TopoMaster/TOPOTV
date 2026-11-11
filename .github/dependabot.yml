@@ -1,0 +1,29 @@
+# Avisos y actualizaciones de dependencias (npm, Gradle y acciones de GitHub): una vez por semana, agrupadas.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      web: { patterns: ['*'], update-types: [minor, patch] }
+  - package-ecosystem: npm
+    directory: /desktop
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    groups:
+      desktop: { patterns: ['*'], update-types: [minor, patch] }
+  - package-ecosystem: npm
+    directory: /tools
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    groups:
+      tools: { patterns: ['*'], update-types: [minor, patch] }
+  - package-ecosystem: gradle
+    directory: /android
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3

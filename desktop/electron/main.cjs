@@ -21,9 +21,14 @@ if (!gotLock) app.quit();
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ico': 'image/x-icon' };
 function startWeb() {
   const server = http.createServer((req, res) => {
-    let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    let p;
+    try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { res.writeHead(400); return res.end(); }
     let file = path.normalize(path.join(APP_DIR, p));
-    if (!file.startsWith(APP_DIR)) { res.writeHead(403); return res.end(); }
+    const rel = path.relative(APP_DIR, file);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) { res.writeHead(403); return res.end(); }   // nada fuera de la carpeta de la web
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Content-Security-Policy', "object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
     if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(APP_DIR, 'index.html');   // SPA fallback
     res.setHeader('Content-Type', MIME[path.extname(file)] || 'application/octet-stream');
     fs.createReadStream(file).pipe(res);
@@ -65,7 +70,14 @@ function createWindow() {
     { label: 'Recargar', accelerator: 'CmdOrCtrl+R', click: () => mainWin.reload() },
     { label: 'Abrir registro', click: () => shell.showItemInFolder(LOG()) },
     { type: 'separator' }, { role: 'quit', label: 'Salir' }] }]));
-  mainWin.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
+  // Enlaces externos: solo http/https (otros esquemas como file:, smb: o ms-msdt: pueden ejecutar programas en Windows)
+  const openSafe = url => { try { if (/^https?:$/.test(new URL(url).protocol)) void shell.openExternal(url); } catch { /* dirección no válida */ } };
+  mainWin.webContents.setWindowOpenHandler(({ url }) => { openSafe(url); return { action: 'deny' }; });
+  // La ventana principal no debe cargar páginas ajenas (tendrían a mano los servicios locales): se abren en el navegador
+  const ownOrigin = `http://127.0.0.1:${WEB_PORT}`;
+  const keepInside = (e, url) => { if (!url.startsWith(ownOrigin + '/') && url !== ownOrigin) { e.preventDefault(); openSafe(url); } };
+  mainWin.webContents.on('will-navigate', keepInside);
+  mainWin.webContents.on('will-redirect', keepInside);
   mainWin.loadURL(`http://127.0.0.1:${WEB_PORT}/`);
   mainWin.on('closed', () => { mainWin = null; });
 }
@@ -76,11 +88,18 @@ app.on('window-all-closed', () => app.quit());
 if (gotLock) app.whenReady().then(async () => {
   log('TOPOTV arrancando', app.getVersion());
   // El motor AceStream no envía CORS en todas las versiones: lo permitimos para la web local.
+  // (los servicios de TOPOTV ya responden con CORS solo para la app; el motor AceStream no, y se le añade solo para la app)
   session.defaultSession.webRequest.onHeadersReceived((d, cb) => {
     const h = d.responseHeaders || {};
-    if (/^https?:\/\/(127\.0\.0\.1|localhost):(6878|3002|3004|3006)\//.test(d.url)) h['Access-Control-Allow-Origin'] = ['*'];
+    const fromApp = (d.referrer || '').startsWith(`http://127.0.0.1:${WEB_PORT}`);
+    if (fromApp && /^https?:\/\/(127\.0\.0\.1|localhost):6878\//.test(d.url)) h['Access-Control-Allow-Origin'] = ['*'];
     cb({ responseHeaders: h });
   });
+  // permisos del navegador: solo notificaciones, pantalla completa y copiar al portapapeles (nada de cámara, micrófono, ubicación…)
+  const GRANTED = new Set(['notifications', 'fullscreen', 'clipboard-sanitized-write']);
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(GRANTED.has(permission)));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => GRANTED.has(permission));
+  app.on('web-contents-created', (_e, wc) => wc.on('will-attach-webview', e => e.preventDefault()));
   try {
     await startWeb();
     process.env.CIRIACO_PORT = '3004';

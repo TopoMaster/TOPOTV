@@ -52,3 +52,19 @@ desktop.ini
 
 # Configuración local de Claude Code (skills, ajustes): no se publica
 /.claude/
+
+# Listas personales de canales: no se publican en el repositorio
+/lista-elcano.txt
+/lista.txt
+
+# Local del editor y del equipo (no se publica)
+.vscode/
+*.local
+*.local.*
+/listas/
+/lista*.txt
+/lista*.m3u*
+/copia-*.json
+topotv-copia-*.json
+/tmp/
+/coverage/

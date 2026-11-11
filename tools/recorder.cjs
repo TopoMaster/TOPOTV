@@ -13,6 +13,7 @@
  * Si un enlace no da datos o se corta, prueba el siguiente mientras dure la ventana de grabación.
  */
 const http = require('http');
+const { check: guardCheck } = require('./guard.cjs');
 const fs = require('fs');
 const path = require('path');
 
@@ -189,6 +190,7 @@ function start(o = {}) {
     if (!hostOk) { res.writeHead(403); return res.end(); }
     const origin = req.headers.origin || '';
     if (origin && !TRUSTED_ORIGIN.test(origin) && !req.url.startsWith('/file/')) { res.writeHead(403); return res.end(); }
+    if (!req.url.startsWith('/file/') && guardCheck(req)) { res.writeHead(403); return res.end(); }   // petición de otra web sin Origin (imagen, formulario…)
     if (TRUSTED_ORIGIN.test(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

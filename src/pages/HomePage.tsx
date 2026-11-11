@@ -8,6 +8,7 @@ import { CategoryRow } from '@/components/catalog/CategoryRow';
 import { LiveRail } from '@/components/catalog/LiveRail';
 import { ContinueWatching } from '@/components/catalog/ContinueWatching';
 import { TeamsToday } from '@/components/catalog/TeamsToday';
+import { ListChangesBanner } from '@/components/catalog/ListChangesBanner';
 import { ChannelCard } from '@/components/catalog/ChannelCard';
 import { EmptyState, LoadingState } from '@/components/shared/States';
 import type { Channel } from '@/types';
@@ -44,6 +45,7 @@ export function HomePage() {
   const historyChannels = historyEntries.map(e=>e.channel);
   return (
     <div className="fade-in" style={{paddingBottom:'40px'}}>
+      <ListChangesBanner />
       <TeamsToday />
       <ContinueWatching />
       <LiveRail />

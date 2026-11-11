@@ -160,7 +160,7 @@ function classify(a: Addon, s: AddonStream): StreamOption | null {
     return { ...base, kind: 'direct', stream };
   }
   if (s.infoHash && /^[0-9a-f]{40}$/i.test(s.infoHash)) {
-    const trackers = (s.sources ?? []).filter(x => x.startsWith('tracker:')).map(x => x.slice(8)).filter(x => /^(udp|http|https|ws|wss):\/\//i.test(x)).slice(0, 30);
+    const trackers = (s.sources ?? []).filter(x => x.startsWith('tracker:')).map(x => x.slice(8)).filter(x => /^(udp|http|https):\/\//i.test(x)).slice(0, 30);
     const stream: Stream = { aceId: `torrent:${s.infoHash.toLowerCase()}:${s.fileIdx ?? ''}`, url: '', label: [label, detail].filter(Boolean).join(' · ').slice(0, 160), provider: a.manifest.name, torrent: { infoHash: s.infoHash.toLowerCase(), fileIdx: s.fileIdx, trackers } };
     return { ...base, kind: 'torrent', stream };
   }

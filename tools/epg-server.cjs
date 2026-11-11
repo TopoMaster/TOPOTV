@@ -10,6 +10,7 @@
  * (sin DOM) para aguantar ficheros de decenas de MB; acepta .xml y .xml.gz.
  */
 const http = require('http');
+const { guard } = require('./guard.cjs');
 const https = require('https');
 const zlib = require('zlib');
 
@@ -127,10 +128,7 @@ function today(id) {
 function start(opts = {}) {
   log = opts.log || console.log;
   const server = http.createServer(async (req, res) => {
-    if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || '')) { res.writeHead(403); return res.end(); }
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (!guard(req, res)) return;   // Host y Origin de la propia app (evita que una web mande cargar guías)
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
     const json = (code, obj) => { res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.writeHead(code); res.end(JSON.stringify(obj)); };
     const u = new URL(req.url, 'http://x');

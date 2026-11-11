@@ -5,6 +5,7 @@
  *  - Servidor ADMIN  127.0.0.1:3006  -> crear/revocar enlaces y controlar el túnel. Solo local.
  */
 const http = require('http');
+const { guard } = require('./guard.cjs');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
@@ -198,12 +199,8 @@ function stopTunnel(keepState) {
 /* ---------- Servidor admin (solo local) ---------- */
 function adminServer(binDir, log) {
   return http.createServer((req, res) => {
-    const origin = req.headers.origin;
-    const okOrigin = !origin || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-    if (!okOrigin || req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']) { res.writeHead(403); return res.end(); }
-    if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    if (req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']) { res.writeHead(403); return res.end(); }   // nunca desde el túnel
+    if (!guard(req, res)) return;
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
     const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); };
     const u = new URL(req.url, 'http://x');

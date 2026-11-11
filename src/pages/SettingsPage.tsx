@@ -139,7 +139,7 @@ function M3USection() {
             <textarea value={sourcesInput} onChange={e=>setSourcesInput(e.target.value)} rows={4} placeholder="Pega una URL M3U por línea" style={{...inp,resize:'vertical',minHeight:96,fontFamily:'DM Mono,monospace'}} />
             <p style={{fontSize:'0.68rem',color:'var(--text-muted)',marginTop:8,lineHeight:1.5}}>
               La lista de Elcano y la agenda de Ciriaco se cargan siempre y se fusionan por categorías; las URLs que añadas aquí se combinan con ellas.
-              {' '}Las fuentes se guardan en este dispositivo, se combinan y actualizan al iniciar.
+              {' '}Las fuentes se guardan en este dispositivo, se combinan y actualizan al iniciar; si una lista cambia, TOPOTV te avisa en Inicio de los canales nuevos.
             </p>
             {(sourceError||error)&&<p role="alert" style={{color:'var(--offline-red)',fontSize:'0.72rem',marginTop:8}}>{sourceError||error}</p>}
             <button onClick={()=>void saveAndLoadSources()} disabled={isLoading} style={{marginTop:10,padding:'9px 16px',background:'var(--accent)',color:'#080a0e',border:'none',borderRadius:'var(--radius-md)',fontSize:'0.78rem',fontWeight:700,cursor:isLoading?'wait':'pointer',display:'flex',alignItems:'center',gap:7}}>

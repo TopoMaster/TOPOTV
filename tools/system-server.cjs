@@ -10,6 +10,7 @@
  *   GET  /diagnostic       -> resumen para copiar y pasar cuando algo falla
  */
 const http = require('http');
+const { check: guardCheck } = require('./guard.cjs');
 const https = require('https');
 const fs = require('fs');
 const os = require('os');
@@ -126,6 +127,7 @@ function start(o = {}) {
     if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || '')) { res.writeHead(403); return res.end(); }
     const origin = req.headers.origin || '';
     if (origin && !TRUSTED_ORIGIN.test(origin)) { res.writeHead(403); return res.end(); }
+    if (guardCheck(req)) { res.writeHead(403); return res.end(); }   // petición de otra web sin Origin
     if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

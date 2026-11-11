@@ -6,6 +6,7 @@
  *   GET /deps                   -> estado de VLC, WARP y AceStream (para la pantalla de Ajustes)
  */
 const http = require('http');
+const { guard } = require('./guard.cjs');
 const fs = require('fs');
 const path = require('path');
 const { spawn, execFileSync } = require('child_process');
@@ -80,7 +81,7 @@ async function ensureEngine(log = console.log) {
 function start(opts = {}) {
   const log = opts.log || console.log;
   const server = http.createServer(async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    if (!guard(req, res)) return;   // solo la propia app: ninguna web puede abrir VLC ni parar el motor
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     const send = (code, obj) => { res.writeHead(code); res.end(JSON.stringify(obj)); };
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }

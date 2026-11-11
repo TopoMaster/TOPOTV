@@ -16,6 +16,7 @@
  *            WARP_CLI=ruta\warp-cli.exe · CIRIACO_PORT
  */
 const http = require('http');
+const { guard } = require('./guard.cjs');
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
@@ -325,8 +326,7 @@ function start(opts = {}) {
   if (opts.cacheFile) CACHE_FILE = opts.cacheFile;
   loadCache();
   const server = http.createServer(async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  if (!guard(req, res)) return;   // solo la propia app puede leer la agenda o disparar WARP
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
   const u = new URL(req.url, 'http://x');
   const json = (code, obj) => { res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.writeHead(code); res.end(JSON.stringify(obj)); };

@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Channel, Group, M3UMeta, ParsedM3U } from '@/types';
-import { withDefaultSources } from '@/lib/ciriaco';
+import { sourceLabel, withDefaultSources } from '@/lib/ciriaco';
+import { compareWithSnapshot } from '@/lib/listChanges';
+import { useListChangesStore } from './useListChangesStore';
 import { useSettingsStore } from './useSettingsStore';
 import { loadM3UFromFile, loadM3UFromUrl, mergeM3ULists } from '@/lib/m3uParser';
 import { matchScore } from '@/lib/text';
@@ -45,6 +47,13 @@ export const useM3UStore = create<M3UState>()(
             catch (err) { return { url, parsed: null, error: err instanceof Error ? err.message : 'Error' }; }
           }));
           const parsed = results.flatMap(result => result.parsed ? [result.parsed] : []);
+          // novedades: ¿ha cambiado alguna lista desde la última vez? (la primera vez solo se memoriza)
+          for (const r of results) {
+            const label = r.parsed ? sourceLabel(r.url) : null;
+            if (!r.parsed || !label) continue;
+            const diff = compareWithSnapshot(r.url, r.parsed.allChannels);
+            if (diff) useListChangesStore.getState().push({ label, ...diff });
+          }
           if (!parsed.length) throw new Error('No se pudo cargar ninguna lista. Comprueba tu conexión a internet y pulsa Reintentar.');
           get().setData(mergeM3ULists(parsed));
           const failedCount = results.length - parsed.length;

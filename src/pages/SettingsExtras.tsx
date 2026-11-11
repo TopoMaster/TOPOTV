@@ -188,7 +188,7 @@ export function BackupSection() {
     <section className="mb-8">
       <SLabel icon={Archive} label="Copia de seguridad" />
       <Card>
-        <p style={help}>Guarda en un archivo tus favoritos, historial, ajustes, equipos y avisos, para no perderlos al reinstalar o cambiar de equipo. Las grabaciones programadas y los vídeos grabados no van en la copia.</p>
+        <p style={help}>Guarda en un archivo tus favoritos, historial, ajustes, equipos y avisos, para no perderlos al reinstalar o cambiar de equipo. Las grabaciones programadas y los vídeos grabados no van en la copia. Ojo: incluye las direcciones de tus addons, que pueden llevar claves personales; guárdala en un sitio privado y no la compartas.</p>
         {native ? (
           <>
             <p style={help}>En el móvil la copia se pasa por el portapapeles: pulsa «Copiar copia» y pégala en una nota o en un mensaje a ti mismo. Para restaurar, pega el texto aquí debajo.</p>

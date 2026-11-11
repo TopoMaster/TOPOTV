@@ -14,6 +14,14 @@ export const TDT_SOURCE_URL = 'topotv://tdt';
 /** Listas que TOPOTV carga siempre: Elcano (categorías), TDT (si está activada), las del usuario y, al final, la agenda de Ciriaco (que se fusiona con las anteriores). */
 export const withDefaultSources = (userUrls: string[] = []) => [...new Set([ELCANO_PLAYLIST_URL, ...(useSettingsStore.getState().includeTdt ? [TDT_SOURCE_URL] : []), ...userUrls, CIRIACO_PLAYLIST_URL])];
 
+/** Nombre que se enseña para una fuente al avisar de novedades (null = no se vigila: cambia a diario o es interna). Nunca se enseña la dirección. */
+export function sourceLabel(url: string): string | null {
+  if (url === TDT_SOURCE_URL || url === CIRIACO_PLAYLIST_URL) return null;
+  if (url === ELCANO_PLAYLIST_URL) return 'La lista de canales incluida';
+  const i = useSettingsStore.getState().m3uSourceUrls.indexOf(url);
+  return i >= 0 ? `Tu lista ${i + 1}` : 'La lista cargada';
+}
+
 export interface CiriacoLink { hash: string; label: string; channel: string; channelKey: string; quality: string; marks: number; server: string; }
 export interface CiriacoEvent {
   id: string; time: string; sport: string; competition: string; round: string; flag: string;
