@@ -89,7 +89,7 @@ dependencies {
     implementation 'androidx.media3:media3-cast:1.5.1'                // Chromecast desde el reproductor integrado
     implementation 'com.google.android.gms:play-services-cast-framework:21.5.0'
     implementation 'androidx.mediarouter:mediarouter:1.7.0'
-    implementation 'com.wireguard.android:tunnel:1.0.20230706'   // túnel WARP integrado
+    implementation 'com.wireguard.android:tunnel:1.0.20260102'   // túnel WARP integrado
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     implementation project(':capacitor-cordova-android-plugins')
 }
