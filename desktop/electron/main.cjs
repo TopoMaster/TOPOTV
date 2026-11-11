@@ -104,6 +104,8 @@ if (gotLock) app.whenReady().then(async () => {
       openFolder: dir => shell.openPath(dir),
     });
     // Sistema: actualizaciones desde GitHub, registro y diagnóstico (puerto 3008)
+    // Motor de torrents para los enlaces de los addons (peerflix, puerto 3009): descarga en la carpeta de datos y la borra al parar
+    try { require(path.join(TOOLS, 'torrent-server.cjs')).start({ log, dir: path.join(app.getPath('userData'), 'torrents') }); } catch (e) { log('motor de torrents no disponible:', e.message); }
     require(path.join(TOOLS, 'system-server.cjs')).start({
       log, version: app.getVersion(), logFile: LOG(),
       openLog: () => shell.showItemInFolder(LOG()),

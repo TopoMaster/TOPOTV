@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { AceBackendConfig, BackendStatus, PlaybackConfig } from '@/types';
+import { Capacitor } from '@capacitor/core';
 import { checkBackendStatus } from '@/lib/aceApi';
 import type { PlayerApp } from '@/lib/aceApi';
 
@@ -62,7 +63,8 @@ export const useSettingsStore = create<SettingsState>()(
     (set, get) => ({
       backendConfig: { host: '127.0.0.1', port: 6878 },
       backendStatus: 'unknown', theme: 'dark', manualEpgUrl: '',
-      preferredPlayer: 'vlc',
+      preferredPlayer: Capacitor.isNativePlatform() ? 'native' : 'vlc',   // en Android, el reproductor integrado
+      
       m3uSourceUrls: [],
       includeTdt: true, warpAuto: true, engineAutoStart: true, engineApkUrl: '', engineApkToken: '', tvMode: 'auto', onboardingDone: false,
       autoCheck: true, hideDead: false, autoUpdateCheck: true, reminderLead: 10, favTeams: [], fontScale: 'normal',

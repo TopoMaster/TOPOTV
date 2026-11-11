@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { openInAndroidVlc } from '@/lib/externalPlayer';
+import { startNativePlayback, type NativeResult } from '@/lib/nativePlayer';
 import type { AceBackendConfig, BackendStatus, PlaybackConfig, Stream } from '@/types';
 const DEFAULT: AceBackendConfig = { host: '127.0.0.1', port: 6878 };
 function baseUrl(cfg=DEFAULT) { return `http://${cfg.host}:${cfg.port}`; }
@@ -20,9 +21,19 @@ export async function requestPlay(stream: Stream, cfg=DEFAULT): Promise<PlayResu
 }
 function buildHlsUrl(aceId: string, cfg=DEFAULT) { return `${baseUrl(cfg)}/ace/manifest.m3u8?id=${aceId}`; }
 export function streamHlsUrl(stream: Stream, cfg=DEFAULT) { return stream.direct ? stream.url : buildHlsUrl(stream.aceId,cfg); }
-export type PlayerApp='vlc'|'browser';
-export async function openInPlayer(stream: Stream, cfg=DEFAULT, player: PlayerApp='vlc', playback?: PlaybackConfig): Promise<{ok:boolean;method:string;error?:string}> {
+export type PlayerApp='vlc'|'browser'|'native';
+/** Datos para el reproductor integrado de Android: título, desde dónde reanudar y subtítulos del addon */
+export interface OpenExtra { title?: string; resumeMs?: number; subtitles?: { url: string; lang: string }[] }
+export async function openInPlayer(stream: Stream, cfg=DEFAULT, player: PlayerApp='vlc', playback?: PlaybackConfig, extra?: OpenExtra): Promise<{ok:boolean;method:string;error?:string;done?:Promise<NativeResult>}> {
   if(player==='browser') return {ok:true,method:'browser'}; // lo reproduce <PlayerOverlay/> con hls.js
+  if(player==='native') {
+    if(Capacitor.isNativePlatform()) {
+      // reproductor propio de Android: el directo se pide como HLS al motor; la promesa `done` termina al cerrarlo
+      const url=stream.direct?stream.url:buildHlsUrl(stream.aceId,cfg);
+      return {ok:true,method:'native',done:startNativePlayback({url,title:extra?.title??stream.label,resumeMs:extra?.resumeMs,subtitles:extra?.subtitles})};
+    }
+    player='vlc';   // fuera de Android no existe: se usa VLC
+  }
   const streamUrl=streamPlayUrl(stream,cfg);
   if(Capacitor.isNativePlatform()) {
     // Android: VLC se abre con un Intent y reproduce el stream directo del motor AceStream.

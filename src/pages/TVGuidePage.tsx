@@ -1,58 +1,71 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, Tv, Search } from 'lucide-react';
+import { Calendar, Search, Tv, ChevronDown } from 'lucide-react';
 import { useEPGStore } from '@/store/useEPGStore';
 import { useM3UStore } from '@/store/useM3UStore';
+import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { formatTime, formatDuration } from '@/lib/epg';
+import { norm } from '@/lib/text';
 import { LoadingState } from '@/components/shared/States';
-import type { EPGEvent } from '@/types';
+import type { Channel, EPGEvent } from '@/types';
 
-function getDays() {
-  const today=new Date(); const days=[];
-  for(let i=-3;i<=3;i++){const d=new Date(today);d.setDate(today.getDate()+i);d.setHours(0,0,0,0);const l=i===0?'Hoy':i===-1?'Ayer':i===1?'Mañana':d.toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'});days.push({date:d,label:l,key:d.toISOString().split('T')[0]});}
-  return days;
-}
+/** Parrilla de programación: todos los canales sobre una misma línea de tiempo (hoy), con la hora actual marcada. */
+const PX = 4;            // píxeles por minuto (una hora = 240 px)
+const LABEL_W = 128;     // ancho de la columna de canales
+const ROW_H = 56;
+const DAY_MIN = 24 * 60;
+const PAGE = 40;
 
-function ChannelRow({channelId,channelName,channelLogo,selectedDate,onClick}:{channelId:string;channelName:string;channelLogo:string;selectedDate:Date;onClick:(id:string)=>void}) {
-  const navigate = useNavigate();
-  const [imgErr,setImgErr]=useState(false);
-  const [events,setEvents]=useState<EPGEvent[]>([]);
-  const epgStatus=useEPGStore(s=>s.status);
-  const getScheduleForChannel=useEPGStore(s=>s.getScheduleForChannel);
-  const allChannels=useM3UStore(s=>s.allChannels);
-  useEffect(()=>{
-    if(epgStatus!=='ready') return;
-    const ch=allChannels.find(c=>c.id===channelId);
-    if(!ch) return;
-    getScheduleForChannel(ch).then(schedule=>{
-      if(schedule) setEvents(schedule.events.filter(e=>{
-        const d=selectedDate; d.setHours(0,0,0,0);
-        const next=new Date(d); next.setDate(d.getDate()+1);
-        return e.endTime.getTime()>d.getTime()&&e.startTime.getTime()<next.getTime();
-      }));
-    });
-  },[epgStatus,channelId,selectedDate]); // eslint-disable-line
-  const now=Date.now();
+const dayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
+
+function Row({ channel, start, now, onPick }: { channel: Channel; start: number; now: number; onPick: (c: Channel) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [events, setEvents] = useState<EPGEvent[] | null>(null);
+  const epgStatus = useEPGStore(s => s.status);
+  const getSchedule = useEPGStore(s => s.getScheduleForChannel);
+  const [imgErr, setImgErr] = useState(false);
+
+  // la guía de cada canal solo se pide cuando su fila se acerca a la pantalla
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { setVisible(true); io.disconnect(); } }, { rootMargin: '400px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!visible || epgStatus !== 'ready') return;
+    let cancelled = false;
+    void getSchedule(channel).then(s => { if (!cancelled) setEvents(s ? s.events : []); });
+    return () => { cancelled = true; };
+  }, [visible, epgStatus, channel.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const end = start + DAY_MIN * 60000;
   return (
-    <div style={{display:'flex',borderBottom:'1px solid var(--border-subtle)',minHeight:'64px'}}>
-      <div style={{width:'160px',minWidth:'160px',padding:'10px 14px',display:'flex',alignItems:'center',gap:'10px',cursor:'pointer',background:'var(--bg-surface)',borderRight:'1px solid var(--border-subtle)',position:'sticky',left:0,zIndex:2}} onClick={()=>navigate(`/channel/${channelId}`)}>
-        <div style={{width:'28px',height:'28px',borderRadius:'6px',background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',flexShrink:0}}>
-          {channelLogo&&!imgErr?<img src={channelLogo} alt={channelName} style={{width:'80%',height:'80%',objectFit:'contain'}} onError={()=>setImgErr(true)} loading="lazy" />:<Tv size={14} strokeWidth={1.5} style={{color:'var(--text-muted)'}} />}
-        </div>
-        <span style={{fontSize:'0.68rem',fontWeight:600,color:'var(--text-secondary)',lineHeight:1.3,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{channelName}</span>
-      </div>
-      <div style={{flex:1,display:'flex',gap:'2px',padding:'6px 8px',alignItems:'stretch',overflowX:'auto',scrollbarWidth:'none'}}>
-        {events.length===0?<div style={{display:'flex',alignItems:'center',paddingLeft:'12px'}}><span style={{fontSize:'0.68rem',color:'var(--text-muted)'}}>Sin datos EPG</span></div>:events.map(ev=>{
-          const prog=(now-ev.startTime.getTime())/(ev.endTime.getTime()-ev.startTime.getTime())*100;
-          const isNow=prog>=0&&prog<=100; const isPast=prog>100;
-          const mins=Math.round((ev.endTime.getTime()-ev.startTime.getTime())/60000);
-          const width=Math.max(80,mins*2.2);
+    <div ref={ref} style={{ display: 'flex', height: ROW_H, borderBottom: '1px solid var(--border-subtle)' }}>
+      <button onClick={() => onPick(channel)} title={channel.name} className="flex items-center gap-2"
+        style={{ position: 'sticky', left: 0, zIndex: 3, width: LABEL_W, minWidth: LABEL_W, padding: '0 10px', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)', cursor: 'pointer', textAlign: 'left', color: 'var(--text-secondary)' }}>
+        <span style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+          {channel.logo && !imgErr ? <img src={channel.logo} alt="" loading="lazy" onError={() => setImgErr(true)} style={{ width: '80%', height: '80%', objectFit: 'contain' }} /> : <Tv size={14} style={{ color: 'var(--text-muted)' }} />}
+        </span>
+        <span style={{ fontSize: '0.68rem', fontWeight: 600, lineHeight: 1.25, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{channel.name}</span>
+      </button>
+      <div style={{ position: 'relative', width: DAY_MIN * PX, flexShrink: 0 }}>
+        {events === null && <span style={{ position: 'absolute', left: Math.max(0, (now - start) / 60000 * PX) + 12, top: 18, fontSize: '0.64rem', color: 'var(--text-muted)' }}>{visible ? 'Cargando…' : ''}</span>}
+        {events && events.length === 0 && <span style={{ position: 'absolute', left: Math.max(0, (now - start) / 60000 * PX) + 12, top: 18, fontSize: '0.66rem', color: 'var(--text-muted)' }}>Sin datos de guía</span>}
+        {events?.map(ev => {
+          const s = Math.max(start, ev.startTime.getTime()), e = Math.min(end, ev.endTime.getTime());
+          if (e <= s) return null;
+          const left = (s - start) / 60000 * PX, width = Math.max(30, (e - s) / 60000 * PX - 2);
+          const live = now >= ev.startTime.getTime() && now < ev.endTime.getTime();
+          const past = ev.endTime.getTime() <= now;
           return (
-            <div key={ev.startTime.getTime()} onClick={()=>onClick(channelId)} style={{minWidth:`${width}px`,padding:'6px 8px',background:isNow?'rgba(226,201,126,0.08)':isPast?'rgba(255,255,255,0.02)':'var(--bg-elevated)',border:`1px solid ${isNow?'rgba(226,201,126,0.25)':'var(--border-subtle)'}`,borderRadius:'6px',cursor:'pointer',position:'relative',overflow:'hidden',flexShrink:0,transition:'border-color 0.15s'}} onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.borderColor='var(--border-accent)'} onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.borderColor=isNow?'rgba(226,201,126,0.25)':'var(--border-subtle)'} title={`${ev.title}\n${formatTime(ev.startTime)} – ${formatTime(ev.endTime)}`}>
-              {isNow&&<div style={{position:'absolute',bottom:0,left:0,height:'2px',width:`${Math.min(100,prog)}%`,background:'var(--accent)',borderRadius:'0 1px 0 0'}} />}
-              <div style={{fontSize:'0.6rem',color:isNow?'var(--accent)':'var(--text-muted)',marginBottom:'2px'}}>{formatTime(ev.startTime)} · {formatDuration(ev.startTime,ev.endTime)}</div>
-              <div style={{fontSize:'0.72rem',fontWeight:isNow?600:400,color:isNow?'var(--text-primary)':isPast?'var(--text-muted)':'var(--text-secondary)',overflow:'hidden',display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical'}}>{ev.title}</div>
-            </div>
+            <button key={ev.startTime.getTime()} onClick={() => onPick(channel)} title={`${ev.title} · ${formatTime(ev.startTime)}–${formatTime(ev.endTime)} (${formatDuration(ev.startTime, ev.endTime)})`}
+              style={{ position: 'absolute', left, width, top: 4, bottom: 4, padding: '4px 8px', textAlign: 'left', overflow: 'hidden', cursor: 'pointer', borderRadius: 6, border: `1px solid ${live ? 'var(--accent)' : 'var(--border-subtle)'}`, background: live ? 'var(--accent-dim)' : past ? 'transparent' : 'var(--bg-elevated)', opacity: past ? 0.55 : 1, color: 'var(--text-primary)' }}>
+              <span style={{ display: 'block', fontSize: '0.58rem', color: live ? 'var(--accent)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatTime(ev.startTime)}</span>
+              <span style={{ display: '-webkit-box', fontSize: '0.7rem', fontWeight: live ? 700 : 500, lineHeight: 1.2, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{ev.title}</span>
+            </button>
           );
         })}
       </div>
@@ -62,51 +75,81 @@ function ChannelRow({channelId,channelName,channelLogo,selectedDate,onClick}:{ch
 
 export function TVGuidePage() {
   const navigate = useNavigate();
-  const epgStatus = useEPGStore(s=>s.status);
-  const allChannels = useM3UStore(s=>s.allChannels);
-  const days = useMemo(()=>getDays(),[]);
-  const todayKey = new Date().toISOString().split('T')[0];
-  const [selectedDayKey,setSelectedDayKey] = useState(todayKey);
-  const [searchQuery,setSearchQuery] = useState('');
-  const selectedDay = days.find(d=>d.key===selectedDayKey)!;
-  const epgChannels = useMemo(()=>{
-    return allChannels.map(ch=>({channelId:ch.id,channelName:ch.name,channelLogo:ch.logo}));
-  },[allChannels]);
-  const filtered = useMemo(()=>{
-    if(!searchQuery.trim()) return epgChannels;
-    const q=searchQuery.toLowerCase(); return epgChannels.filter(c=>c.channelName.toLowerCase().includes(q));
-  },[epgChannels,searchQuery]);
+  const epgStatus = useEPGStore(s => s.status);
+  const allChannels = useM3UStore(s => s.allChannels);
+  const groups = useM3UStore(s => s.groups);
+  const favIds = useFavoritesStore(s => s.ids);
+  const [query, setQuery] = useState('');
+  const [scope, setScope] = useState<string>(favIds.size > 0 ? 'fav' : 'all');
+  const [shown, setShown] = useState(PAGE);
+  const [now, setNow] = useState(Date.now());
+  const scroller = useRef<HTMLDivElement>(null);
+  const start = useMemo(() => dayStart(), []);
 
-  if (epgStatus==='idle'||epgStatus==='unavailable') return (
-    <div className="flex flex-col items-center justify-center fade-in" style={{minHeight:'60vh',gap:'16px'}}>
-      <Calendar size={48} strokeWidth={1} style={{color:'var(--text-muted)',opacity:0.4}} />
-      <div className="text-center"><p style={{color:'var(--text-secondary)',fontSize:'0.95rem',marginBottom:'8px'}}>No hay guía EPG cargada</p><p style={{color:'var(--text-muted)',fontSize:'0.82rem',lineHeight:1.6,maxWidth:'360px'}}>Carga tu lista M3U o configura una URL de EPG en Ajustes. El servidor EPG debe estar activo (setup.bat).</p></div>
-      <button onClick={()=>navigate('/settings')} style={{padding:'9px 20px',background:'var(--accent)',color:'#080a0e',border:'none',borderRadius:'var(--radius-md)',fontSize:'0.82rem',fontWeight:700,cursor:'pointer'}}>Ir a Ajustes</button>
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t); }, []);
+  // al abrir, la parrilla se coloca una hora antes de «ahora»
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollLeft = Math.max(0, ((Date.now() - start) / 60000 - 60) * PX);
+  }, [epgStatus, start]);
+
+  const rows = useMemo(() => {
+    let list = allChannels.filter(c => !c.id.startsWith('ciriaco-'));   // los canales de eventos son de un solo día
+    if (scope === 'fav') list = list.filter(c => favIds.has(c.id));
+    else if (scope !== 'all') list = list.filter(c => c.group === scope);
+    const q = norm(query);
+    if (q) list = list.filter(c => norm(c.name).includes(q));
+    return list;
+  }, [allChannels, scope, favIds, query]);
+  useEffect(() => setShown(PAGE), [scope, query]);
+
+  if (epgStatus === 'idle' || epgStatus === 'unavailable') return (
+    <div className="flex flex-col items-center justify-center fade-in text-center" style={{ minHeight: '60vh', gap: 14, padding: 24 }}>
+      <Calendar size={44} strokeWidth={1} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
+      <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>No hay guía de programación cargada</p>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', lineHeight: 1.6, maxWidth: 380 }}>TOPOTV carga las guías de Elcano al arrancar. Si no aparece, comprueba la conexión o añade una guía en Ajustes.</p>
+      <button onClick={() => navigate('/settings')} style={{ minHeight: 40, padding: '0 20px', background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', borderRadius: 100, fontWeight: 700, cursor: 'pointer' }}>Ir a Ajustes</button>
     </div>
   );
-  if (epgStatus==='loading'||epgStatus==='parsing') return <LoadingState message="Cargando guía de programación..." />;
+  if (epgStatus === 'loading' || epgStatus === 'parsing') return <LoadingState message="Cargando guía de programación…" />;
+
+  const chip = (active: boolean) => ({ padding: '6px 14px', background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 100, color: active ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.74rem', fontWeight: active ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 } as const);
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const nowLeft = LABEL_W + (now - start) / 60000 * PX;
+
   return (
-    <div className="fade-in" style={{display:'flex',flexDirection:'column',height:'calc(100vh - 60px)',overflow:'hidden'}}>
-      <div style={{padding:'16px 24px 0',background:'var(--bg-surface)',borderBottom:'1px solid var(--border-subtle)',flexShrink:0}}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3"><Calendar size={20} strokeWidth={1.8} style={{color:'var(--accent)'}} /><h1 className="font-display" style={{fontSize:'clamp(1.6rem,3vw,2.4rem)',lineHeight:1}}>Guía de TV</h1><span style={{fontSize:'0.7rem',color:'var(--text-muted)',alignSelf:'flex-end',paddingBottom:'2px'}}>{filtered.length} canales</span></div>
-          <div className="flex items-center gap-2" style={{background:'var(--bg-elevated)',border:'1px solid var(--border-mid)',borderRadius:'var(--radius-md)',padding:'0 12px',height:'36px'}}>
-            <Search size={14} strokeWidth={1.8} style={{color:'var(--text-muted)',flexShrink:0}} />
-            <input type="text" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Buscar canal..." style={{background:'transparent',border:'none',outline:'none',color:'var(--text-primary)',fontSize:'0.82rem',width:'160px'}} />
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 60px)', overflow: 'hidden' }}>
+      <div style={{ padding: '14px 16px 10px', flexShrink: 0 }}>
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+          <div className="flex items-center gap-3"><Calendar size={20} strokeWidth={1.8} style={{ color: 'var(--accent)' }} /><h1 className="font-display" style={{ fontSize: 'clamp(1.8rem,3.5vw,2.6rem)', lineHeight: 1, letterSpacing: '0.05em' }}>Parrilla</h1><span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>hoy · {rows.length} canales</span></div>
+          <div className="flex items-center gap-2" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 100, padding: '0 14px', height: 36 }}>
+            <Search size={14} style={{ color: 'var(--text-muted)' }} />
+            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar canal" aria-label="Buscar canal" style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '0.8rem', width: 140 }} />
           </div>
         </div>
-        <div className="flex items-center gap-0 overflow-x-auto" style={{scrollbarWidth:'none'}}>
-          {days.map(day=><button key={day.key} onClick={()=>setSelectedDayKey(day.key)} style={{padding:'8px 14px',background:'transparent',border:'none',borderBottom:`2px solid ${day.key===selectedDayKey?'var(--accent)':'transparent'}`,color:day.key===selectedDayKey?'var(--accent)':day.key===todayKey?'var(--text-primary)':'var(--text-secondary)',fontSize:'0.8rem',fontWeight:day.key===selectedDayKey?600:400,cursor:'pointer',whiteSpace:'nowrap',transition:'color 0.15s',paddingBottom:'10px'}}>{day.label}</button>)}
+        <div className="scroll-x">
+          {favIds.size > 0 && <button onClick={() => setScope('fav')} style={chip(scope === 'fav')}>★ Favoritos</button>}
+          <button onClick={() => setScope('all')} style={chip(scope === 'all')}>Todos</button>
+          {groups.filter(g => g.channels.some(c => !c.id.startsWith('ciriaco-'))).slice(0, 14).map(g => <button key={g.id} onClick={() => setScope(g.title)} style={chip(scope === g.title)}>{g.title}</button>)}
         </div>
       </div>
-      <div style={{flex:1,overflowY:'auto',overflowX:'hidden'}}>
-        {filtered.length===0?<div style={{padding:'48px 24px',textAlign:'center'}}><p style={{color:'var(--text-muted)',fontSize:'0.85rem'}}>{searchQuery?`Sin resultados para "${searchQuery}"`:''}</p></div>:filtered.map(ch=><ChannelRow key={ch.channelId} channelId={ch.channelId} channelName={ch.channelName} channelLogo={ch.channelLogo} selectedDate={selectedDay.date} onClick={id=>navigate(`/channel/${id}`)} />)}
-      </div>
-      <div style={{padding:'8px 24px',background:'var(--bg-surface)',borderTop:'1px solid var(--border-subtle)',flexShrink:0}}>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2"><div style={{width:'8px',height:'8px',borderRadius:'2px',background:'rgba(226,201,126,0.15)',border:'1px solid rgba(226,201,126,0.3)'}} /><span style={{fontSize:'0.62rem',color:'var(--text-muted)'}}>En emisión</span></div>
-          <div className="flex items-center gap-2"><div style={{width:'8px',height:'8px',borderRadius:'2px',background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)'}} /><span style={{fontSize:'0.62rem',color:'var(--text-muted)'}}>Próximo</span></div>
-          <Clock size={11} strokeWidth={1.8} style={{color:'var(--text-muted)',marginLeft:'auto'}} />
+
+      <div ref={scroller} style={{ flex: 1, overflow: 'auto', borderTop: '1px solid var(--border-subtle)', position: 'relative' }}>
+        <div style={{ position: 'relative', width: LABEL_W + DAY_MIN * PX }}>
+          <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 4, height: 28, background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div style={{ position: 'sticky', left: 0, zIndex: 5, width: LABEL_W, minWidth: LABEL_W, background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }} />
+            <div style={{ position: 'relative', width: DAY_MIN * PX }}>
+              {hours.map(h => <span key={h} style={{ position: 'absolute', left: h * 60 * PX + 6, top: 6, fontSize: '0.64rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{String(h).padStart(2, '0')}:00</span>)}
+            </div>
+          </div>
+          <div aria-hidden style={{ position: 'absolute', left: nowLeft, top: 28, bottom: 0, width: 2, background: 'var(--live-red)', opacity: 0.85, zIndex: 2, pointerEvents: 'none' }} />
+          {rows.slice(0, shown).map(c => <Row key={c.id} channel={c} start={start} now={now} onPick={ch => navigate(`/channel/${ch.id}`)} />)}
+          {rows.length === 0 && <p style={{ padding: 40, color: 'var(--text-muted)', fontSize: '0.84rem', position: 'sticky', left: 0 }}>{scope === 'fav' ? 'Marca canales como favoritos para verlos aquí.' : 'Sin canales para este filtro.'}</p>}
+          {rows.length > shown && (
+            <div style={{ position: 'sticky', left: 0, width: 'min(100%, 100vw)', padding: 16, textAlign: 'center' }}>
+              <button onClick={() => setShown(n => n + PAGE)} className="inline-flex items-center gap-2" style={{ minHeight: 38, padding: '0 18px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 100, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.78rem' }}><ChevronDown size={14} />Mostrar más ({rows.length - shown})</button>
+            </div>
+          )}
         </div>
       </div>
     </div>

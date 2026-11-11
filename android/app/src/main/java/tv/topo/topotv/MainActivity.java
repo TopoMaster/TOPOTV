@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(WarpPlugin.class);
         registerPlugin(RecorderPlugin.class);
         registerPlugin(ApkInstallerPlugin.class);
+        registerPlugin(NativePlayerPlugin.class);
         super.onCreate(savedInstanceState);
         getBridge().getWebView().getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
     }

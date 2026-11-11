@@ -3,6 +3,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { AppShell } from '@/components/layout/AppShell';
 import { ChannelsPage } from '@/pages/ChannelsPage';
+import { LibraryPage } from '@/pages/LibraryPage';
+import { MultiViewPage } from '@/pages/MultiViewPage';
+import { MetaPage } from '@/pages/MetaPage';
 import { RecordingsPage } from '@/pages/RecordingsPage';
 import { Onboarding } from '@/components/shared/Onboarding';
 import { BackgroundChecker } from '@/components/shared/BackgroundChecker';
@@ -84,18 +87,20 @@ function BackgroundPreloader() {
   }, [theme, fontScale]);
 
   // Android: encender el motor AceStream (su app) al entrar, si está activado y no responde
+  const onboardingDone = useSettingsStore(s => s.onboardingDone);
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const { engineAutoStart, backendConfig } = useSettingsStore.getState();
     if (!engineAutoStart) return;
     void findEngineApp().then(async app => {
       if (app) { await startEngineApp(backendConfig); void useSettingsStore.getState().checkBackend(); return; }
-      // sin motor: se ofrece instalar el oficial una sola vez (luego, desde Ajustes → Motor AceStream)
+      // sin motor: se ofrece instalar el oficial una sola vez, cuando ya terminó la guía de bienvenida (luego, desde Ajustes → Motor AceStream)
+      if (!useSettingsStore.getState().onboardingDone) return;
       let asked = false;
       try { asked = localStorage.getItem('topotv-engine-asked') === '1'; localStorage.setItem('topotv-engine-asked', '1'); } catch { /* sin almacenamiento */ }
       if (!asked && window.confirm('Para ver los canales de AceStream hace falta el motor oficial de AceStream. ¿Descargarlo e instalarlo ahora? (Android te pedirá confirmar)')) void installEngine(() => undefined);
     });
-  }, []);
+  }, [onboardingDone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Estado del grabador de escritorio (botón «Grabar» en Eventos)
   useEffect(() => {
@@ -192,6 +197,7 @@ export default function App() {
           <Route path="/favorites"      element={<FavoritesPage />} />
           <Route path="/tv-guide" element={<Navigate to="/events" replace />} />
           <Route path="/epg-xmltv" element={<TVGuidePage />} />
+          <Route path="/guide" element={<TVGuidePage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/recordings" element={<RecordingsPage />} />
           <Route path="/scores" element={<EventsPage />} />
@@ -199,6 +205,9 @@ export default function App() {
           <Route path="/checker"        element={<CheckerPage />} />
           <Route path="/category/:slug" element={<CategoryPage />} />
           <Route path="/channel/:id"    element={<ChannelPage />} />
+          <Route path="/multi"          element={<MultiViewPage />} />
+          <Route path="/library"        element={<LibraryPage />} />
+          <Route path="/library/:type/:id" element={<MetaPage />} />
           <Route path="/search"         element={<SearchPage />} />
           <Route path="/settings"       element={<SettingsPage />} />
           {isNativeApp&&<Route path="*" element={<Navigate to="/" replace />} />}

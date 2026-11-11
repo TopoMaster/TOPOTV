@@ -1,5 +1,5 @@
 /** Copia de seguridad de tus datos de TOPOTV: favoritos, historial, ajustes, equipos y avisos. */
-const KEYS = ['acestream-tv-settings', 'acestream-tv-favorites', 'acestream-tv-history', 'topotv-reminders'] as const;
+const KEYS = ['acestream-tv-settings', 'acestream-tv-favorites', 'acestream-tv-history', 'topotv-reminders', 'topotv-progress', 'topotv-addons', 'topotv-profiles'] as const;
 const FORMAT = 'topotv-backup';
 
 export function buildBackup(): string {

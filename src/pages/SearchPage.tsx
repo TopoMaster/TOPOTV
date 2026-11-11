@@ -8,6 +8,9 @@ import { ChannelCard } from '@/components/catalog/ChannelCard';
 import { EmptyState } from '@/components/shared/States';
 import { EventRow } from '@/pages/EventsPage';
 import { matchScore } from '@/lib/text';
+import { useAddonsStore } from '@/store/useAddonsStore';
+import { PosterCard } from '@/pages/LibraryPage';
+import { searchAddons, type Addon, type MetaPreview } from '@/lib/stremio';
 import { sortAlive, useHealthStore } from '@/store/useHealthStore';
 import type { Channel } from '@/types';
 
@@ -28,10 +31,19 @@ export function SearchPage() {
   const recordings = useRecorderStore(s => s.recordings);
   const health = useHealthStore(s => s.streams);
   const inputRef = useRef<HTMLInputElement>(null);
+  const allAddons = useAddonsStore(s => s.addons);
+  const [vod, setVod] = useState<{ meta: MetaPreview; addon: Addon }[]>([]);
   useEffect(() => { inputRef.current?.focus(); }, []);
   useEffect(() => { setResults(query.trim() ? sortAlive(searchChannels(query.trim()), health) : []); }, [query, searchChannels, health]);
 
   const q = query.trim();
+  useEffect(() => {
+    const addons = allAddons.filter(a => a.enabled);
+    if (q.length < 2 || !addons.length) { setVod([]); return; }
+    let cancelled = false;
+    const t = setTimeout(() => { searchAddons(addons, q).then(r => { if (!cancelled) setVod(r.slice(0, 18)); }).catch(() => { if (!cancelled) setVod([]); }); }, 500);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [q, allAddons]);
   const eventHits = useMemo(() => {
     if (!q || !agenda) return [];
     const out: { ev: (typeof agenda.days)[number]['events'][number]; date: string; score: number }[] = [];
@@ -44,7 +56,7 @@ export function SearchPage() {
   const recHits = useMemo(() => q ? recordings.filter(r => matchScore(q, r.title) > 0) : [], [q, recordings]);
 
   if (!allChannels.length) return <EmptyState />;
-  const nothing = !results.length && !eventHits.length && !recHits.length;
+  const nothing = !results.length && !eventHits.length && !recHits.length && !vod.length;
   return (
     <div className="fade-in" style={{ padding: '24px', paddingBottom: '48px' }}>
       <div className="flex items-center gap-3 mb-8" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-lg)', padding: '0 16px', maxWidth: '600px' }} onFocusCapture={e => (e.currentTarget.style.borderColor = 'var(--border-accent)')} onBlurCapture={e => (e.currentTarget.style.borderColor = 'var(--border-mid)')}>
@@ -60,6 +72,10 @@ export function SearchPage() {
               {eventHits.length > 0 && <section className="mb-8">
                 {heading(<CalendarDays size={14} style={{ color: 'var(--accent)' }} />, 'Eventos', eventHits.length)}
                 <div className="flex flex-col gap-2">{eventHits.map(h => <EventRow key={h.ev.id} ev={h.ev} date={h.date} channels={agenda!.channels} />)}</div>
+              </section>}
+              {vod.length > 0 && <section className="mb-8">
+                {heading(<Search size={13} style={{ color: 'var(--accent)' }} />, 'Cine y series', vod.length)}
+                <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>{vod.map(v => <PosterCard key={`${v.meta.type}:${v.meta.id}`} meta={v.meta} addon={v.addon} />)}</div>
               </section>}
               {recHits.length > 0 && <section className="mb-8">
                 {heading(<Circle size={12} fill="var(--live-red)" style={{ color: 'var(--live-red)' }} />, 'Grabaciones', recHits.length)}

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Search, Shield, Trophy, Tv } from 'lucide-react';
+import { CalendarRange, Columns2, Search, Shield, Trophy, Tv } from 'lucide-react';
 import { useM3UStore } from '@/store/useM3UStore';
 import { EmptyState, LoadingState } from '@/components/shared/States';
 
@@ -29,6 +29,8 @@ export function ChannelsPage() {
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 24 }}>
         <button style={shortcut} onClick={() => navigate('/search')}><Search size={16} />Buscar</button>
+        <button style={shortcut} onClick={() => navigate('/guide')}><CalendarRange size={16} />Parrilla</button>
+        <button style={shortcut} onClick={() => navigate('/multi')}><Columns2 size={16} />Multivista</button>
         <button style={shortcut} onClick={() => navigate('/flashscore')}><Trophy size={16} />Flashscore</button>
         <button style={shortcut} onClick={() => navigate('/checker')}><Shield size={16} />Checker</button>
       </div>

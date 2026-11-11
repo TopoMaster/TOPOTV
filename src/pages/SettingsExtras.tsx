@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Palette, Star, Activity, Cpu, X, Archive } from 'lucide-react';
+import { Palette, Star, Activity, Cpu, X, Archive, Puzzle, Users, Lock } from 'lucide-react';
+import { useAddonsStore } from '@/store/useAddonsStore';
+import { useProfileStore } from '@/store/useProfileStore';
 import { Capacitor } from '@capacitor/core';
 import { buildBackup, downloadBackup, restoreBackup } from '@/lib/backup';
 import { useSettingsStore, type FontScale } from '@/store/useSettingsStore';
@@ -67,7 +69,7 @@ export function TeamsSection() {
           ))}
         </div>
         <p style={title}>Avisarme antes de un evento</p>
-        <p style={help}>Marca la campana de un evento en Eventos y Windows te avisa con esta antelación (con TOPOTV abierto, aunque esté minimizado).</p>
+        <p style={help}>{Capacitor.isNativePlatform() ? 'Marca la campana de un evento en Eventos y el móvil te avisa con esta antelación, aunque TOPOTV esté cerrado.' : 'Marca la campana de un evento en Eventos y Windows te avisa con esta antelación (con TOPOTV abierto, aunque esté minimizado).'}</p>
         <div className="flex gap-2 flex-wrap">
           {[5, 10, 15, 30].map(m => <button key={m} style={opt(reminderLead === m)} onClick={() => setReminderLead(m)}>{m} min</button>)}
         </div>
@@ -205,6 +207,90 @@ export function BackupSection() {
         </div>
         )}
         {msg && <p role="status" style={{ marginTop: 10, fontSize: '0.74rem', color: 'var(--text-secondary)' }}>{msg}</p>}
+      </Card>
+    </section>
+  );
+}
+
+export function AddonsSection() {
+  const { addons, install, remove, toggle } = useAddonsStore();
+  const [url, setUrl] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const add = async () => {
+    if (!url.trim()) return;
+    setBusy(true); setMsg('');
+    try { const a = await install(url); setMsg(`Instalado: ${a.manifest.name}`); setUrl(''); }
+    catch (e) { setMsg(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+  const kinds = (a: (typeof addons)[number]) => a.manifest.resources.map(r => typeof r === 'string' ? r : r.name).filter((v, i, arr) => arr.indexOf(v) === i).join(', ');
+  return (
+    <section className="mb-8">
+      <SLabel icon={Puzzle} label="Addons de Stremio" />
+      <Card>
+        <p style={help}>Los addons añaden catálogos de películas, series y canales (pestaña «Cine y series») y enlaces para verlos. TOPOTV no incluye ninguno ni recomienda ninguno: pega la dirección del que quieras usar (acaba en <code>manifest.json</code>, o empieza por <code>stremio://</code>). Usa solo fuentes propias o autorizadas. Los enlaces directos funcionan en Windows y Android; los torrents solo en Windows, con el motor de torrents integrado.</p>
+        <div className="flex gap-2 mb-3">
+          <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && void add()} placeholder="https://…/manifest.json" aria-label="Dirección del addon"
+            style={{ flex: 1, minWidth: 0, padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '0.82rem', outline: 'none' }} />
+          <button style={{ ...opt(false), flex: '0 0 auto' }} onClick={() => void add()} disabled={busy}>{busy ? 'Instalando…' : 'Instalar'}</button>
+        </div>
+        {msg && <p role="status" style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginBottom: 10 }}>{msg}</p>}
+        {addons.length === 0 && <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Todavía no has instalado ningún addon.</p>}
+        <div className="flex flex-col gap-2">
+          {addons.map(a => (
+            <div key={a.base} className="flex items-center gap-3" style={{ padding: '10px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', opacity: a.enabled ? 1 : 0.55 }}>
+              {a.manifest.logo ? <img src={a.manifest.logo} alt="" width={32} height={32} style={{ borderRadius: 6, objectFit: 'contain', flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : null}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: '0.82rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.manifest.name} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{a.manifest.version ? `v${a.manifest.version}` : ''}</span></p>
+                <p style={{ fontSize: '0.66rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{kinds(a)} · {(a.manifest.types ?? []).join(', ')}</p>
+              </div>
+              <button onClick={() => toggle(a.base)} style={{ ...opt(a.enabled), flex: '0 0 auto', minHeight: 36, padding: '4px 12px' }}>{a.enabled ? 'Activo' : 'Apagado'}</button>
+              <button onClick={() => remove(a.base)} aria-label={`Quitar ${a.manifest.name}`} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </section>
+  );
+}
+
+export function ProfilesSection() {
+  const { profiles, activeId, add, remove, setPin } = useProfileStore();
+  const [name, setName] = useState('');
+  const [pinFor, setPinFor] = useState<string | null>(null);
+  const [pin, setPinText] = useState('');
+  const savePin = async () => { if (pinFor) { await setPin(pinFor, pin.length >= 4 ? pin : null); setPinFor(null); setPinText(''); } };
+  return (
+    <section className="mb-8">
+      <SLabel icon={Users} label="Perfiles" />
+      <Card>
+        <p style={help}>Cada perfil tiene sus propios favoritos, historial, avisos, progreso y addons (un perfil sin addons no ve «Cine y series»). Los demás ajustes son comunes. Un PIN de 4 a 8 cifras protege entrar en un perfil; frena a los niños, pero no es una caja fuerte. Con más de un perfil aparece un círculo con tu inicial arriba para cambiar.</p>
+        <div className="flex gap-2 mb-3">
+          <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { add(name); setName(''); } }} placeholder="Nombre del perfil" aria-label="Nombre del perfil"
+            style={{ flex: 1, minWidth: 0, padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '0.85rem', outline: 'none' }} />
+          <button style={{ ...opt(false), flex: '0 0 auto' }} onClick={() => { add(name); setName(''); }}>Crear</button>
+        </div>
+        <div className="flex flex-col gap-2">
+          {profiles.map(p => (
+            <div key={p.id} style={{ padding: '10px 12px', background: 'var(--bg-elevated)', border: `1px solid ${p.id === activeId ? 'var(--accent)' : 'var(--border-subtle)'}`, borderRadius: 'var(--radius-md)' }}>
+              <div className="flex items-center gap-3">
+                <span style={{ width: 28, height: 28, borderRadius: '50%', background: p.color, color: '#080a0e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.78rem' }}>{p.name[0]?.toUpperCase()}</span>
+                <span style={{ flex: 1, fontSize: '0.84rem', fontWeight: 600 }}>{p.name}{p.id === activeId && <span style={{ color: 'var(--accent)', fontWeight: 400, fontSize: '0.7rem' }}> · en uso</span>}</span>
+                {p.pinHash && <Lock size={13} style={{ color: 'var(--text-muted)' }} />}
+                <button onClick={() => { setPinFor(pinFor === p.id ? null : p.id); setPinText(''); }} style={{ ...opt(false), flex: '0 0 auto', minHeight: 34, padding: '4px 12px' }}>{p.pinHash ? 'Cambiar PIN' : 'Poner PIN'}</button>
+                {p.id !== activeId && profiles.length > 1 && <button onClick={() => remove(p.id)} aria-label={`Borrar ${p.name}`} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>}
+              </div>
+              {pinFor === p.id && (
+                <div className="flex gap-2" style={{ marginTop: 10 }}>
+                  <input type="password" inputMode="numeric" value={pin} onChange={e => setPinText(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="4 a 8 cifras (vacío = quitar PIN)" aria-label="PIN"
+                    style={{ flex: 1, minWidth: 0, padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '0.8rem' }} />
+                  <button onClick={() => void savePin()} style={{ ...opt(true), flex: '0 0 auto', minHeight: 36 }}>Guardar</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </Card>
     </section>
   );

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, Copy, ExternalLink, Tv, Check, Radio, Heart, Clock } from 'lucide-react';
+import { ArrowLeft, Play, Copy, ExternalLink, Tv, Check, Radio, Heart, Clock, Columns2 } from 'lucide-react';
 import { useM3UStore } from '@/store/useM3UStore';
 import { usePlayerStore } from '@/store/usePlayerStore';
 import { useEPGStore } from '@/store/useEPGStore';
@@ -8,6 +8,7 @@ import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { copyStreamUrl, streamPlayUrl } from '@/lib/aceApi';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { orderStreams, streamHealth, useHealthStore } from '@/store/useHealthStore';
+import { useMultiStore } from '@/store/useMultiStore';
 import { getNowPlaying, getUpNext, getProgressPercent, formatTime, formatDuration } from '@/lib/epg';
 import { ErrorState } from '@/components/shared/States';
 import type { EPGSchedule, Stream } from '@/types';
@@ -81,6 +82,8 @@ export function ChannelPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
   const [schedule, setSchedule] = useState<EPGSchedule | null>(null);
+  const addMulti = useMultiStore(s => s.add);
+  const inMulti = useMultiStore(s => s.items.some(i => i.id === (id ?? '')));
 
   // Fetch EPG on demand when page opens
   useEffect(() => {
@@ -169,6 +172,11 @@ export function ChannelPage() {
                 style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-md)', background: isFav ? 'rgba(226,201,126,0.12)' : 'var(--bg-elevated)', border: `1px solid ${isFav ? 'var(--accent)' : 'var(--border-mid)'}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Heart size={15} strokeWidth={1.8} fill={isFav ? 'var(--accent)' : 'none'} style={{ color: isFav ? 'var(--accent)' : 'var(--text-secondary)' }} />
               </button>
+              <button onClick={() => { if (!addMulti(channel!)) window.alert('La multivista admite hasta 4 canales a la vez.'); else navigate('/multi'); }}
+                title="Ver este canal junto a otros en la multivista" aria-label="Añadir a multivista"
+                style={{ height: '36px', padding: '0 12px', borderRadius: 'var(--radius-md)', background: inMulti ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${inMulti ? 'var(--accent)' : 'var(--border-mid)'}`, cursor: 'pointer', color: inMulti ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Columns2 size={14} />{inMulti ? 'En multivista' : 'Multivista'}
+              </button>
             </div>
           </div>
         </div>
@@ -187,10 +195,10 @@ export function ChannelPage() {
                 onMouseLeave={e => { if (!isSelected) { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border-subtle)'; (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-card)'; } }}>
                 <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: isSelected ? 'var(--accent)' : 'var(--border-mid)', flexShrink: 0, boxShadow: isSelected ? '0 0 5px var(--accent)' : 'none' }} />
                 <div className="flex-1 min-w-0">
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'DM Mono, monospace' }}>{stream.label}{health !== 'unknown' && <span style={{ marginLeft: 8, fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: health === 'ok' ? 'var(--online-green)' : 'var(--offline-red)' }}>{health === 'ok' ? '● funciona' : '● caído'}</span>}</p>
-                  <p style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: '1px' }}>{streamPlayUrl(stream, backendConfig)}</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'DM Mono, monospace' }}>{stream.label}{health !== 'unknown' && !stream.direct && <span style={{ marginLeft: 8, fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: health === 'ok' ? 'var(--online-green)' : 'var(--offline-red)' }}>{health === 'ok' ? '● funciona' : '● caído'}</span>}</p>
+                  <p style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{streamPlayUrl(stream, backendConfig)}</p>
                 </div>
-                <span style={{ fontSize: '0.58rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 7px', borderRadius: '100px', border: '1px solid var(--border-subtle)', flexShrink: 0 }}>
+                <span style={{ display: stream.provider === 'DEFAULT' ? 'none' : 'inline-block', fontSize: '0.58rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 7px', borderRadius: '100px', border: '1px solid var(--border-subtle)', flexShrink: 0 }}>
                   {stream.provider}
                 </span>
                 <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>

@@ -16,11 +16,11 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 
 | Plataforma | Descarga |
 | --- | --- |
-| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.2.1.exe) |
-| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.2.1.apk) |
-| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.2.1.zip) |
+| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.3.0.exe) |
+| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.3.0.apk) |
+| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.3.0.zip) |
 
-**Versión actual: v1.2.1.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
+**Versión actual: v1.3.0.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
 
 ## Qué incluye
 

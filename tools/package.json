@@ -1,1 +1,1 @@
-{ "name": "acestream-tv-tools", "private": true, "dependencies": { "playwright": "^1.48.0" } }
+{"name":"acestream-tv-tools","private":true,"dependencies":{"peerflix":"^0.39.0","playwright":"^1.48.0"}}

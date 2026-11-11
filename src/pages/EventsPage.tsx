@@ -287,7 +287,7 @@ export function EventsPage() {
         <div className="flex items-center gap-3 flex-wrap">
           <UpdateControl />
           <button onClick={() => reloadSources()} disabled={!data} title="Recargar la lista de canales fusionando Elcano y Ciriaco"
-            className="flex items-center gap-1.5" style={{ ...pill(false), opacity: data ? 1 : 0.4 }}><ListVideo size={13} />Recargar canales</button>
+            className="flex items-center gap-1.5" style={{ ...pill(false), opacity: data ? 1 : 0.4 }}><ListVideo size={13} /><span className="ev-reload-label">Recargar canales</span></button>
         </div>
       </div>
 

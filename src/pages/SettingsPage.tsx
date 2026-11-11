@@ -9,7 +9,7 @@ import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
 import { ENGINE_DOCS_URL, findEngineApp, installEngine, installEngineFromFile, openEngineAppSettings, startEngineApp, type EngineApp } from '@/lib/engineAndroid';
 import { withDefaultSources } from '@/lib/ciriaco';
 import { useEPGStore } from '@/store/useEPGStore';
-import { AppearanceSection, BackupSection, ChecksSection, SystemSection, TeamsSection } from '@/pages/SettingsExtras';
+import { AddonsSection, AppearanceSection, BackupSection, ProfilesSection, ChecksSection, SystemSection, TeamsSection } from '@/pages/SettingsExtras';
 import { shareStatus, tunnelStart, tunnelStop, shareRevoke, type ShareStatus } from '@/lib/share';
 
 const inp: React.CSSProperties = { padding:'9px 12px',background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)',color:'var(--text-primary)',fontSize:'0.85rem',fontFamily:'DM Mono,monospace',outline:'none',width:'100%' };
@@ -56,7 +56,7 @@ function BackendSection() {
 function PlayerSection() {
   const {preferredPlayer,setPreferredPlayer,playback,setPlayback} = useSettingsStore();
   const isNativeApp = Capacitor.isNativePlatform();
-  const playerOptions = ['vlc','browser'] as const;
+  const playerOptions = (isNativeApp ? ['native','vlc','browser'] : ['vlc','browser']) as readonly ('native'|'vlc'|'browser')[];
   const range = (label: string, value: number, min: number, max: number, step: number, unit: string, help: string, onChange: (value: number) => void) => (
     <label className="block" style={{marginBottom:14}}>
       <span className="flex items-center justify-between gap-3" style={{fontSize:'0.75rem',color:'var(--text-secondary)',marginBottom:5}}>
@@ -72,13 +72,13 @@ function PlayerSection() {
     <section className="mb-8">
       <SLabel icon={Monitor} label="Reproductor" />
       <Card>
-        <p style={{fontSize:'0.8rem',color:'var(--text-secondary)',marginBottom:'16px',lineHeight:1.6}}>{isNativeApp?'En Android, VLC abre el stream en la app VLC for Android (instálala desde Google Play); «Navegador» lo reproduce dentro de TOPOTV. En ambos casos el motor AceStream debe estar instalado y activo.':'VLC abre el stream en una ventana aparte (recomendado, más estable). "Navegador" lo reproduce dentro de TOPOTV y puede tardar más en arrancar.'}</p>
+        <p style={{fontSize:'0.8rem',color:'var(--text-secondary)',marginBottom:'16px',lineHeight:1.6}}>{isNativeApp?'«TOPOTV» usa el reproductor integrado: pantalla completa, imagen en imagen, audio y subtítulos, reanuda donde lo dejaste y, si un enlace falla, pasa al siguiente. VLC abre el stream en la app VLC for Android; «Navegador» lo reproduce en la propia pantalla. Para los canales de AceStream el motor debe estar instalado y activo.':'VLC abre el stream en una ventana aparte (recomendado, más estable). "Navegador" lo reproduce dentro de TOPOTV y puede tardar más en arrancar.'}</p>
         <div className="flex gap-3 mb-4">
           {playerOptions.map(p=>(
             <button key={p} onClick={()=>setPreferredPlayer(p)} style={{flex:1,padding:'12px',background:preferredPlayer===p?'var(--accent-dim)':'var(--bg-elevated)',border:`1px solid ${preferredPlayer===p?'var(--accent)':'var(--border-mid)'}`,borderRadius:'var(--radius-md)',color:preferredPlayer===p?'var(--accent)':'var(--text-secondary)',cursor:'pointer',textAlign:'center',transition:'all 0.15s'}}>
-              <div style={{fontSize:'1.2rem',marginBottom:'4px'}}>{p==='vlc'?'🎬':'🌐'}</div>
-              <div style={{fontSize:'0.78rem',fontWeight:600}}>{p==='vlc'?'VLC':'Navegador'}</div>
-              <div style={{fontSize:'0.65rem',color:'var(--text-muted)',marginTop:'2px'}}>{p==='vlc'?'Recomendado':'Reproductor integrado'}</div>
+              <div style={{fontSize:'1.2rem',marginBottom:'4px'}}>{p==='native'?'🦫':p==='vlc'?'🎬':'🌐'}</div>
+              <div style={{fontSize:'0.78rem',fontWeight:600}}>{p==='native'?'TOPOTV':p==='vlc'?'VLC':'Navegador'}</div>
+              <div style={{fontSize:'0.65rem',color:'var(--text-muted)',marginTop:'2px'}}>{p==='native'?'Recomendado':p==='vlc'?(isNativeApp?'App externa':'Recomendado'):'En la pantalla'}</div>
             </button>
           ))}
         </div>
@@ -450,6 +450,8 @@ export function SettingsPage() {
       {!isNativeApp&&<DevicesSection />}
       {!isNativeApp&&<ShareSection />}
       <InterfaceSection />
+      <ProfilesSection />
+      <AddonsSection />
       <AppearanceSection />
       <TeamsSection />
       <ChecksSection />

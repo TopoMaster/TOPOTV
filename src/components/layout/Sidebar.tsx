@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home,Search,Settings,Tv,LayoutGrid,CircleDot,ChevronLeft,ChevronRight,Heart,Activity,Shield,Power,Trophy } from 'lucide-react';
+import { Home,Search,Settings,Tv,LayoutGrid,CircleDot,ChevronLeft,ChevronRight,Heart,Activity,Shield,Power,Trophy,Film,Columns2,CalendarRange } from 'lucide-react';
+import { useAddonsStore, hasLibrary } from '@/store/useAddonsStore';
 import { LogoMark, LogoWord } from '@/components/brand/Logo';
 import { useUIStore } from '@/store/useUIStore';
 import { useM3UStore } from '@/store/useM3UStore';
@@ -8,15 +9,18 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { useCiriacoStore } from '@/store/useCiriacoStore';
 import { Capacitor } from '@capacitor/core';
-const TOP_NAV: {to:string;icon:React.ElementType;label:string;badge:boolean;cls?:string}[] = [
+const TOP_NAV: {to:string;icon:React.ElementType;label:string;short?:string;badge:boolean;cls?:string}[] = [
   {to:'/',icon:Home,label:'Inicio',badge:false},
   {to:'/categories',icon:LayoutGrid,label:'Canales',badge:false,cls:'nav-mobile-only'},
   {to:'/favorites',icon:Heart,label:'Favoritos',badge:true},
   {to:'/events',icon:Activity,label:'Eventos',badge:false},
-  {to:'/recordings',icon:CircleDot,label:'Grabaciones',badge:false},
+  {to:'/library',icon:Film,label:'Cine y series',short:'Cine',badge:false},
+  {to:'/recordings',icon:CircleDot,label:'Grabaciones',short:'Grabadas',badge:false},
   {to:'/flashscore',icon:Trophy,label:'Flashscore',badge:false,cls:'nav-desktop-only'},
   {to:'/checker',icon:Shield,label:'Checker',badge:false,cls:'nav-desktop-only'},
   {to:'/search',icon:Search,label:'Buscar',badge:false,cls:'nav-desktop-only'},
+  {to:'/guide',icon:CalendarRange,label:'Parrilla',badge:false,cls:'nav-desktop-only'},
+  {to:'/multi',icon:Columns2,label:'Multivista',badge:false,cls:'nav-desktop-only'},
 ];
 const BOTTOM_NAV = [{to:'/settings',icon:Settings,label:'Ajustes'}];
 export function Sidebar() {
@@ -29,6 +33,8 @@ export function Sidebar() {
   const warpError = useCiriacoStore(s=>s.warpError);
   const setWarpConnected = useCiriacoStore(s=>s.setWarpConnected);
   const favCount = useFavoritesStore(s=>s.ids.size);
+  const addons = useAddonsStore(s=>s.addons);
+  const visibleNav = TOP_NAV.filter(i => i.to !== '/library' || hasLibrary(addons));
   const navigate = useNavigate();
   const checkBackend = useSettingsStore(s=>s.checkBackend);
   const [engineBusy,setEngineBusy] = useState(false);
@@ -43,14 +49,14 @@ export function Sidebar() {
         <LogoMark size={34} />
         {sidebarOpen&&<span className="fade-in"><LogoWord /></span>}
       </div>
-      <nav className="px-2 pt-3 flex flex-col gap-0.5">
-        {TOP_NAV.map(({to,icon:Icon,label,badge,cls})=>(
+      <nav className="px-2 pt-3 flex flex-col gap-0.5" style={{ ['--nav-count' as string]: visibleNav.filter(i => !(i.cls ?? '').includes('desktop-only')).length }}>
+        {visibleNav.map(({to,icon:Icon,label,short,badge,cls})=>(
           <NavLink key={to} to={to} end={to==='/'} className={({isActive})=>`nav-item ${isActive?'active':''} ${cls??''}`} title={!sidebarOpen?label:undefined}>
             <div className="relative shrink-0">
               <Icon size={18} strokeWidth={1.8} />
               {badge&&favCount>0&&<span className="absolute -top-1 -right-1 flex items-center justify-center" style={{width:'14px',height:'14px',borderRadius:'50%',background:'var(--accent)',fontSize:'0.55rem',fontWeight:700,color:'#080a0e'}}>{favCount>9?'9+':favCount}</span>}
             </div>
-            {sidebarOpen&&<span className="fade-in truncate">{label}</span>}
+            {sidebarOpen&&<span className="fade-in truncate">{short?<><span className="nav-full">{label}</span><span className="nav-short">{short}</span></>:label}</span>}
           </NavLink>
         ))}
       </nav>

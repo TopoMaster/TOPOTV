@@ -3,6 +3,7 @@ import { Search, Upload } from 'lucide-react';
 import { useRef } from 'react';
 import { useM3UStore } from '@/store/useM3UStore';
 import { StatusPills } from './StatusPills';
+import { ProfileMenu } from './ProfileMenu';
 export function TopBar() {
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -14,6 +15,7 @@ export function TopBar() {
       </button>
       <div className="flex items-center gap-3">
         <StatusPills />
+        <ProfileMenu />
         {allChannels.length>0&&<span className="topbar-count" style={{fontSize:'0.75rem',color:'var(--text-muted)',letterSpacing:'0.04em'}}>{allChannels.length} canales</span>}
         <button onClick={()=>fileRef.current?.click()} disabled={isLoading} aria-label="Cargar una lista M3U" title="Cargar una lista M3U" className="flex items-center gap-2 px-3" style={{height:'36px',borderRadius:'var(--radius-md)',background:isLoading?'var(--bg-elevated)':'var(--bg-elevated)',color:isLoading?'var(--text-muted)':'var(--text-primary)',border:'1px solid var(--border-mid)',fontSize:'0.78rem',fontWeight:600,letterSpacing:'0.04em',cursor:isLoading?'not-allowed':'pointer'}}>
           <Upload size={14} strokeWidth={2.5} /><span className="topbar-load-label">{isLoading?'Cargando...':'Cargar M3U'}</span>
