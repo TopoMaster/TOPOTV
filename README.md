@@ -16,11 +16,11 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 
 | Plataforma | Descarga |
 | --- | --- |
-| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.3.2.exe) |
-| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.3.2.apk) |
-| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.3.2.zip) |
+| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.4.0.exe) |
+| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.4.0.apk) |
+| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.4.0.zip) |
 
-**Versión actual: v1.3.2.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
+**Versión actual: v1.4.0.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
 
 ## Qué incluye
 
@@ -29,16 +29,18 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 - Agenda de eventos deportivos y enlaces de reproducción disponibles en las fuentes configuradas.
 - Pestaña Flashscore: integrada en Web y Windows; en Android se abre en el navegador del dispositivo.
 - Agenda de eventos y guía EPG también en Android (se descargan directamente en el móvil).
-- Canales organizados por categorías: la lista de Elcano se fusiona con la agenda de Ciriaco.
+- Canales organizados por categorías: tus listas M3U (de archivo o de enlace) se fusionan con la agenda de Ciriaco. Las listas cargadas desde un archivo se guardan en el dispositivo y no se pierden al actualizar.
+- Eventos cruzados con la guía: cada evento muestra los canales de tus listas que lo emiten, y los partidos en directo que solo aparecen en la guía se añaden como eventos («GUÍA TV»).
 - En Android, reproducción dentro de la app o en VLC for Android (Ajustes → Reproductor).
 - Grabación programada de eventos (Windows y Android): botón «Grabar» en Eventos y sección Grabaciones para verlas después en VLC. En Android graba en segundo plano y guarda en Películas/TOPOTV.
 - TDT en abierto (RTVE y televisiones autonómicas con emisión oficial gratuita), sin necesidad del motor AceStream.
 - Guía interactiva en el primer arranque (se puede repetir desde Ajustes).
 - Modo TV (Ajustes): interfaz grande y manejable con mando; automático en Android TV.
-- Guía de programación (EPG) siempre cargada con las guías de la lista de Elcano, en Windows y en Android.
-- Motor AceStream en Android: TOPOTV detecta la app del motor (Ace Serve, Ace Stream Media…), la abre al entrar si lo activas y espera a que arranque. Si falta, la instala con un toque desde el enlace privado que configures en Ajustes (o desde la web oficial). El motor no se incluye en las descargas públicas.
+- Guía de programación (EPG) siempre cargada (guías de TV de España y las que anuncien tus listas), en Windows y en Android. Reconoce los canales aunque su nombre lleve la calidad («720p», «HD»…).
+- Motor AceStream en Android: TOPOTV detecta la app del motor (Ace Serve, Ace Stream Media…) y la enciende sola al ver un canal; con Ace Serve no hace falta abrirla ni pulsar START (la primera vez, en «Abrir con», elige TOPOTV y «Siempre»). Si falta, la instala con un toque desde el enlace privado que configures en Ajustes (o desde la web oficial). El motor no se incluye en las descargas públicas.
 - WARP integrado en Android: se conecta solo al actualizar la agenda y se apaga al terminar (solo para el tráfico de TOPOTV).
-- Interfaz compatible con Android TV y adaptada a móvil.
+- Interfaz compatible con Android TV y adaptada a móvil: en el móvil, barra Inicio · Eventos · Canales · Cine · Más (con todas las demás secciones).
+- Apariencia (Ajustes): cinco colores oscuros y «Negro puro» para pantallas OLED, cuatro tamaños de texto y tres tipos de letra (uno muy legible).
 
 La pestaña Flashscore es independiente de la agenda de eventos de TOPOTV. La etiqueta «Directo» de la agenda se estima según el horario; no es un marcador oficial en tiempo real.
 
@@ -56,7 +58,7 @@ En Windows, instala las dependencias de reproducción que necesites y comprueba 
 
 ### 3. Carga tu lista
 
-Pulsa **Cargar M3U** y selecciona un archivo `.m3u` o `.m3u8` propio o autorizado. TOPOTV mostrará los canales y las categorías que incluya la lista. Para cambiarla, carga otro archivo.
+Pulsa **Cargar M3U** y selecciona un archivo `.m3u` o `.m3u8` propio o autorizado. TOPOTV lo guarda en el dispositivo y lo fusiona con las demás fuentes; si lo actualizas, cárgalo otra vez (sustituye al del mismo nombre). Las listas guardadas se ven y se quitan en **Ajustes → Canales y listas**.
 
 ### 4. Encuentra y guarda canales
 

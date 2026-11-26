@@ -142,7 +142,7 @@ export function MetaPage() {
               {options?.length === 0 && (
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', padding: 12, lineHeight: 1.6 }}>
                   {streamInfo.asked === 0
-                    ? <>Ningún addon activo ofrece enlaces para este título. Carga un addon de enlaces en <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Ajustes → Addons</button>.</>
+                    ? <>Ningún addon activo ofrece enlaces para este título. Carga un addon de enlaces en <button onClick={() => navigate('/settings?s=cine')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Ajustes → Cine y series</button>.</>
                     : <>Los addons de enlaces no han dado ningún enlace para este título.</>}
                 </div>
               )}

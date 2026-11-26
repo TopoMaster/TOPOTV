@@ -66,6 +66,33 @@ public class ExternalPlayerPlugin extends Plugin {
         }
     }
 
+    /**
+     * Abre acestream://ID en una app de motor concreta. Ace Serve enciende así su motor en segundo plano
+     * (sin pulsar START) y luego pasa el vídeo a un reproductor, que recoge EngineHandoffActivity.
+     */
+    @PluginMethod
+    public void openAceLink(PluginCall call) {
+        String id = call.getString("id", "");
+        String pkg = call.getString("package", "");
+        if (!id.matches("^[0-9a-fA-F]{40}$") || !pkg.matches("^[a-zA-Z0-9_.]+$")) {
+            call.reject("Datos no válidos.");
+            return;
+        }
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("acestream://" + id));
+        intent.setPackage(pkg);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            getContext().startActivity(intent);
+            JSObject ret = new JSObject();
+            ret.put("opened", true);
+            call.resolve(ret);
+        } catch (ActivityNotFoundException e) {
+            call.reject("NOT_INSTALLED");
+        } catch (Exception e) {
+            call.reject("No se pudo encender el motor: " + e.getMessage());
+        }
+    }
+
     /** Pantalla de información de una app en Android (desde ahí se puede forzar su cierre). */
     @PluginMethod
     public void openAppSettings(PluginCall call) {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Circle, CalendarDays, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, Bell, BellRing, Star, X, SlidersHorizontal } from 'lucide-react';
+import { Circle, CalendarDays, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, Bell, BellRing, Star, X, SlidersHorizontal, Tv } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useNavigate } from 'react-router-dom';
 import { BYTES_PER_HOUR, formatBytes, scheduleRecording } from '@/lib/recorder';
@@ -13,10 +13,29 @@ import { useM3UStore } from '@/store/useM3UStore';
 import { usePlayerStore } from '@/store/usePlayerStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useCiriacoStore } from '@/store/useCiriacoStore';
+import { useGuideEventsStore } from '@/store/useGuideEventsStore';
+import { useEPGStore } from '@/store/useEPGStore';
+import type { GuideEvent } from '@/lib/epgEvents';
+import type { Channel } from '@/types';
 import { LoadingState } from '@/components/shared/States';
 import { ChannelLogo } from '@/components/shared/ChannelLogo';
 import { emoji, sportColor } from '@/lib/sports';
-import { eventDuration, eventProgress, eventStatus, eventToChannel, linkTag, sortLinks, todayIso, type CiriacoChannel, type CiriacoEvent, type CiriacoStatus } from '@/lib/ciriaco';
+import { eventDuration, eventProgress, eventStatus, eventToChannel, linkTag, sortLinks, todayIso, type CiriacoChannel, type CiriacoDay, type CiriacoEvent, type CiriacoStatus } from '@/lib/ciriaco';
+
+const isGuide = (e: CiriacoEvent): e is GuideEvent => (e as GuideEvent).guide === true;
+/** Canales de tus listas que ofrece un canal: los que tienen algún enlace que el evento no trae ya. */
+function extraChannels(ev: CiriacoEvent, list: Channel[]): Channel[] {
+  const own = new Set(ev.links.map(l => l.hash));
+  return list.filter(c => c.streams.some(st => st.direct || !own.has(st.aceId)));
+}
+/** Días de la agenda con los eventos sacados de la guía mezclados por hora. */
+function mergeDays(days: CiriacoDay[], extra: Record<string, GuideEvent[]>): CiriacoDay[] {
+  const out = days.map(d => extra[d.date]?.length ? { ...d, events: [...d.events, ...extra[d.date]].sort((a, b) => a.time.localeCompare(b.time)) } : d);
+  for (const [date, evs] of Object.entries(extra)) {
+    if (evs.length && !out.some(d => d.date === date)) out.push({ date, label: new Date(`${date}T12:00:00`).toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }), events: evs });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
 
 const ALL = 'all';
 
@@ -72,7 +91,7 @@ function CiriacoAccessNotice() {
   return (
     <aside role="note" aria-label="Aviso de acceso a las fuentes de eventos"
       className="flex items-center justify-between flex-wrap gap-3"
-      style={{ padding: '12px 16px', marginBottom: '14px', background: 'rgba(226,201,126,0.06)', border: '1px solid rgba(226,201,126,0.2)', borderRadius: 'var(--radius-lg)' }}>
+      style={{ padding: '12px 16px', marginBottom: '14px', background: 'rgba(var(--accent-rgb),0.06)', border: '1px solid rgba(var(--accent-rgb),0.2)', borderRadius: 'var(--radius-lg)' }}>
       <div className="flex items-start gap-2">
         <WifiOff size={15} style={{ color: 'var(--accent)', marginTop: '2px', flexShrink: 0 }} />
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.76rem', lineHeight: 1.5 }}>
@@ -95,13 +114,18 @@ function dayLabel(d: { date: string; label: string }) {
   return (d.date === todayIso() ? 'Hoy · ' : '') + dt.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: string; channels: Record<string, CiriacoChannel> }) {
+export function EventRow({ ev, date, channels, listChannels = [] }: { ev: CiriacoEvent; date: string; channels: Record<string, CiriacoChannel>; listChannels?: Channel[] }) {
   const play = usePlayerStore(s => s.play);
   const backend = useSettingsStore(s => s.backendConfig);
   const [open, setOpen] = useState(false);
   const status = eventStatus(date, ev.time);
   const links = useMemo(() => sortLinks(ev.links), [ev]);
   const channel = useMemo(() => eventToChannel(ev, ev.links, backend), [ev, backend]);
+  const guide = isGuide(ev);
+  // canales de tus listas que lo emiten (en los de la guía, los únicos que hay)
+  const mineChannels = useMemo(() => guide ? listChannels : extraChannels(ev, listChannels), [guide, ev, listChannels]);
+  const canPlay = links.length > 0 || mineChannels.length > 0;
+  const playMain = () => links.length ? play(channel, channel.streams[0]) : play(mineChannels[0], mineChannels[0].streams[0]);
   const [shared, setShared] = useState<'idle' | 'busy' | 'ok' | 'err'>('idle');
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
@@ -134,7 +158,9 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
     setRecMsg(null);
     try {
       if (Capacitor.isNativePlatform()) await ensureNotifyPermission();   // Android 13+: sin permiso no salen los avisos de grabación
-      await scheduleRecording({ title: ev.title || ev.competition, sport: ev.sport, key: recKey, start: winStart, end: winEnd, hashes: sortLinks(ev.links).map(l => l.hash), host: backend.host, port: backend.port });
+      const hashes = links.length ? sortLinks(ev.links).map(l => l.hash) : mineChannels.flatMap(c => c.streams.filter(st => !st.direct && st.aceId).map(st => st.aceId));
+      if (!hashes.length) throw new Error('Este canal no tiene enlaces de AceStream que se puedan grabar.');
+      await scheduleRecording({ title: ev.title || ev.competition, sport: ev.sport, key: recKey, start: winStart, end: winEnd, hashes, host: backend.host, port: backend.port });
       setRecOpen(false); await refreshRec();
     } catch (e) { setRecMsg(e instanceof Error ? e.message : String(e)); }
   };
@@ -152,7 +178,7 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
 
   return (
     <div className="surface-card" style={{ position: 'relative', overflow: 'hidden', borderColor: live ? 'rgba(255,77,77,0.35)' : undefined, padding: '12px 16px 12px 20px', opacity: status === 'finished' ? 0.5 : 1 }}>
-      <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: sportColor(ev.sport), opacity: links.length ? 0.9 : 0.35 }} />
+      <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: sportColor(ev.sport), opacity: canPlay ? 0.9 : 0.35 }} />
       {live && <span style={{ position: 'absolute', left: 4, right: 0, bottom: 0, height: 2, background: 'rgba(255,255,255,0.06)' }}><span style={{ display: 'block', height: '100%', width: `${eventProgress(date, ev.time, ev.sport) * 100}%`, background: 'var(--live-red)' }} /></span>}
       <div className="ev-main">
         <div style={{ minWidth: '52px', textAlign: 'center' }}>
@@ -169,15 +195,18 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
         <div className="ev-info">
           <p className="ev-title" style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{mine && <Star size={13} fill="var(--accent)" style={{ color: 'var(--accent)', display: 'inline', marginRight: 6, verticalAlign: '-1px' }} aria-label="Tu equipo" />}{ev.title}</p>
           <p className="ev-sub" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+            {guide && <span title="Sacado de la guía de tus canales: no está en la agenda de Ciriaco" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginRight: 6, padding: '1px 6px', borderRadius: 100, background: 'var(--accent-dim)', color: 'var(--accent)', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.06em', verticalAlign: '1px' }}><Tv size={9} />GUÍA TV</span>}
             {ev.competition}{ev.round ? ` · ${ev.round}` : ''}
           </p>
         </div>
         <div className="ev-chans">
-          {ev.channelKeys.slice(0, 4).map(k => <span key={k} title={channels[k]?.name}><ChannelLogo name={channels[k]?.name ?? k} src={channels[k]?.logo} size={26} /></span>)}
+          {guide
+            ? mineChannels.slice(0, 4).map(c => <span key={c.id} title={c.name}><ChannelLogo name={c.name} src={c.logo} size={26} /></span>)
+            : ev.channelKeys.slice(0, 4).map(k => <span key={k} title={channels[k]?.name}><ChannelLogo name={channels[k]?.name ?? k} src={channels[k]?.logo} size={26} /></span>)}
         </div>
-        {links.length > 0 ? (
+        {canPlay ? (
           <div className="ev-actions">
-            <button onClick={() => play(channel, channel.streams[0])} className="flex items-center gap-1.5"
+            <button onClick={playMain} className="flex items-center gap-1.5"
               style={{ padding: '8px 16px', background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
               <Play size={13} strokeWidth={2.5} fill="#080a0e" />Ver
             </button>
@@ -192,17 +221,29 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
               style={{ padding: '8px 10px', background: reminder ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${reminder ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: reminder ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
               {reminder ? <BellRing size={14} /> : <Bell size={14} />}
             </button>}
-            {!Capacitor.isNativePlatform() && <button onClick={share} title="Copiar enlace para ver en otro dispositivo (navegador)"
+            {!Capacitor.isNativePlatform() && links.length > 0 && <button onClick={share} title="Copiar enlace para ver en otro dispositivo (navegador)"
               style={{ padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', color: shared === 'ok' ? 'var(--online-green)' : shared === 'err' ? 'var(--offline-red)' : 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
               {shared === 'ok' ? <Check size={14} /> : shared === 'busy' ? <RefreshCw size={14} className="animate-spin" /> : <Share2 size={14} />}
             </button>}
             <button onClick={() => setOpen(o => !o)} title="Opciones de enlace"
               style={{ padding: '8px 10px', background: open ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${open ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: open ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.7rem', cursor: 'pointer', flexShrink: 0 }}>
-              {links.length} {links.length === 1 ? 'enlace' : 'enlaces'}
+              {guide || !links.length ? `${mineChannels.length} ${mineChannels.length === 1 ? 'canal' : 'canales'}` : `${links.length} ${links.length === 1 ? 'enlace' : 'enlaces'}`}
             </button>
           </div>
         ) : <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', flexShrink: 0 }}>Sin enlaces</span>}
       </div>
+      {!guide && mineChannels.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap ev-links" style={{ marginTop: 8 }}>
+          <span style={{ fontSize: '0.64rem', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>En tus canales:</span>
+          {mineChannels.slice(0, 4).map(c => (
+            <button key={c.id} onClick={() => play(c, c.streams[0])} title={`Ver en ${c.name}`} className="flex items-center gap-1.5"
+              style={{ padding: '3px 10px 3px 4px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 100, color: 'var(--text-secondary)', fontSize: '0.68rem', cursor: 'pointer' }}>
+              <ChannelLogo name={c.name} src={c.logo} size={18} />{c.name}
+            </button>
+          ))}
+          {mineChannels.length > 4 && <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.68rem', cursor: 'pointer' }}>+{mineChannels.length - 4} más</button>}
+        </div>
+      )}
       {(shareUrl || shareMsg) && (
         <div className="fade-in ev-links" style={{ marginTop: 10, padding: '10px 14px', background: 'var(--bg-elevated)', border: `1px solid ${shared === 'err' ? 'rgba(239,68,68,0.45)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)' }}>
           {shareUrl && shared !== 'err' && (
@@ -234,6 +275,12 @@ export function EventRow({ ev, date, channels }: { ev: CiriacoEvent; date: strin
       )}
       {open && (
         <div className="flex flex-wrap gap-2 fade-in ev-links" style={{ marginTop: '10px' }}>
+          {mineChannels.map(c => (
+            <button key={c.id} onClick={() => play(c, c.streams[0])} className="flex items-center gap-2"
+              style={{ padding: '4px 12px 4px 5px', background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: '100px', color: 'var(--accent)', fontSize: '0.7rem', cursor: 'pointer' }}>
+              <ChannelLogo name={c.name} src={c.logo} size={20} />{c.name} · tu lista
+            </button>
+          ))}
           {channel.streams.map((s, i) => (
             <button key={s.aceId} onClick={() => play(channel, s)} className="flex items-center gap-2"
               style={{ padding: '4px 12px 4px 5px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: '100px', color: 'var(--text-secondary)', fontSize: '0.7rem', cursor: 'pointer' }}>
@@ -258,21 +305,29 @@ export function EventsPage() {
   // en el móvil los filtros empiezan plegados para ver antes los partidos
   const [showFilters, setShowFilters] = useState(() => typeof window === 'undefined' || window.innerWidth > 700);
   const favTeams = useSettingsStore(s => s.favTeams);
+  const cross = useGuideEventsStore(s => s.cross);
+  const listById = useGuideEventsStore(s => s.channels);
+  const epgStatus = useEPGStore(s => s.status);
+  const channelCount = useM3UStore(s => s.allChannels.length);
+  useEffect(() => { void useGuideEventsStore.getState().compute(); }, [data, epgStatus, channelCount]);
+  useEffect(() => { const i = setInterval(() => void useGuideEventsStore.getState().compute(), 10 * 60000); return () => clearInterval(i); }, []);
+  const days = useMemo(() => mergeDays(data?.days ?? [], cross.extra), [data, cross]);
+  const listFor = (e: CiriacoEvent): Channel[] => ((isGuide(e) ? e.channelIds : cross.related[e.id]) ?? []).map(id => listById.get(id)).filter((c): c is Channel => !!c);
 
   useEffect(() => { if (!useCiriacoStore.getState().data) load(); }, [load]);
-  useEffect(() => { if (data && day !== ALL && !data.days.some(d => d.date === day)) setDay(data.days[0]?.date ?? ALL); }, [data, day]);
+  useEffect(() => { if (days.length && day !== ALL && !days.some(d => d.date === day)) setDay(days[0]?.date ?? ALL); }, [days, day]);
   useEffect(() => { const i = setInterval(() => useCiriacoStore.setState(s => ({ data: s.data && { ...s.data } })), 60000); return () => clearInterval(i); }, []);
 
   const channels = data?.channels ?? {};
-  const visibleDays = useMemo(() => (data?.days ?? []).filter(d => day === ALL || d.date === day), [data, day]);
+  const visibleDays = useMemo(() => days.filter(d => day === ALL || d.date === day), [days, day]);
   const sports = useMemo(() => [ALL, ...Array.from(new Set(visibleDays.flatMap(d => d.events.map(e => e.sport)).filter(Boolean)))], [visibleDays]);
   const q = query.trim();
   const filtered = useMemo(() => visibleDays.map(d => ({
     ...d,
     events: d.events.filter(e =>
-      (sport === ALL || e.sport === sport) && (!onlyLinks || e.links.length > 0) && (!onlyMine || isMyEvent(e, favTeams)) &&
-      (!q || matchScore(q, `${e.title} ${e.competition} ${e.channelKeys.map(k => channels[k]?.name ?? k).join(' ')}`) > 0)),
-  })).filter(d => d.events.length), [visibleDays, sport, onlyLinks, onlyMine, favTeams, q, channels]);
+      (sport === ALL || e.sport === sport) && (!onlyLinks || e.links.length > 0 || isGuide(e)) && (!onlyMine || isMyEvent(e, favTeams)) &&
+      (!q || matchScore(q, `${e.title} ${e.competition} ${e.channelKeys.map(k => channels[k]?.name ?? k).join(' ')} ${listFor(e).map(c => c.name).join(' ')}`) > 0)),
+  })).filter(d => d.events.length), [visibleDays, sport, onlyLinks, onlyMine, favTeams, q, channels, cross, listById]); // eslint-disable-line react-hooks/exhaustive-deps
   const activeFilters = (sport !== ALL ? 1 : 0) + (onlyLinks ? 1 : 0) + (onlyMine ? 1 : 0);
   const total = filtered.reduce((n, d) => n + d.events.length, 0);
 
@@ -288,7 +343,7 @@ export function EventsPage() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <UpdateControl />
-          <button onClick={() => reloadSources()} disabled={!data} title="Recargar la lista de canales fusionando Elcano y Ciriaco"
+          <button onClick={() => reloadSources()} disabled={!data} title="Recargar tus listas de canales junto con la agenda"
             className="flex items-center gap-1.5" style={{ ...pill(false), opacity: data ? 1 : 0.4 }}><ListVideo size={13} /><span className="ev-reload-label">Recargar canales</span></button>
         </div>
       </div>
@@ -308,7 +363,7 @@ export function EventsPage() {
         <>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <button onClick={() => { setDay(ALL); setSport(ALL); }} style={pill(day === ALL)}>Todos los días</button>
-            {data.days.map(d => <button key={d.date} onClick={() => { setDay(d.date); setSport(ALL); }} style={pill(day === d.date)}>{dayLabel(d)} <span style={{ opacity: 0.6 }}>({d.events.length})</span></button>)}
+            {days.map(d => <button key={d.date} onClick={() => { setDay(d.date); setSport(ALL); }} style={pill(day === d.date)}>{dayLabel(d)} <span style={{ opacity: 0.6 }}>({d.events.length})</span></button>)}
           </div>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <div className="flex items-center gap-2" style={{ flex: '1 1 220px', padding: '7px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: '100px' }}>
@@ -333,7 +388,7 @@ export function EventsPage() {
             {filtered.map(d => (
               <section key={d.date}>
                 {day === ALL && <h2 className="font-body" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, marginBottom: '8px' }}>{d.label}</h2>}
-                <div className="flex flex-col gap-2">{d.events.map(e => <EventRow key={e.id} ev={e} date={d.date} channels={channels} />)}</div>
+                <div className="flex flex-col gap-2">{d.events.map(e => <EventRow key={e.id} ev={e} date={d.date} channels={channels} listChannels={listFor(e)} />)}</div>
               </section>
             ))}
             {!total && <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}><p>No hay eventos con estos filtros</p></div>}

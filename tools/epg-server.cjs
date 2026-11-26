@@ -16,6 +16,8 @@ const zlib = require('zlib');
 
 const PORT = Number(process.env.EPG_PORT || 3003);
 const norm = s => String(s || '').toLowerCase().replace(/[\s._-]+/g, '').replace(/[^a-z0-9]/g, '');
+/** Igual que norm() pero sin la calidad del nombre: «DAZN_Baloncesto_720p_», «DAZN Baloncesto HD» → «daznbaloncesto». */
+const loose = s => norm(String(s || '').replace(/[_.*-]+/g, ' ').replace(/\b(?:4k|uhd|fhd|hd|sd|hevc|h265|backup|multiaudio)\b|\b\d{3,4}p\b/gi, ' '));
 
 let state = { status: 'idle', progress: 0, channels: 0, error: null, lastUpdated: null };
 let store = new Map();          // clave normalizada -> eventos ordenados
@@ -73,7 +75,8 @@ function parseInto(xml, wanted, from, to) {
     const start = xmltvTime((attrs.match(/start="([^"]*)"/) || [])[1]);
     const end = xmltvTime((attrs.match(/stop="([^"]*)"/) || [])[1]);
     if (!id || Number.isNaN(start) || Number.isNaN(end) || end < from || start > to) continue;
-    const keys = [...new Set([norm(id), ...(names.get(id) || []).map(norm)].filter(Boolean))];
+    const all = [id, ...(names.get(id) || [])];
+    const keys = [...new Set([...all.map(norm), ...all.map(loose)].filter(Boolean))];
     if (wanted.size && !keys.some(k => wanted.has(k))) continue;
     const body = m[2];
     const pick = tag => { const x = body.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`)); return x ? decode(x[1]) : ''; };
@@ -91,7 +94,7 @@ async function load(urls, knownIds) {
   state = { status: 'loading', progress: 10, channels: 0, error: null, lastUpdated: null };
   try {
     store = new Map();
-    const wanted = new Set((knownIds || []).map(norm).filter(Boolean));
+    const wanted = new Set((knownIds || []).flatMap(k => [norm(k), loose(k)]).filter(Boolean));
     const from = Date.now() - 6 * 3600e3, to = Date.now() + 36 * 3600e3;
     let ok = 0, lastErr = '';
     const list = [...new Set((urls || []).filter(u => /^https?:\/\//i.test(u)))];
@@ -114,7 +117,7 @@ async function load(urls, knownIds) {
 }
 
 function today(id) {
-  const arr = store.get(norm(id));
+  const arr = store.get(norm(id)) || store.get(loose(id));
   if (!arr || !arr.length) return null;
   const now = Date.now();
   const d0 = new Date(); d0.setHours(0, 0, 0, 0);
@@ -154,5 +157,5 @@ function start(opts = {}) {
   return server;
 }
 
-module.exports = { start, parseInto, norm };
+module.exports = { start, parseInto, norm, loose };
 if (require.main === module) start();

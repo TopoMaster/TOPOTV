@@ -107,8 +107,8 @@ export function TVGuidePage() {
     <div className="flex flex-col items-center justify-center fade-in text-center" style={{ minHeight: '60vh', gap: 14, padding: 24 }}>
       <Calendar size={44} strokeWidth={1} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
       <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>No hay guía de programación cargada</p>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', lineHeight: 1.6, maxWidth: 380 }}>TOPOTV carga las guías de Elcano al arrancar. Si no aparece, comprueba la conexión o añade una guía en Ajustes.</p>
-      <button onClick={() => navigate('/settings')} style={{ minHeight: 40, padding: '0 20px', background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', borderRadius: 100, fontWeight: 700, cursor: 'pointer' }}>Ir a Ajustes</button>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', lineHeight: 1.6, maxWidth: 380 }}>TOPOTV carga las guías de TV al arrancar. Si no aparece, comprueba la conexión o añade una guía en Ajustes.</p>
+      <button onClick={() => navigate('/settings?s=canales')} style={{ minHeight: 40, padding: '0 20px', background: 'var(--accent-gradient)', color: '#080a0e', border: 'none', borderRadius: 100, fontWeight: 700, cursor: 'pointer' }}>Ir a Ajustes</button>
     </div>
   );
   if (epgStatus === 'loading' || epgStatus === 'parsing') return <LoadingState message="Cargando guía de programación…" />;

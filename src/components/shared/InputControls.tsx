@@ -74,6 +74,7 @@ export function InputControls() {
     if (Capacitor.isNativePlatform()) {
       void CapApp.addListener('backButton', () => {
         if (useUIStore.getState().onboardingOpen) { useUIStore.getState().setOnboardingOpen(false); return; }
+        if (useUIStore.getState().moreOpen) { useUIStore.getState().setMoreOpen(false); return; }
         if (usePlayerStore.getState().status !== 'idle') { usePlayerStore.getState().stop(); return; }
         if (window.location.pathname !== '/') navigate(-1);
         else void CapApp.exitApp();

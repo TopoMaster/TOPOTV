@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Palette, Star, Activity, Cpu, X, Archive, Puzzle, Users, Lock } from 'lucide-react';
+import { Palette, Star, Activity, Cpu, X, Archive, Puzzle, Users, Lock, Check } from 'lucide-react';
 import { useAddonsStore } from '@/store/useAddonsStore';
 import { useProfileStore } from '@/store/useProfileStore';
 import { Capacitor } from '@capacitor/core';
 import { buildBackup, downloadBackup, restoreBackup } from '@/lib/backup';
-import { useSettingsStore, type FontScale } from '@/store/useSettingsStore';
+import { useSettingsStore, type FontFamily, type FontScale, type ThemeId } from '@/store/useSettingsStore';
 import { useHealthStore } from '@/store/useHealthStore';
 import { checkUpdate, diagnostic, openLog, startUpdate, systemAvailable, updateProgress, type UpdateInfo } from '@/lib/system';
 
@@ -12,28 +12,86 @@ function Card({ children }: { children: React.ReactNode }) {
   return <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: 20 }}>{children}</div>;
 }
 function SLabel({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
-  return <div className="flex items-center gap-2 mb-4"><Icon size={16} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} /><h2 className="font-body" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</h2></div>;
+  return <div className="slabel flex items-center gap-2 mb-4"><Icon size={16} strokeWidth={1.8} style={{ color: 'var(--text-muted)' }} /><h2 className="font-body" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</h2></div>;
 }
 const opt = (active: boolean) => ({ flex: '1 1 110px', minHeight: 44, padding: '8px 12px', cursor: 'pointer', background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: active ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: active ? 700 : 500 } as const);
 const title = { fontSize: '0.78rem', fontWeight: 600, marginBottom: 6 } as const;
 const help = { fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 10 } as const;
 
+const THEMES: { id: ThemeId; name: string; bg: string; card: string; accent: string; grad: string }[] = [
+  { id: 'gold', name: 'Oro', bg: '#080a0e', card: '#1a2030', accent: '#e2c97e', grad: 'linear-gradient(135deg,#f1dd9b,#d4b25c)' },
+  { id: 'emerald', name: 'Césped', bg: '#060b09', card: '#15231d', accent: '#5fd897', grad: 'linear-gradient(135deg,#a6f4c5,#2fbf71)' },
+  { id: 'ocean', name: 'Azul noche', bg: '#070a12', card: '#162036', accent: '#6cb4ff', grad: 'linear-gradient(135deg,#b3dbff,#3b8bf6)' },
+  { id: 'sunset', name: 'Atardecer', bg: '#0d0907', card: '#251b16', accent: '#ffa45c', grad: 'linear-gradient(135deg,#ffcf9e,#f2711c)' },
+  { id: 'violet', name: 'Violeta', bg: '#09070f', card: '#1d1830', accent: '#b39dff', grad: 'linear-gradient(135deg,#dcd2ff,#8b5cf6)' },
+];
+const SIZES: { v: FontScale; label: string; px: number }[] = [
+  { v: 'small', label: 'Pequeño', px: 14.5 }, { v: 'normal', label: 'Normal', px: 16 }, { v: 'large', label: 'Grande', px: 18 }, { v: 'xl', label: 'Muy grande', px: 20 },
+];
+const FONTS: { v: FontFamily; label: string; desc: string; css: string }[] = [
+  { v: 'topotv', label: 'TOPOTV', desc: 'La de siempre', css: "'DM Sans Variable','DM Sans',sans-serif" },
+  { v: 'system', label: 'Del móvil', desc: 'La de tu sistema', css: "system-ui,Roboto,'Segoe UI',sans-serif" },
+  { v: 'legible', label: 'Muy legible', desc: 'Letras más claras', css: "'Atkinson Hyperlegible',sans-serif" },
+];
+
 export function AppearanceSection() {
-  const { theme, setTheme, fontScale, setFontScale } = useSettingsStore();
-  const sizes: [FontScale, string][] = [['normal', 'Normal'], ['large', 'Grande'], ['xl', 'Muy grande']];
+  const { theme, setTheme, amoled, setAmoled, fontScale, setFontScale, fontFamily, setFontFamily, tvMode, setTvMode } = useSettingsStore();
+  const pick = (active: boolean): React.CSSProperties => ({ cursor: 'pointer', background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 14, color: active ? 'var(--accent)' : 'var(--text-secondary)' });
   return (
     <section className="mb-8">
       <SLabel icon={Palette} label="Apariencia" />
       <Card>
-        <p style={title}>Tema</p>
-        <div className="flex gap-2 flex-wrap mb-5">
-          <button style={opt(theme === 'dark')} onClick={() => setTheme('dark')}>Oscuro</button>
-          <button style={opt(theme === 'light')} onClick={() => setTheme('light')}>Claro</button>
+        <p style={title}>Color</p>
+        <p style={help}>Cambia el color de botones, resaltados y fondos.</p>
+        <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(96px,1fr))' }}>
+          {THEMES.map(t => (
+            <button key={t.id} onClick={() => setTheme(t.id)} aria-pressed={theme === t.id} style={{ ...pick(theme === t.id), padding: 6, textAlign: 'left' }}>
+              <div style={{ height: 54, borderRadius: 9, background: amoled ? '#000' : t.bg, padding: 7, display: 'flex', flexDirection: 'column', gap: 5, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ height: 8, width: '70%', borderRadius: 4, background: amoled ? '#0c0c0e' : t.card }} />
+                <div style={{ height: 8, width: '45%', borderRadius: 4, background: amoled ? '#0c0c0e' : t.card }} />
+                <div style={{ position: 'absolute', right: 7, bottom: 7, width: 22, height: 22, borderRadius: '50%', background: t.grad, boxShadow: `0 0 12px ${t.accent}66` }} />
+              </div>
+              <div className="flex items-center justify-between" style={{ padding: '6px 2px 1px', fontSize: '0.74rem', fontWeight: 700 }}>
+                {t.name}{theme === t.id && <Check size={13} strokeWidth={3} />}
+              </div>
+            </button>
+          ))}
         </div>
-        <p style={title}>Tamaño de la interfaz</p>
-        <p style={help}>Agranda textos y botones. «Muy grande» está pensado para verla desde el sofá.</p>
+        <div className="flex gap-2 flex-wrap mb-6">
+          <button style={opt(!amoled)} onClick={() => setAmoled(false)}>Fondo oscuro</button>
+          <button style={opt(amoled)} onClick={() => setAmoled(true)}>Negro puro (OLED)</button>
+        </div>
+
+        <p style={title}>Tamaño del texto</p>
+        <p style={help}>Se aplica al momento en toda la app.</p>
+        <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
+          {SIZES.map(s => (
+            <button key={s.v} onClick={() => setFontScale(s.v)} aria-pressed={fontScale === s.v} style={{ ...pick(fontScale === s.v), padding: '10px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: s.px + 4, fontWeight: 700, lineHeight: 1 }}>Aa</span>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>{s.label}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{ padding: '12px 14px', borderRadius: 12, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', marginBottom: 22 }}>
+          <p style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: 2 }}>Real Madrid – Barcelona</p>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>LaLiga · hoy 21:00 · así se leerán los textos</p>
+        </div>
+
+        <p style={title}>Tipo de letra</p>
+        <div className="grid gap-2 mb-6" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
+          {FONTS.map(f => (
+            <button key={f.v} onClick={() => setFontFamily(f.v)} aria-pressed={fontFamily === f.v} style={{ ...pick(fontFamily === f.v), padding: '10px 6px', fontFamily: f.css }}>
+              <span style={{ display: 'block', fontSize: '1.15rem', fontWeight: 700, lineHeight: 1.1 }}>Aa 123</span>
+              <span style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, marginTop: 4 }}>{f.label}</span>
+              <span style={{ display: 'block', fontSize: '0.64rem', color: 'var(--text-muted)' }}>{f.desc}</span>
+            </button>
+          ))}
+        </div>
+
+        <p style={title}>Modo TV</p>
+        <p style={help}>Interfaz más grande y con selección clara para manejarla con mando. «Automático» se activa solo en Android TV.</p>
         <div className="flex gap-2 flex-wrap">
-          {sizes.map(([v, l]) => <button key={v} style={opt(fontScale === v)} onClick={() => setFontScale(v)}>{l}</button>)}
+          {(['auto', 'on', 'off'] as const).map(m => <button key={m} style={opt(tvMode === m)} onClick={() => setTvMode(m)}>{m === 'auto' ? 'Automático' : m === 'on' ? 'Activado' : 'Desactivado'}</button>)}
         </div>
       </Card>
     </section>

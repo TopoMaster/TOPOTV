@@ -43,7 +43,7 @@ function EPGDayPanel({ schedule }: { schedule: EPGSchedule }) {
           const progress = isNow ? getProgressPercent(event) : 0;
           return (
             <div key={event.startTime.getTime()}
-              style={{ padding: '9px 14px', borderLeft: `3px solid ${isNow ? 'var(--accent)' : isNext ? 'var(--border-mid)' : 'transparent'}`, background: isNow ? 'rgba(226,201,126,0.05)' : 'transparent', opacity: isPast ? 0.42 : 1, borderBottom: '1px solid var(--border-subtle)' }}>
+              style={{ padding: '9px 14px', borderLeft: `3px solid ${isNow ? 'var(--accent)' : isNext ? 'var(--border-mid)' : 'transparent'}`, background: isNow ? 'rgba(var(--accent-rgb),0.05)' : 'transparent', opacity: isPast ? 0.42 : 1, borderBottom: '1px solid var(--border-subtle)' }}>
               <div style={{ fontSize: '0.62rem', color: isNow ? 'var(--accent)' : 'var(--text-muted)', letterSpacing: '0.04em', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {formatTime(event.startTime)}
                 {isNow && <span style={{ fontSize: '0.55rem', background: 'rgba(229,53,53,0.15)', color: 'var(--live-red)', padding: '1px 5px', borderRadius: '100px', border: '1px solid rgba(229,53,53,0.3)', fontWeight: 700 }}>AHORA</span>}
@@ -126,7 +126,7 @@ export function ChannelPage() {
         </button>
 
         {/* Hero */}
-        <div className="flex items-center gap-5 p-5 mb-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+        <div className="channel-hero flex items-center gap-5 p-5 mb-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
           <div style={{ width: '80px', height: '80px', borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
             {channel.logo && !imgError
               ? <img src={channel.logo} alt={channel.name} style={{ width: '75%', height: '75%', objectFit: 'contain' }} onError={() => setImgError(true)} />
@@ -146,7 +146,7 @@ export function ChannelPage() {
             </p>
 
             {nowPlaying && (
-              <div style={{ padding: '7px 10px', background: 'rgba(226,201,126,0.06)', border: '1px solid rgba(226,201,126,0.15)', borderRadius: 'var(--radius-md)', marginBottom: '10px' }}>
+              <div style={{ padding: '7px 10px', background: 'rgba(var(--accent-rgb),0.06)', border: '1px solid rgba(var(--accent-rgb),0.15)', borderRadius: 'var(--radius-md)', marginBottom: '10px' }}>
                 <div style={{ fontSize: '0.6rem', color: 'var(--accent)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '2px' }}>
                   Ahora · {formatTime(nowPlaying.startTime)} – {formatTime(nowPlaying.endTime)}
                 </div>
@@ -160,7 +160,7 @@ export function ChannelPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button onClick={() => handlePlay()} disabled={status === 'connecting'}
                 className="flex items-center gap-2"
                 style={{ padding: '9px 20px', background: 'var(--accent)', color: '#080a0e', border: 'none', borderRadius: 'var(--radius-md)', fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: status === 'connecting' ? 'not-allowed' : 'pointer', opacity: status === 'connecting' ? 0.7 : 1 }}>
@@ -169,7 +169,7 @@ export function ChannelPage() {
               </button>
               <button onClick={() => toggleFav(channel.id)}
                 title={isFav ? 'Quitar de favoritos' : 'Añadir a favoritos'}
-                style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-md)', background: isFav ? 'rgba(226,201,126,0.12)' : 'var(--bg-elevated)', border: `1px solid ${isFav ? 'var(--accent)' : 'var(--border-mid)'}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-md)', background: isFav ? 'rgba(var(--accent-rgb),0.12)' : 'var(--bg-elevated)', border: `1px solid ${isFav ? 'var(--accent)' : 'var(--border-mid)'}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Heart size={15} strokeWidth={1.8} fill={isFav ? 'var(--accent)' : 'none'} style={{ color: isFav ? 'var(--accent)' : 'var(--text-secondary)' }} />
               </button>
               <button onClick={() => { if (!addMulti(channel!)) window.alert('La multivista admite hasta 4 canales a la vez.'); else navigate('/multi'); }}

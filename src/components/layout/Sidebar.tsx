@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home,Search,Settings,Tv,LayoutGrid,CircleDot,ChevronLeft,ChevronRight,Heart,Activity,Shield,Power,Trophy,Film,Columns2,CalendarRange } from 'lucide-react';
+import { Home,Search,Settings,Tv,LayoutGrid,CircleDot,ChevronLeft,ChevronRight,Heart,Activity,Shield,Power,Trophy,Film,Columns2,CalendarRange,Menu } from 'lucide-react';
+import { MoreSheet } from './MoreSheet';
 import { LogoMark, LogoWord } from '@/components/brand/Logo';
 import { useUIStore } from '@/store/useUIStore';
 import { useM3UStore } from '@/store/useM3UStore';
@@ -9,17 +10,18 @@ import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { useCiriacoStore } from '@/store/useCiriacoStore';
 import { Capacitor } from '@capacitor/core';
 const TOP_NAV: {to:string;icon:React.ElementType;label:string;short?:string;badge:boolean;cls?:string}[] = [
+  // En el móvil la barra de abajo lleva solo Inicio, Eventos, Canales y Cine; el resto está en «Más»
   {to:'/',icon:Home,label:'Inicio',badge:false},
-  {to:'/categories',icon:LayoutGrid,label:'Canales',badge:false,cls:'nav-mobile-only'},
-  {to:'/favorites',icon:Heart,label:'Favoritos',badge:true},
   {to:'/events',icon:Activity,label:'Eventos',badge:false},
+  {to:'/categories',icon:LayoutGrid,label:'Canales',badge:false,cls:'nav-mobile-only'},
   {to:'/library',icon:Film,label:'Cine y series',short:'Cine',badge:false},
-  {to:'/recordings',icon:CircleDot,label:'Grabaciones',short:'Grabadas',badge:false},
-  {to:'/flashscore',icon:Trophy,label:'Flashscore',badge:false,cls:'nav-desktop-only'},
-  {to:'/checker',icon:Shield,label:'Checker',badge:false,cls:'nav-desktop-only'},
-  {to:'/search',icon:Search,label:'Buscar',badge:false,cls:'nav-desktop-only'},
+  {to:'/favorites',icon:Heart,label:'Favoritos',badge:true,cls:'nav-desktop-only'},
+  {to:'/recordings',icon:CircleDot,label:'Grabaciones',badge:false,cls:'nav-desktop-only'},
   {to:'/guide',icon:CalendarRange,label:'Parrilla',badge:false,cls:'nav-desktop-only'},
   {to:'/multi',icon:Columns2,label:'Multivista',badge:false,cls:'nav-desktop-only'},
+  {to:'/flashscore',icon:Trophy,label:'Resultados',badge:false,cls:'nav-desktop-only'},
+  {to:'/checker',icon:Shield,label:'Comprobar enlaces',badge:false,cls:'nav-desktop-only'},
+  {to:'/search',icon:Search,label:'Buscar',badge:false,cls:'nav-desktop-only'},
 ];
 const BOTTOM_NAV = [{to:'/settings',icon:Settings,label:'Ajustes'}];
 export function Sidebar() {
@@ -32,6 +34,8 @@ export function Sidebar() {
   const warpError = useCiriacoStore(s=>s.warpError);
   const setWarpConnected = useCiriacoStore(s=>s.setWarpConnected);
   const favCount = useFavoritesStore(s=>s.ids.size);
+  const moreOpen = useUIStore(s=>s.moreOpen);
+  const setMoreOpen = useUIStore(s=>s.setMoreOpen);
   const visibleNav = TOP_NAV;
   const navigate = useNavigate();
   const checkBackend = useSettingsStore(s=>s.checkBackend);
@@ -47,9 +51,9 @@ export function Sidebar() {
         <LogoMark size={34} />
         {sidebarOpen&&<span className="fade-in"><LogoWord /></span>}
       </div>
-      <nav className="px-2 pt-3 flex flex-col gap-0.5" style={{ ['--nav-count' as string]: visibleNav.filter(i => !(i.cls ?? '').includes('desktop-only')).length }}>
+      <nav className="px-2 pt-3 flex flex-col gap-0.5" style={{ ['--nav-count' as string]: visibleNav.filter(i => !(i.cls ?? '').includes('desktop-only')).length + 1 }}>
         {visibleNav.map(({to,icon:Icon,label,short,badge,cls})=>(
-          <NavLink key={to} to={to} end={to==='/'} className={({isActive})=>`nav-item ${isActive?'active':''} ${cls??''}`} title={!sidebarOpen?label:undefined}>
+          <NavLink key={to} to={to} end={to==='/'} className={({isActive})=>`nav-item ${isActive&&!moreOpen?'active':''} ${cls??''}`} title={!sidebarOpen?label:undefined}>
             <div className="relative shrink-0">
               <Icon size={18} strokeWidth={1.8} />
               {badge&&favCount>0&&<span className="absolute -top-1 -right-1 flex items-center justify-center" style={{width:'14px',height:'14px',borderRadius:'50%',background:'var(--accent)',fontSize:'0.55rem',fontWeight:700,color:'#080a0e'}}>{favCount>9?'9+':favCount}</span>}
@@ -57,7 +61,12 @@ export function Sidebar() {
             {sidebarOpen&&<span className="fade-in truncate">{short?<><span className="nav-full">{label}</span><span className="nav-short">{short}</span></>:label}</span>}
           </NavLink>
         ))}
+        <button onClick={()=>setMoreOpen(!moreOpen)} className={`nav-item nav-mobile-only ${moreOpen?'active':''}`} aria-expanded={moreOpen} aria-label="Más secciones">
+          <div className="relative shrink-0"><Menu size={18} strokeWidth={1.8} /></div>
+          <span>Más</span>
+        </button>
       </nav>
+      <MoreSheet />
       <div style={{height:'1px',background:'var(--border-subtle)',margin:'8px 12px'}} />
       {sidebarOpen&&groups.length>0&&<div className="px-4 pb-2"><span style={{fontSize:'0.65rem',color:'var(--text-muted)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Categorías</span></div>}
       {<div className="flex-1 overflow-y-auto px-2 flex flex-col gap-0.5">

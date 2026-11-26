@@ -37,7 +37,7 @@ function startWeb() {
 }
 
 /* ── Lectura de la agenda con Chromium de Electron ──────────── */
-function electronScrape(extractInBrowser) {
+function electronScrape(extractInBrowser, source) {
   return async (proxy, timeout) => {
     const partition = `scrape-${Date.now()}`;
     const ses = session.fromPartition(partition, { cache: false });
@@ -45,7 +45,7 @@ function electronScrape(extractInBrowser) {
     const win = new BrowserWindow({ show: false, width: 1280, height: 900, webPreferences: { session: ses, sandbox: true, contextIsolation: true, backgroundThrottling: false } });
     try {
       await Promise.race([
-        win.loadURL('https://ciriaco.netlify.app/'),
+        win.loadURL(source),
         new Promise((_, rej) => setTimeout(() => rej(new Error('Tiempo de espera agotado cargando la agenda')), timeout)),
       ]);
       for (let i = 0; i < 30; i++) {
@@ -103,8 +103,8 @@ if (gotLock) app.whenReady().then(async () => {
   try {
     await startWeb();
     process.env.CIRIACO_PORT = '3004';
-    const { start: startCiriaco, extractInBrowser } = require(path.join(TOOLS, 'ciriaco-server.cjs'));
-    startCiriaco({ scrape: electronScrape(extractInBrowser), cacheFile: path.join(app.getPath('userData'), 'agenda-cache.json') });
+    const { start: startCiriaco, extractInBrowser, SOURCE: CIRIACO_SOURCE } = require(path.join(TOOLS, 'ciriaco-server.cjs'));
+    startCiriaco({ scrape: electronScrape(extractInBrowser, CIRIACO_SOURCE), cacheFile: path.join(app.getPath('userData'), 'agenda-cache.json') });
     const vlc = require(path.join(TOOLS, 'vlc-helper.cjs'));
     vlc.start({ log });
     require(path.join(TOOLS, 'epg-server.cjs')).start({ log });   // guía de programación (puerto 3003)

@@ -6,8 +6,12 @@ import type { AceBackendConfig } from '@/types';
 
 /**
  * Control del motor AceStream en Android. El motor es software propietario que vive en otra app
- * (TOPOTV no puede llevarlo dentro): aquí se detecta cuál hay instalada, se abre para encenderlo
- * y se espera a que responda en el puerto del motor.
+ * (TOPOTV no lo redistribuye dentro): aquí se detecta cuál hay instalada, se enciende y se espera
+ * a que responda en el puerto del motor.
+ *
+ * Con Ace Serve no hace falta abrir su pantalla ni pulsar START: al recibir un enlace acestream://
+ * enciende el motor en segundo plano y después «pasa» el vídeo a un reproductor. TOPOTV se ofrece
+ * para recogerlo (EngineHandoffActivity) y vuelve al frente; la reproducción la sigue haciendo TOPOTV.
  */
 export interface EngineApp { pkg: string; name: string }
 const ENGINE_APPS: EngineApp[] = [
@@ -26,18 +30,42 @@ export async function findEngineApp(): Promise<EngineApp | null> {
   return null;
 }
 
-/** Abre la app del motor y espera (hasta ~45 s) a que responda. */
-export async function startEngineApp(cfg: AceBackendConfig): Promise<{ ok: boolean; app: EngineApp | null; error?: string }> {
+const WOKE_KEY = 'topotv-engine-woke';
+/** ¿Ya se encendió alguna vez el motor desde TOPOTV? (entonces Android ya sabe que el vídeo vuelve a TOPOTV) */
+export function engineWokeBefore(): boolean { try { return localStorage.getItem(WOKE_KEY) === '1'; } catch { return false; } }
+export function engineWakeMessage(): string {
+  return engineWokeBefore() ? 'Encendiendo el motor AceStream…' : 'Encendiendo el motor AceStream… Si Android pregunta con qué abrir, elige «TOPOTV» y «Siempre».';
+}
+
+/** Id de relleno para encender el motor cuando todavía no se va a ver nada (no corresponde a ningún contenido). */
+const WAKE_ID = '0'.repeat(40);
+let waking: Promise<{ ok: boolean; app: EngineApp | null; error?: string }> | null = null;
+
+/**
+ * Enciende el motor y espera (hasta ~90 s: en móviles lentos Ace Serve tarda en arrancar) a que responda. Con Ace Serve se usa el enlace acestream://
+ * del canal que se va a ver (así el motor ya empieza a buscarlo); con las apps oficiales se abre la app.
+ * Si ya se está encendiendo, se espera a ese mismo intento.
+ */
+export function startEngineApp(cfg: AceBackendConfig, aceId?: string): Promise<{ ok: boolean; app: EngineApp | null; error?: string }> {
+  if (!waking) waking = doStart(cfg, aceId).finally(() => { waking = null; });
+  return waking;
+}
+async function doStart(cfg: AceBackendConfig, aceId?: string): Promise<{ ok: boolean; app: EngineApp | null; error?: string }> {
   if ((await checkBackendStatus(cfg)) === 'online') return { ok: true, app: await findEngineApp() };
   const app = await findEngineApp();
-  if (!app) return { ok: false, app: null, error: 'No hay ninguna app con el motor AceStream instalada.' };
-  try { await ExternalPlayer.launchApp({ package: app.pkg }); }
-  catch (e) { return { ok: false, app, error: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) }; }
-  for (let i = 0; i < 45; i++) {
+  if (!app) return { ok: false, app: null, error: 'Falta el motor AceStream. Instálalo en Ajustes → Motor y reproducción.' };
+  try {
+    if (app.pkg === 'org.free.aceserve') await ExternalPlayer.openAceLink({ id: /^[0-9a-f]{40}$/i.test(aceId ?? '') ? aceId! : WAKE_ID, package: app.pkg });
+    else await ExternalPlayer.launchApp({ package: app.pkg });
+  } catch (e) { return { ok: false, app, error: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) }; }
+  for (let i = 0; i < 90; i++) {
     await new Promise(r => setTimeout(r, 1000));
-    if ((await checkBackendStatus(cfg)) === 'online') return { ok: true, app };
+    if ((await checkBackendStatus(cfg)) === 'online') {
+      try { localStorage.setItem(WOKE_KEY, '1'); } catch { /* sin almacenamiento */ }
+      return { ok: true, app };
+    }
   }
-  return { ok: false, app, error: `${app.name} se abrió pero el motor no responde en ${cfg.host}:${cfg.port}. Ábrelo y comprueba que esté en marcha.` };
+  return { ok: false, app, error: `${app.name} no llegó a encender el motor. Ábrelo, pulsa START y vuelve a TOPOTV.` };
 }
 
 /** Android no deja cerrar apps ajenas: se abre su pantalla de información para «Forzar detención». */

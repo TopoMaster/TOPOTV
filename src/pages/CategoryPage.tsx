@@ -31,7 +31,7 @@ export function CategoryPage() {
         <p style={{fontSize:'0.74rem',color:'var(--text-muted)',lineHeight:1.5,marginBottom:8}}>Las cadenas privadas solo emiten en sus apps oficiales (con protección), así que no se pueden incluir aquí. Ábrelas en su web:</p>
         <div className="flex flex-wrap gap-2">{TDT_PRIVADAS.map(l=><a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" style={{padding:'8px 14px',background:'var(--bg-card)',border:'1px solid var(--border-mid)',borderRadius:100,color:'var(--text-secondary)',fontSize:'0.76rem',textDecoration:'none'}}>{l.name}</a>)}</div>
       </div>}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:'16px'}}>
+      <div className="cat-grid" style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:'16px'}}>
         {sortAlive(group.channels, health, hideDead).map((ch,i)=>(
           <div key={ch.id} className="slide-up" style={{animationDelay:`${Math.min(i*0.02,0.4)}s`}}>
             <ChannelCard channel={ch} size="md" />

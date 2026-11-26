@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { CIRIACO_PLAYLIST_URL, TDT_SOURCE_URL, ciriacoPlaylistText } from '@/lib/ciriaco';
 import { tdtPlaylistText } from '@/lib/tdt';
+import { localListFor } from '@/lib/localLists';
 import { canon } from '@/lib/ciriacoNative';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import type { Channel, Group, M3UMeta, ParsedM3U, Stream } from '@/types';
@@ -11,7 +12,9 @@ function extractAceId(url: string) {
 function directKey(url: string) { let h = 5381; for (let i = 0; i < url.length; i++) h = ((h << 5) + h + url.charCodeAt(i)) >>> 0; return 'direct-' + h.toString(16); }
 function extractProvider(label: string) { return label.match(/-->\s*(.+)$/)?.[1]?.trim() ?? 'DEFAULT'; }
 function cleanName(raw: string) {
-  return raw.replace(/\s*-->.*$/,'').replace(/[\s*]+$/,'').replace(/\s+(4K|2160p|1080p|720p|576p|480p|FHD|HD|SD)\s*$/i,'').replace(/[\s*]+$/,'').trim() || raw.trim();
+  // fuera: proveedor («--> X»), «(opción 2)», marcas «*», separadores sueltos y la calidad del final
+  return raw.replace(/\s*-->.*$/,'').replace(/\s*\((?:opci[oó]n|option|alt)\s*\d+\)\s*$/i,'').replace(/[\s*·|-]+$/,'')
+    .replace(/\s+(4K|2160p|1080p|720p|576p|480p|FHD|HD|SD)\s*$/i,'').replace(/[\s*·|-]+$/,'').trim() || raw.trim();
 }
 function buildId(tvgId: string, group: string, name: string) { return tvgId?.trim() ? slugify(tvgId) : slugify(group+'-'+name); }
 function parseHeader(line: string): Partial<M3UMeta> {
@@ -66,8 +69,12 @@ function parseM3U(content: string, source = 'unknown'): ParsedM3U {
   return { meta, groups: groupOrder.map(t=>groupMap.get(t)!), allChannels: [...channelMap.values()] };
 }
 export async function loadM3UFromFile(file: File): Promise<ParsedM3U> { return parseM3U(await file.text(), file.name); }
+export const parseM3UText = (text: string, source: string) => parseM3U(text, source);
 export async function loadM3UFromUrl(url: string): Promise<ParsedM3U> {
   if (url === TDT_SOURCE_URL) return parseM3U(tdtPlaylistText(), url);   // lista de TDT incluida en la app
+  const local = localListFor(url);   // lista cargada desde un archivo y guardada en el dispositivo
+  if (local) return parseM3U(local.text, url);
+  if (url.startsWith('topotv://')) throw new Error('Esa lista guardada ya no existe.');
   // En Android no hay servidor local: la agenda de Ciriaco se genera en el propio dispositivo.
   if (url === CIRIACO_PLAYLIST_URL && Capacitor.isNativePlatform()) {
     return parseM3U(await ciriacoPlaylistText(useSettingsStore.getState().backendConfig), url);
@@ -85,7 +92,7 @@ const FUSE_GROUP = 'topotv';
 const CATEGORY_RULES: [RegExp, string][] = [
   [/\bdazn\b/, 'DAZN'], [/\b(f1|formula)\b/, 'FORMULA 1'], [/eurosport/, 'EUROSPORT'],
   [/hypermotion|laliga tv|segunda/, 'HYPERMOTION'], [/liga de campeones|champions|europa league|conference/, 'LIGA DE CAMPEONES'],
-  [/mplus deportes/, 'MOVISTAR DEPORTES'], [/laliga|la liga/, 'LA LIGA'], [/mplus|movistar/, 'MOVISTAR'],
+  [/mplus deportes/, 'MOVISTAR DEPORTES'], [/laliga|la liga/, 'LA LIGA'], [/golf/, 'GOLF'], [/mplus|movistar/, 'MOVISTAR'],
   [/baloncesto|basket|acb|euroliga/, 'BALONCESTO'], [/\bnba\b/, 'NBA'], [/motogp|moto gp/, 'MOTOGP'], [/tenn?is/, 'TENNIS'], [/toros/, 'TOROS'],
   [/combate|ufc|boxeo|boxing|wwe/, 'COMBATE'], [/rfef|federacion/, 'RFEF TV'],
   [/\b(la 1|la 2|antena 3|telecinco|cuatro|sexta|teledeporte|tdt|rtve|24h|gol)\b/, 'TDT'],

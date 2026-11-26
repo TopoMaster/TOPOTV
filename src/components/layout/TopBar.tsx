@@ -20,7 +20,7 @@ export function TopBar() {
         <button onClick={()=>fileRef.current?.click()} disabled={isLoading} aria-label="Cargar una lista M3U" title="Cargar una lista M3U" className="flex items-center gap-2 px-3" style={{height:'36px',borderRadius:'var(--radius-md)',background:isLoading?'var(--bg-elevated)':'var(--bg-elevated)',color:isLoading?'var(--text-muted)':'var(--text-primary)',border:'1px solid var(--border-mid)',fontSize:'0.78rem',fontWeight:600,letterSpacing:'0.04em',cursor:isLoading?'not-allowed':'pointer'}}>
           <Upload size={14} strokeWidth={2.5} /><span className="topbar-load-label">{isLoading?'Cargando...':'Cargar M3U'}</span>
         </button>
-        <input ref={fileRef} type="file" accept=".m3u,.m3u8" className="hidden" onChange={async e=>{const f=e.target.files?.[0];if(f)await loadFromFile(f);e.target.value='';}} />
+        <input ref={fileRef} type="file" accept=".m3u,.m3u8,.txt" className="hidden" onChange={async e=>{const f=e.target.files?.[0];if(f)await loadFromFile(f);e.target.value='';}} />
       </div>
     </header>
   );

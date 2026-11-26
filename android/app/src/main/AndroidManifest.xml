@@ -48,6 +48,28 @@
 
         </activity>
 
+        <!-- TOPOTV como reproductor de vídeos http(s) en «Abrir con». Recoge el vídeo que Ace Serve pasa a un
+             reproductor al encender su motor (http://127.0.0.1:6878/ace/...) y devuelve TOPOTV al frente; cualquier
+             otro vídeo lo abre en el reproductor integrado. (Un filtro solo para 127.0.0.1 no vale: Android 12+
+             solo ofrece apps para un dominio concreto si lo tienen verificado.) -->
+        <activity
+            android:name=".EngineHandoffActivity"
+            android:label="TOPOTV"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+        </activity>
+
         <!-- Grabación de eventos en segundo plano -->
         <service
             android:name=".RecorderService"

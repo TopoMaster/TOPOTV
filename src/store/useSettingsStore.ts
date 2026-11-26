@@ -6,11 +6,18 @@ import { checkBackendStatus } from '@/lib/aceApi';
 import type { PlayerApp } from '@/lib/aceApi';
 
 export type TvMode = 'auto' | 'on' | 'off';
-export type FontScale = 'normal' | 'large' | 'xl';
+export type FontScale = 'small' | 'normal' | 'large' | 'xl';
+/** Temas de color (todos oscuros; el claro se retiró) */
+export type ThemeId = 'gold' | 'emerald' | 'ocean' | 'sunset' | 'violet';
+export const THEME_IDS: ThemeId[] = ['gold', 'emerald', 'ocean', 'sunset', 'violet'];
+export type FontFamily = 'topotv' | 'system' | 'legible';
 
 interface SettingsState {
   backendConfig: AceBackendConfig; backendStatus: BackendStatus;
-  theme: 'dark' | 'light'; manualEpgUrl: string;
+  theme: ThemeId; manualEpgUrl: string;
+  /** Fondo negro puro (pantallas OLED: más contraste y menos batería) */
+  amoled: boolean;
+  fontFamily: FontFamily;
   preferredPlayer: PlayerApp;
   m3uSourceUrls: string[];
   /** Canales de TDT en abierto (lista incluida en la app) */
@@ -39,7 +46,9 @@ interface SettingsState {
   playback: PlaybackConfig;
   setBackendConfig: (cfg: Partial<AceBackendConfig>) => void;
   checkBackend: () => Promise<void>;
-  setTheme: (t: 'dark' | 'light') => void;
+  setTheme: (t: ThemeId) => void;
+  setAmoled: (v: boolean) => void;
+  setFontFamily: (f: FontFamily) => void;
   setManualEpgUrl: (url: string) => void;
   setPreferredPlayer: (p: PlayerApp) => void;
   setM3uSourceUrls: (urls: string[]) => void;
@@ -62,7 +71,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       backendConfig: { host: '127.0.0.1', port: 6878 },
-      backendStatus: 'unknown', theme: 'dark', manualEpgUrl: '',
+      backendStatus: 'unknown', theme: 'gold', amoled: false, fontFamily: 'topotv', manualEpgUrl: '',
       preferredPlayer: Capacitor.isNativePlatform() ? 'native' : 'vlc',   // en Android, el reproductor integrado
       
       m3uSourceUrls: [],
@@ -79,6 +88,8 @@ export const useSettingsStore = create<SettingsState>()(
       setBackendConfig: (cfg) => set(s => ({ backendConfig: { ...s.backendConfig, ...cfg } })),
       checkBackend: async () => { const status = await checkBackendStatus(get().backendConfig); set({ backendStatus: status }); },
       setTheme: (theme) => set({ theme }),
+      setAmoled: (amoled) => set({ amoled }),
+      setFontFamily: (fontFamily) => set({ fontFamily }),
       setManualEpgUrl: (url) => set({ manualEpgUrl: url }),
       setPreferredPlayer: (preferredPlayer) => set({ preferredPlayer }),
       setM3uSourceUrls: (m3uSourceUrls) => set({ m3uSourceUrls }),
@@ -104,6 +115,8 @@ export const useSettingsStore = create<SettingsState>()(
           ...currentState,
           ...persisted,
           playback: { ...currentState.playback, ...persisted?.playback },
+          // los antiguos «dark»/«light» pasan al tema por defecto
+          theme: THEME_IDS.includes(persisted?.theme as ThemeId) ? persisted!.theme as ThemeId : currentState.theme,
         };
       },
     }

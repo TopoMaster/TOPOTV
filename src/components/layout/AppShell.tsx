@@ -13,7 +13,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="app-content flex flex-col flex-1 min-w-0 transition-all duration-300" style={{marginLeft:sidebarOpen?'240px':'64px'}}>
         <UpdateBanner />
         <TopBar />
-        <main className="flex-1 overflow-y-auto" style={{background:'radial-gradient(900px 360px at 75% -80px, rgba(226,201,126,0.09), transparent 70%), var(--bg-void)'}}><PullToRefresh />{children}</main>
+        <main className="flex-1 overflow-y-auto" style={{background:'radial-gradient(900px 360px at 75% -80px, rgba(var(--accent-rgb),0.09), transparent 70%), var(--bg-void)'}}><PullToRefresh />{children}</main>
       </div>
       <PlayerOverlay />
     </div>

@@ -1,3 +1,4 @@
+import { localListFor, localListUrls } from '@/lib/localLists';
 import type { Channel, Stream } from '@/types';
 import { Capacitor } from '@capacitor/core';
 import { buildStreamUrl } from '@/lib/aceApi';
@@ -8,16 +9,16 @@ const isNative = () => Capacitor.isNativePlatform();
 
 const CIRIACO_URL = 'http://localhost:3004';
 export const CIRIACO_PLAYLIST_URL = `${CIRIACO_URL}/api/ciriaco/playlist.m3u`;
-const ELCANO_PLAYLIST_URL = 'https://tokyo.elcano-ipfs.workers.dev/k51qzi5uqu5dh5qej4b9wlcr5i6vhc7rcfkekhrxqek5c9lk6gdaiik820fecs/hashes_acestream.m3u';
 /** Fuente interna: canales de TDT en abierto (lista incluida en la app, ver src/lib/tdt.ts). */
 export const TDT_SOURCE_URL = 'topotv://tdt';
-/** Listas que TOPOTV carga siempre: Elcano (categorías), TDT (si está activada), las del usuario y, al final, la agenda de Ciriaco (que se fusiona con las anteriores). */
-export const withDefaultSources = (userUrls: string[] = []) => [...new Set([ELCANO_PLAYLIST_URL, ...(useSettingsStore.getState().includeTdt ? [TDT_SOURCE_URL] : []), ...userUrls, CIRIACO_PLAYLIST_URL])];
+/** Listas que TOPOTV carga siempre: TDT (si está activada), las tuyas (archivos guardados y enlaces) y, al final, la agenda de Ciriaco (que se fusiona con las anteriores). */
+export const withDefaultSources = (userUrls: string[] = []) => [...new Set([...(useSettingsStore.getState().includeTdt ? [TDT_SOURCE_URL] : []), ...localListUrls(), ...userUrls, CIRIACO_PLAYLIST_URL])];
 
 /** Nombre que se enseña para una fuente al avisar de novedades (null = no se vigila: cambia a diario o es interna). Nunca se enseña la dirección. */
 export function sourceLabel(url: string): string | null {
   if (url === TDT_SOURCE_URL || url === CIRIACO_PLAYLIST_URL) return null;
-  if (url === ELCANO_PLAYLIST_URL) return 'La lista de canales incluida';
+  const local = localListFor(url);
+  if (local) return `Tu lista «${local.name}»`;
   const i = useSettingsStore.getState().m3uSourceUrls.indexOf(url);
   return i >= 0 ? `Tu lista ${i + 1}` : 'La lista cargada';
 }

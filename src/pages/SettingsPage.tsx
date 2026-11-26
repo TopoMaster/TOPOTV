@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { Server, ShieldCheck, Upload, RotateCcw, Check, AlertTriangle, Tv2, RefreshCw, Wifi, Monitor, Share2, Smartphone } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Server, ShieldCheck, Upload, RotateCcw, Check, AlertTriangle, Tv2, RefreshCw, Wifi, Monitor, Share2, Smartphone, HelpCircle, Zap, Palette, ListVideo, Bell, Film, Users, Cpu, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useM3UStore } from '@/store/useM3UStore';
 import { useUIStore } from '@/store/useUIStore';
@@ -8,6 +9,7 @@ import { warpDown, warpState, warpUp } from '@/lib/warpAndroid';
 import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
 import { ENGINE_DOCS_URL, findEngineApp, installEngine, installEngineFromFile, openEngineAppSettings, startEngineApp, type EngineApp } from '@/lib/engineAndroid';
 import { withDefaultSources } from '@/lib/ciriaco';
+import { getLocalLists, removeLocalList } from '@/lib/localLists';
 import { useEPGStore } from '@/store/useEPGStore';
 import { AddonsSection, AppearanceSection, BackupSection, ProfilesSection, ChecksSection, SystemSection, TeamsSection } from '@/pages/SettingsExtras';
 import { shareStatus, tunnelStart, tunnelStop, shareRevoke, type ShareStatus } from '@/lib/share';
@@ -20,7 +22,7 @@ function Card({children}:{children:React.ReactNode}) {
   return <div style={{background:'var(--bg-card)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-lg)',padding:'20px'}}>{children}</div>;
 }
 function SLabel({icon:Icon,label}:{icon:React.ElementType;label:string}) {
-  return <div className="flex items-center gap-2 mb-4"><Icon size={16} strokeWidth={1.8} style={{color:'var(--text-muted)'}} /><h2 className="font-body" style={{fontSize:'0.75rem',color:'var(--text-muted)',letterSpacing:'0.1em',textTransform:'uppercase'}}>{label}</h2></div>;
+  return <div className="slabel flex items-center gap-2 mb-4"><Icon size={16} strokeWidth={1.8} style={{color:'var(--text-muted)'}} /><h2 className="font-body" style={{fontSize:'0.75rem',color:'var(--text-muted)',letterSpacing:'0.1em',textTransform:'uppercase'}}>{label}</h2></div>;
 }
 
 function BackendSection() {
@@ -104,7 +106,8 @@ function PlayerSection() {
 }
 
 function M3USection() {
-  const {loadFromFile,loadFromUrls,reset,meta,allChannels,isLoading,error} = useM3UStore();
+  const {loadFromFile,loadFromUrls,reloadSources,reset,meta,allChannels,isLoading,error} = useM3UStore();
+  const [locals,setLocals] = useState(getLocalLists);
   const {m3uSourceUrls,setM3uSourceUrls} = useSettingsStore();
   const [sourcesInput,setSourcesInput] = useState(m3uSourceUrls.join('\n'));
   const [sourceError,setSourceError] = useState<string|null>(null);
@@ -132,13 +135,23 @@ function M3USection() {
             <button onClick={()=>fileRef.current?.click()} disabled={isLoading} style={{padding:'9px 18px',background:'var(--bg-elevated)',color:'var(--text-secondary)',border:'1px solid var(--border-mid)',borderRadius:'var(--radius-md)',fontSize:'0.78rem',fontWeight:600,cursor:isLoading?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'6px'}} onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--border-accent)';e.currentTarget.style.color='var(--text-primary)';}} onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border-mid)';e.currentTarget.style.color='var(--text-secondary)';}}>
               <Upload size={14} strokeWidth={2} />{isLoading?'Cargando...':'Seleccionar .m3u'}
             </button>
-            <input ref={fileRef} type="file" accept=".m3u,.m3u8" className="hidden" onChange={async e=>{const f=e.target.files?.[0];if(f)await loadFromFile(f);e.target.value='';}} />
+            <input ref={fileRef} type="file" accept=".m3u,.m3u8,.txt" className="hidden" onChange={async e=>{const f=e.target.files?.[0];if(f)await loadFromFile(f);e.target.value='';setLocals(getLocalLists());}} />
+            <p style={{fontSize:'0.68rem',color:'var(--text-muted)',marginTop:8,lineHeight:1.5}}>El archivo se guarda en este dispositivo y se recarga solo junto con las demás fuentes. Si lo actualizas, cárgalo otra vez: sustituye al anterior con el mismo nombre.</p>
+            {locals.length>0&&<div className="flex flex-col gap-2" style={{marginTop:10}}>
+              {locals.map(l=>(
+                <div key={l.id} className="flex items-center gap-3" style={{padding:'8px 12px',background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)'}}>
+                  <ListVideo size={15} style={{color:'var(--accent)',flexShrink:0}} />
+                  <span className="flex-1 min-w-0"><strong style={{display:'block',fontSize:'0.78rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.name}</strong><span style={{fontSize:'0.66rem',color:'var(--text-muted)'}}>{l.channels} canales · guardada {new Date(l.addedAt).toLocaleDateString('es-ES',{day:'numeric',month:'short'})}</span></span>
+                  <button onClick={()=>{removeLocalList(l.id);setLocals(getLocalLists());void reloadSources();}} style={{padding:'6px 12px',background:'none',border:'1px solid var(--border-mid)',borderRadius:'var(--radius-md)',color:'var(--text-secondary)',fontSize:'0.72rem',cursor:'pointer'}}>Quitar</button>
+                </div>
+              ))}
+            </div>}
           </div>
           <div>
             <p style={{fontSize:'0.72rem',color:'var(--text-muted)',marginBottom:'8px',textTransform:'uppercase',letterSpacing:'0.04em'}}>Fuentes automáticas</p>
             <textarea value={sourcesInput} onChange={e=>setSourcesInput(e.target.value)} rows={4} placeholder="Pega una URL M3U por línea" style={{...inp,resize:'vertical',minHeight:96,fontFamily:'DM Mono,monospace'}} />
             <p style={{fontSize:'0.68rem',color:'var(--text-muted)',marginTop:8,lineHeight:1.5}}>
-              La lista de Elcano y la agenda de Ciriaco se cargan siempre y se fusionan por categorías; las URLs que añadas aquí se combinan con ellas.
+              La agenda de Ciriaco (y la TDT, si la tienes activada) se carga siempre; tus listas, de archivo o de enlace, se fusionan con ella por categorías.
               {' '}Las fuentes se guardan en este dispositivo, se combinan y actualizan al iniciar; si una lista cambia, TOPOTV te avisa en Inicio de los canales nuevos.
             </p>
             {(sourceError||error)&&<p role="alert" style={{color:'var(--offline-red)',fontSize:'0.72rem',marginTop:8}}>{sourceError||error}</p>}
@@ -302,27 +315,32 @@ function ShareSection() {
   );
 }
 
-function InterfaceSection() {
-  const { tvMode, setTvMode, includeTdt, setIncludeTdt } = useSettingsStore();
+function TdtSection() {
+  const { includeTdt, setIncludeTdt } = useSettingsStore();
   const reloadSources = useM3UStore(s => s.reloadSources);
-  const setOnboardingOpen = useUIStore(s => s.setOnboardingOpen);
   const opt = (active: boolean) => ({ flex: '1 1 110px', minHeight: 44, padding: '8px 12px', cursor: 'pointer', background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: active ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: active ? 700 : 500 } as const);
   return (
     <section className="mb-8">
-      <SLabel icon={Tv2} label="Interfaz y canales" />
+      <SLabel icon={Tv2} label="TDT en abierto" />
       <Card>
-        <p style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: 6 }}>Modo TV</p>
-        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 10 }}>Interfaz más grande y con selección clara para manejarla con mando. «Automático» se activa solo en Android TV.</p>
-        <div className="flex gap-2 flex-wrap mb-5">
-          {(['auto', 'on', 'off'] as const).map(m => <button key={m} style={opt(tvMode === m)} onClick={() => setTvMode(m)}>{m === 'auto' ? 'Automático' : m === 'on' ? 'Activado' : 'Desactivado'}</button>)}
-        </div>
-        <p style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: 6 }}>TDT en abierto</p>
         <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 10 }}>RTVE (La 1, La 2, 24 Horas, Teledeporte, Clan) y televisiones autonómicas con emisión oficial gratuita. No necesitan el motor AceStream.</p>
-        <div className="flex gap-2 flex-wrap mb-5">
+        <div className="flex gap-2 flex-wrap">
           <button style={opt(includeTdt)} onClick={() => { setIncludeTdt(true); void reloadSources(); }}>Incluir</button>
           <button style={opt(!includeTdt)} onClick={() => { setIncludeTdt(false); void reloadSources(); }}>No incluir</button>
         </div>
-        <button style={opt(false)} onClick={() => setOnboardingOpen(true)}>Ver la guía de uso otra vez</button>
+      </Card>
+    </section>
+  );
+}
+
+function HelpSection() {
+  const setOnboardingOpen = useUIStore(s => s.setOnboardingOpen);
+  return (
+    <section className="mb-8">
+      <SLabel icon={HelpCircle} label="Ayuda" />
+      <Card>
+        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 10 }}>La guía de bienvenida explica en un minuto lo principal de TOPOTV.</p>
+        <button onClick={() => setOnboardingOpen(true)} style={{ minHeight: 44, padding: '8px 16px', cursor: 'pointer', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', fontSize: '0.78rem' }}>Ver la guía de uso otra vez</button>
       </Card>
     </section>
   );
@@ -376,7 +394,7 @@ function EngineAndroidSection() {
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{app === undefined ? '' : app ? `· ${app.name}` : '· no hay ninguna app con motor instalada'}</span>
         </div>
         <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 12 }}>
-          El motor AceStream vive en su propia app (Android no permite fusionar dos apps en una). Si falta, TOPOTV la instala por ti con un toque (desde tu enlace privado, desde el APK incluido en tu compilación o, si no hay ninguno, desde la web oficial) y después la encuentra, la abre y espera a que arranque. Para apagarlo, Android solo deja cerrarlo desde la información de la app («Forzar detención»).
+          El motor AceStream va en su propia app. TOPOTV la instala por ti con un toque y la enciende sola cuando vas a ver un canal: con Ace Serve no hace falta abrirla ni pulsar START. La primera vez Android puede preguntar «Abrir con»: elige TOPOTV y «Siempre». Para apagarlo, Android solo deja cerrarlo desde la información de la app («Forzar detención»).
         </p>
         <div className="flex gap-2 flex-wrap mb-3">
           <button style={opt(false)} onClick={turnOn} disabled={busy || online || !app}>{busy ? 'Encendiendo…' : online ? 'Ya está encendido' : 'Encender motor'}</button>
@@ -386,7 +404,7 @@ function EngineAndroidSection() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button style={opt(engineAutoStart)} onClick={() => setEngineAutoStart(true)}>Encender al abrir TOPOTV</button>
-          <button style={opt(!engineAutoStart)} onClick={() => setEngineAutoStart(false)}>Solo a mano</button>
+          <button style={opt(!engineAutoStart)} onClick={() => setEngineAutoStart(false)}>Solo al ver un canal</button>
         </div>
         <p style={{ fontSize: '0.74rem', fontWeight: 600, margin: '16px 0 6px' }}>Instalar el motor desde un archivo</p>
         <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 8 }}>Si ya tienes el APK en el móvil (por ejemplo, bajado de tu repositorio privado desde el navegador), elígelo aquí y TOPOTV lo instala. No hace falta ningún token.</p>
@@ -399,7 +417,6 @@ function EngineAndroidSection() {
           <button style={opt(false)} onClick={() => { setEngineApk(urlInput, tokenInput); setMsg(urlInput.trim() ? 'Enlace guardado.' : 'Enlace borrado: se usará el instalador incluido o el oficial.'); }}>Guardar enlace</button>
           {(engineApkUrl || urlInput.trim()) && <button style={opt(false)} onClick={install} disabled={installing !== 'idle'}>{installing === 'idle' ? 'Instalar ahora desde el enlace' : installing === null ? 'Descargando…' : `Descargando ${installing}%`}</button>}
         </div>
-        <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.5, marginTop: 10 }}>Al encenderlo automáticamente verás la app del motor un instante; vuelve a TOPOTV con «Atrás».</p>
         {msg && <p role="alert" style={{ fontSize: '0.74rem', color: 'var(--offline-red)', marginTop: 8 }}>{msg}</p>}
       </Card>
     </section>
@@ -441,28 +458,84 @@ function WarpAndroidSection() {
   );
 }
 
+/* ── Ajustes por categorías: una portada con tarjetas y cada categoría en su pantalla ── */
+interface Cat { id: string; icon: React.ElementType; title: string; desc: string; color: string; body: () => React.ReactNode }
+function categories(isNativeApp: boolean): Cat[] {
+  const all: (Cat | false)[] = [
+    { id: 'motor', icon: Zap, title: 'Motor y reproducción', desc: isNativeApp ? 'Motor AceStream, reproductor y buffers' : 'Programas necesarios, reproductor y motor', color: '#f5b84a',
+      body: () => <>{isNativeApp ? <EngineAndroidSection /> : <DepsSection />}<PlayerSection /><BackendSection /></> },
+    { id: 'apariencia', icon: Palette, title: 'Apariencia', desc: 'Color, tamaño y tipo de letra, modo TV', color: '#c792ff', body: () => <AppearanceSection /> },
+    { id: 'canales', icon: ListVideo, title: 'Canales y listas', desc: 'Tus listas, TDT, enlaces caídos y guía', color: '#5fb8ff',
+      body: () => <><M3USection /><TdtSection /><ChecksSection /><EPGSection /></> },
+    { id: 'eventos', icon: Bell, title: 'Eventos y avisos', desc: isNativeApp ? 'Tus equipos, avisos y WARP' : 'Tus equipos y avisos', color: '#ff7a7a',
+      body: () => <><TeamsSection />{isNativeApp && <WarpAndroidSection />}</> },
+    { id: 'cine', icon: Film, title: 'Cine y series', desc: 'Addons de Stremio', color: '#5fd897', body: () => <AddonsSection /> },
+    { id: 'perfiles', icon: Users, title: 'Perfiles', desc: 'Uno por persona, con PIN opcional', color: '#ffa45c', body: () => <ProfilesSection /> },
+    !isNativeApp && { id: 'compartir', icon: Share2, title: 'Compartir y otros equipos', desc: 'Enlaces para ver fuera de casa, móvil y TV', color: '#6ee7d8',
+      body: () => <><ShareSection /><DevicesSection /></> },
+    { id: 'sistema', icon: Cpu, title: 'Copia y sistema', desc: 'Actualizaciones, diagnóstico, copia de seguridad', color: '#9aa4b8',
+      body: () => <><SystemSection /><BackupSection /><HelpSection /></> },
+  ];
+  return all.filter(Boolean) as Cat[];
+}
+
+function EngineStatusCard() {
+  const backendStatus = useSettingsStore(s => s.backendStatus);
+  const navigate = useNavigate();
+  const online = backendStatus === 'online';
+  return (
+    <button onClick={() => navigate('/settings?s=motor')} className="w-full flex items-center gap-3 mb-5" style={{ padding: '14px 16px', borderRadius: 16, cursor: 'pointer', textAlign: 'left', background: online ? 'linear-gradient(135deg,rgba(34,197,94,0.14),rgba(34,197,94,0.03))' : 'linear-gradient(135deg,rgba(239,68,68,0.14),rgba(239,68,68,0.03))', border: `1px solid ${online ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)'}`, color: 'var(--text-primary)' }}>
+      <span className={`status-dot ${backendStatus}`} style={{ width: 12, height: 12 }} />
+      <span className="flex-1 min-w-0">
+        <strong style={{ display: 'block', fontSize: '0.9rem' }}>{online ? 'Motor AceStream en marcha' : backendStatus === 'offline' ? 'Motor AceStream apagado' : 'Comprobando el motor…'}</strong>
+        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{online ? 'Listo para ver canales' : 'Se enciende solo al ver un canal. Toca para opciones.'}</span>
+      </span>
+      <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+    </button>
+  );
+}
+
 export function SettingsPage() {
   const isNativeApp = Capacitor.isNativePlatform();
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const cats = categories(isNativeApp);
+  const current = cats.find(c => c.id === params.get('s'));
+  useEffect(() => { document.querySelector('main')?.scrollTo({ top: 0 }); }, [current?.id]);
+  if (current) {
+    const Icon = current.icon;
+    return (
+      <div className="settings-page fade-in" style={{ padding: '24px', paddingBottom: '48px', maxWidth: '680px' }}>
+        <button onClick={() => { if ((window.history.state?.idx ?? 0) > 0) navigate(-1); else navigate('/settings', { replace: true }); }} className="flex items-center gap-1 mb-4" style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.82rem', padding: '6px 0' }}>
+          <ChevronLeft size={18} />Ajustes
+        </button>
+        <div className="flex items-center gap-3 mb-6">
+          <span className="flex items-center justify-center" style={{ width: 44, height: 44, borderRadius: 14, background: `${current.color}22`, color: current.color }}><Icon size={22} /></span>
+          <div><h1 className="font-display" style={{ fontSize: 'clamp(1.6rem,4vw,2.4rem)' }}>{current.title}</h1><p style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{current.desc}</p></div>
+        </div>
+        <div className="settings-cat">{current.body()}</div>
+      </div>
+    );
+  }
   return (
-    <div className="settings-page fade-in" style={{padding:'24px',paddingBottom:'48px',maxWidth:'640px'}}>
-      <h1 className="font-display mb-8" style={{fontSize:'clamp(1.8rem,4vw,2.8rem)'}}>Ajustes</h1>
-      {!isNativeApp&&<DepsSection />}
-      {!isNativeApp&&<DevicesSection />}
-      {!isNativeApp&&<ShareSection />}
-      <InterfaceSection />
-      <ProfilesSection />
-      <AddonsSection />
-      <AppearanceSection />
-      <TeamsSection />
-      <ChecksSection />
-      <SystemSection />
-      <BackupSection />
-      {isNativeApp&&<EngineAndroidSection />}
-      {isNativeApp&&<WarpAndroidSection />}
-      <BackendSection />
-      <PlayerSection />
-      <M3USection />
-      <EPGSection />
+    <div className="settings-page fade-in" style={{ padding: '24px', paddingBottom: '48px', maxWidth: '680px' }}>
+      <h1 className="font-display mb-5" style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)' }}>Ajustes</h1>
+      <EngineStatusCard />
+      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(250px,1fr))' }}>
+        {cats.map(c => {
+          const Icon = c.icon;
+          return (
+            <button key={c.id} onClick={() => navigate(`/settings?s=${c.id}`)} className="surface-card flex items-center gap-3" style={{ padding: '14px', cursor: 'pointer', textAlign: 'left', color: 'var(--text-primary)' }}>
+              <span className="flex items-center justify-center shrink-0" style={{ width: 42, height: 42, borderRadius: 13, background: `${c.color}1f`, color: c.color }}><Icon size={20} /></span>
+              <span className="flex-1 min-w-0">
+                <strong style={{ display: 'block', fontSize: '0.88rem' }}>{c.title}</strong>
+                <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>{c.desc}</span>
+              </span>
+              <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

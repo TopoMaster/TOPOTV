@@ -46,7 +46,7 @@ export function LiveRail() {
               <p style={{ marginTop: 4, fontSize: '0.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.competition}</p>
               <div className="flex items-center justify-between" style={{ position: 'absolute', left: 16, right: 16, bottom: 16 }}>
                 <div className="flex items-center" style={{ gap: 5 }}>{keys.map(k => <ChannelLogo key={k} name={data.channels[k]?.name ?? k} src={data.channels[k]?.logo} size={28} />)}</div>
-                <span className="flex items-center justify-center" style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--accent-gradient)', boxShadow: '0 6px 18px rgba(226,201,126,0.3)' }}><Play size={14} fill="#080a0e" color="#080a0e" strokeWidth={0} /></span>
+                <span className="flex items-center justify-center" style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--accent-gradient)', boxShadow: '0 6px 18px rgba(var(--accent-rgb),0.3)' }}><Play size={14} fill="#080a0e" color="#080a0e" strokeWidth={0} /></span>
               </div>
               {live && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: 'rgba(255,255,255,0.08)' }}><div style={{ width: `${eventProgress(date, ev.time, ev.sport) * 100}%`, height: '100%', background: 'var(--live-red)' }} /></div>}
             </button>

@@ -7,6 +7,7 @@ import { useSettingsStore } from './useSettingsStore';
 import { useHistoryStore } from './useHistoryStore';
 import { useProgressStore } from './useProgressStore';
 import { orderStreams, useHealthStore } from './useHealthStore';
+import { engineWakeMessage, startEngineApp } from '@/lib/engineAndroid';
 
 interface PlayerStore extends PlayerState {
   /** Enlaces ya probados en esta reproducción (para no repetir al saltar al siguiente) */
@@ -72,7 +73,16 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     if (resolved !== target) set({ stream: resolved });
     if (target.torrent) watchTorrent(target, my);
     const { backendConfig, preferredPlayer, playback } = useSettingsStore.getState();
-    const result = await requestPlay(resolved, backendConfig);
+    let result = await requestPlay(resolved, backendConfig);
+    if (!result.ok && Capacitor.isNativePlatform() && !resolved.direct) {
+      // Android: el motor está apagado → se enciende solo (con Ace Serve, sin salir de TOPOTV)
+      set({ detail: engineWakeMessage() });
+      const woke = await startEngineApp(backendConfig, resolved.aceId);
+      if (my !== openId) return false;
+      void useSettingsStore.getState().checkBackend();
+      result = woke.ok ? await requestPlay(resolved, backendConfig) : { ...result, error: woke.error ?? result.error };
+      set({ detail: null });
+    }
     if (!result.ok) { set({ status: 'error', errorMessage: result.error ?? 'Error de conexión' }); return false; }
     const opened = await openInPlayer(resolved, backendConfig, preferredPlayer, playback, { title: channel.name, resumeMs: get().resumeAt * 1000, subtitles: channel.vod?.subtitles });
     if (!opened.ok) { set({ status: 'error', errorMessage: opened.error ?? 'No se pudo abrir el reproductor' }); return false; }

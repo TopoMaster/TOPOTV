@@ -13,7 +13,7 @@ import { useAddonsStore } from '@/store/useAddonsStore';
 import { Reminders } from '@/components/shared/Reminders';
 import { InputControls } from '@/components/shared/InputControls';
 import { isAndroidTv } from '@/lib/externalPlayer';
-import { findEngineApp, installEngine, startEngineApp } from '@/lib/engineAndroid';
+import { engineWokeBefore, findEngineApp, installEngine, startEngineApp } from '@/lib/engineAndroid';
 import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
 import { useRecorderStore } from '@/store/useRecorderStore';
 import { HomePage } from '@/pages/HomePage';
@@ -80,15 +80,22 @@ function BackgroundPreloader() {
   // Catálogo de películas y series que viene de serie (Cinemeta)
   useEffect(() => { void useAddonsStore.getState().ensureDefaults(); }, []);
 
-  // Tema (oscuro/claro) y tamaño de la interfaz
+  // Tema de color, fondo negro, tamaño y tipo de letra
   const theme = useSettingsStore(s => s.theme);
+  const amoled = useSettingsStore(s => s.amoled);
   const fontScale = useSettingsStore(s => s.fontScale);
+  const fontFamily = useSettingsStore(s => s.fontFamily);
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = theme;
-    root.classList.toggle('fs-large', fontScale === 'large');
-    root.classList.toggle('fs-xl', fontScale === 'xl');
-  }, [theme, fontScale]);
+    root.classList.toggle('amoled', amoled);
+    for (const f of ['small', 'large', 'xl'] as const) root.classList.toggle(`fs-${f}`, fontScale === f);
+    root.classList.toggle('ff-system', fontFamily === 'system');
+    root.classList.toggle('ff-legible', fontFamily === 'legible');
+    // color de la barra del navegador / sistema a juego con el fondo del tema
+    const bg = getComputedStyle(root).getPropertyValue('--bg-void').trim();
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg || '#080a0e');
+  }, [theme, amoled, fontScale, fontFamily]);
 
   // Android: encender el motor AceStream (su app) al entrar, si está activado y no responde
   const onboardingDone = useSettingsStore(s => s.onboardingDone);
@@ -97,7 +104,11 @@ function BackgroundPreloader() {
     const { engineAutoStart, backendConfig } = useSettingsStore.getState();
     if (!engineAutoStart) return;
     void findEngineApp().then(async app => {
-      if (app) { await startEngineApp(backendConfig); void useSettingsStore.getState().checkBackend(); return; }
+      if (app) {
+        // con Ace Serve, la primera vez se espera a que el usuario vea un canal (Android preguntará con qué abrir y se explica allí)
+        if (app.pkg === 'org.free.aceserve' && !engineWokeBefore()) return;
+        await startEngineApp(backendConfig); void useSettingsStore.getState().checkBackend(); return;
+      }
       // sin motor: se ofrece instalar el oficial una sola vez, cuando ya terminó la guía de bienvenida (luego, desde Ajustes → Motor AceStream)
       if (!useSettingsStore.getState().onboardingDone) return;
       let asked = false;
@@ -125,7 +136,7 @@ function BackgroundPreloader() {
     return () => clearInterval(interval);
   }, []);
 
-  // Al arrancar: Elcano + listas del usuario + agenda de Ciriaco, fusionadas por categorías.
+  // Al arrancar: TDT + listas del usuario (archivos guardados y enlaces) + agenda de Ciriaco, fusionadas por categorías.
   useEffect(() => {
     let cancelled = false;
     const loadSources = async () => {
@@ -159,7 +170,8 @@ function BackgroundPreloader() {
   // When M3U loads: trigger EPG load on server if needed
   useEffect(() => {
     if (!meta || allChannels.length === 0) return;
-    if (epgStatus === 'ready' || epgStatus === 'loading' || epgStatus === 'parsing') return;
+    // load() decide: si la guía ya está cargada con estos canales no hace nada; si hay canales nuevos, recarga
+    // (y si está cargando, lo deja pendiente para cuando termine)
 
     const urls = epgSourceUrls(meta.epgUrls ?? [], manualEpgUrl);
     const knownIds = epgKnownIds(allChannels);

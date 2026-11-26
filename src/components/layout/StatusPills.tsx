@@ -43,9 +43,9 @@ export function StatusPills() {
 
   return (
     <div className="flex items-center gap-2 status-pills">
-      <Pill label="Motor" level={motor} detail={motorText} to="/settings" />
+      <Pill label="Motor" level={motor} detail={motorText} to="/settings?s=motor" />
       <Pill label="Agenda" level={agenda} detail={agendaText} to="/events" />
-      <Pill label="Guía" level={guia} detail={guiaText} to="/settings" />
+      <Pill label="Guía" level={guia} detail={guiaText} to="/settings?s=canales" />
       {warp && <Pill label="WARP" level="warn" detail="conectado solo mientras se actualiza" to="/events" />}
     </div>
   );

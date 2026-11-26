@@ -11,7 +11,7 @@ export function FeaturedBanner({ groups }: { groups: Group[] }) {
   const active = featured[activeIdx];
   return (
     <div className="relative overflow-hidden mx-6 mt-6 mb-8 rounded-2xl" style={{minHeight:'200px',background:'var(--bg-card)',border:'1px solid var(--border-subtle)'}}>
-      <div className="absolute inset-0" style={{background:'radial-gradient(ellipse at 85% 20%,rgba(226,201,126,0.14) 0%,transparent 55%),radial-gradient(ellipse at 10% 100%,rgba(226,201,126,0.05) 0%,transparent 50%),linear-gradient(135deg,var(--bg-elevated) 0%,var(--bg-card) 100%)'}} />
+      <div className="absolute inset-0" style={{background:'radial-gradient(ellipse at 85% 20%,rgba(var(--accent-rgb),0.14) 0%,transparent 55%),radial-gradient(ellipse at 10% 100%,rgba(var(--accent-rgb),0.05) 0%,transparent 50%),linear-gradient(135deg,var(--bg-elevated) 0%,var(--bg-card) 100%)'}} />
       <div className="relative z-10 flex flex-col justify-between h-full p-6" style={{minHeight:'200px'}}>
         <div className="flex items-center gap-2 flex-wrap">
           {featured.map((g,i)=><button key={g.id} onClick={()=>setActiveIdx(i)} className="category-pill" style={i===activeIdx?{borderColor:'var(--accent)',color:'var(--accent)',background:'var(--accent-dim)'}:{}}>{g.title}</button>)}

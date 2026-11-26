@@ -7,6 +7,10 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,
   },
+  plugins: {
+    // iconos claros en las barras del sistema (la app siempre es oscura)
+    SystemBars: { style: 'DARK' },
+  },
 };
 
 export default config;

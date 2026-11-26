@@ -6,6 +6,10 @@ import { clearEPGCache, getEPGStatus, triggerEPGLoad, fetchTodaySchedule, buildE
 type EPGStatus = 'idle'|'loading'|'parsing'|'ready'|'error'|'unavailable';
 function normalize(s: string) { return s.toLowerCase().replace(/[\s._-]+/g,'').replace(/[^a-z0-9]/g,''); }
 const scheduleCache = new Map<string, EPGSchedule>();
+/** Canales con los que se cargó la guía: si cambian las listas y aparecen canales nuevos, se vuelve a cargar */
+let loadedIds = new Set<string>();
+/** Carga pedida mientras otra estaba en marcha (se hace al terminar) */
+let pending: { urls: string[]; ids: string[] } | null = null;
 
 interface EPGState {
   status: EPGStatus; progress: number; channelCount: number;
@@ -23,11 +27,14 @@ export const useEPGStore = create<EPGState>((set, get) => ({
 
   load: async (epgUrls, knownIds=[]) => {
     const cur = get().status;
-    if (cur==='loading'||cur==='parsing') return;
+    if (cur==='loading'||cur==='parsing') { if (knownIds.some(id => !loadedIds.has(id))) pending = { urls: epgUrls, ids: knownIds }; return; }
     const srv = await getEPGStatus();
     if (!srv) { set({status:'unavailable',serverAvailable:false}); return; }
     set({serverAvailable:true});
-    if (srv.status==='ready'&&srv.channels>0) { set({status:'ready',channelCount:srv.channels,progress:100}); return; }
+    const newIds = knownIds.some(id => !loadedIds.has(id));
+    if (srv.status==='ready'&&srv.channels>0&&!newIds) { set({status:'ready',channelCount:srv.channels,progress:100}); return; }
+    loadedIds = new Set(knownIds);
+    scheduleCache.clear();
     set({status:'loading',progress:10,error:null});
     await triggerEPGLoad(epgUrls, knownIds);
     get().pollUntilReady();
@@ -42,7 +49,11 @@ export const useEPGStore = create<EPGState>((set, get) => ({
       if (!srv) { set({status:'unavailable'}); return; }
       const progress = srv.status==='loading'?(srv.progress||30):srv.status==='parsing'?80:srv.status==='ready'?100:0;
       set({status:srv.status as EPGStatus,progress,channelCount:srv.channels||0});
-      if (srv.status==='ready') { scheduleCache.clear(); return; }
+      if (srv.status==='ready') {
+        scheduleCache.clear();
+        if (pending) { const p = pending; pending = null; void get().load(p.urls, p.ids); }
+        return;
+      }
       if (srv.status==='error') { set({error:srv.error||'EPG error'}); return; }
       setTimeout(poll, 2000);
     };

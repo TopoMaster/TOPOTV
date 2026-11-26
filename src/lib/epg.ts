@@ -43,12 +43,12 @@ export function formatDuration(s: Date, e: Date) {
 }
 export function clearEPGCache() { nativeEPGClear(); }
 
-/** Guías que anuncia la lista de Elcano (cabecera url-tvg): se cargan siempre, aunque la lista no llegue a descargarse. */
+/** Guías de TV de España que se cargan siempre (además de las que anuncien tus listas en su cabecera url-tvg). */
 const ELCANO_EPG_URLS = [
   'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/refs/heads/master/guiatv.xml',
   'https://epgshare01.online/epgshare01/epg_ripper_NL1.xml.gz',
 ];
-/** Guías a cargar: la manual, las de las listas y las de Elcano (sin repetir). */
+/** Guías a cargar: la manual, las de las listas y las de siempre (sin repetir). */
 export function epgSourceUrls(m3uEpgUrls: string[] = [], manual = ''): string[] {
   return [...new Set([manual.trim(), ...m3uEpgUrls, ...ELCANO_EPG_URLS].filter(Boolean))];
 }

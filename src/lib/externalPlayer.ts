@@ -5,6 +5,8 @@ interface ExternalPlayerPlugin {
   isInstalled(options?: { package?: string }): Promise<{ installed: boolean }>;
   isTv(): Promise<{ tv: boolean }>;
   launchApp(options: { package: string }): Promise<{ launched: boolean }>;
+  /** Abre un enlace acestream:// en una app concreta (Ace Serve enciende así su motor sin pulsar START) */
+  openAceLink(options: { id: string; package: string }): Promise<{ opened: boolean }>;
   openAppSettings(options: { package: string }): Promise<void>;
 }
 

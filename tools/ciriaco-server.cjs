@@ -1,6 +1,6 @@
 /**
  * Ciriaco Scraper — puerto 3004
- * Lee https://ciriaco.netlify.app/ (tablas .tabla-eventos, enlaces acestream://HASH) con Playwright.
+ * Lee https://ciriaco.onrender.com/ (tablas .tabla-eventos, enlaces acestream://HASH) con Playwright.
  *
  *   GET  /health
  *   GET  /api/ciriaco/events           -> agenda (de la caché; solo scrapea si no hay ninguna)
@@ -22,7 +22,8 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { canon, clean, logoFor } = require('./channel-logos.cjs');
 
-const SOURCE = 'https://ciriaco.netlify.app/';
+// En Render (gratuito): si lleva rato sin visitas tarda hasta ~1 min en despertar
+const SOURCE = 'https://ciriaco.onrender.com/';
 const PORT = Number(process.env.CIRIACO_PORT || 3004);
 const PROXY = process.env.CIRIACO_PROXY || '';
 const WARP_MODE = (process.env.CIRIACO_WARP || 'always').toLowerCase();
@@ -212,7 +213,7 @@ async function playwrightScrape(proxy, timeout) {
   try {
     const page = await browser.newPage();
     await page.goto(SOURCE, { waitUntil: 'networkidle', timeout });
-    await page.waitForSelector('table.tabla-eventos', { timeout: 15000 });
+    await page.waitForSelector('table.tabla-eventos', { timeout: 30000 });
     return await page.evaluate(extractInBrowser);
   } finally { await browser.close(); }
 }
@@ -221,7 +222,7 @@ const scrapeOnce = async (proxy, timeout) => normalize(await scrapeRaw(proxy, ti
 
 /** Intenta directo; si falla y hay WARP, lo conecta solo durante el scrape. */
 async function scrapeSmart() {
-  if (PROXY) { phase = 'Leyendo Ciriaco (proxy)…'; return { ...(await scrapeOnce(PROXY, 45000)), via: 'proxy' }; }
+  if (PROXY) { phase = 'Leyendo Ciriaco (proxy)…'; return { ...(await scrapeOnce(PROXY, 90000)), via: 'proxy' }; }
   if (WARP_MODE === 'always') {
     // WARP obligatorio: Ciriaco se bloquea en muchas redes y, sin WARP, la agenda no se actualiza (se sigue viendo la última guardada)
     if (!WARP_CLI) throw new Error('Falta Cloudflare WARP (gratis, one.one.one.one). Instálalo y reinicia TOPOTV: sin él no se puede actualizar la agenda.');
@@ -229,7 +230,7 @@ async function scrapeSmart() {
     catch (warpError) { throw new Error(`No se pudo usar WARP (${warpError.message.split('\n')[0]}). Sin WARP no se puede actualizar la agenda.`); }
   }
   if (WARP_MODE !== 'always' || !WARP_CLI) {
-    try { phase = 'Leyendo Ciriaco…'; return { ...(await scrapeOnce('', 20000)), via: 'directo' }; }
+    try { phase = 'Leyendo Ciriaco…'; return { ...(await scrapeOnce('', 75000)), via: 'directo' }; }
     catch (e) { if (WARP_MODE === 'off' || !WARP_CLI) throw new Error(`Ciriaco no carga${WARP_CLI ? '' : ' y no se encontró warp-cli'} (${e.message.split('\n')[0]})`); log('directo falló, probando WARP:', e.message.split('\n')[0]); }
   }
   // Con WARP: se conecta solo para leer la agenda y se desconecta siempre al terminar.
@@ -238,7 +239,7 @@ async function scrapeSmart() {
     return await scrapeViaWarp();
   } catch (warpError) {
     log('WARP falló, probando en directo:', warpError.message.split('\n')[0]);
-    try { phase = 'Leyendo Ciriaco…'; return { ...(await scrapeOnce('', 20000)), via: 'directo' }; }
+    try { phase = 'Leyendo Ciriaco…'; return { ...(await scrapeOnce('', 75000)), via: 'directo' }; }
     catch { throw new Error(`No se pudo actualizar con WARP (${warpError.message.split('\n')[0]}) ni en directo.`); }
   }
 }
@@ -256,7 +257,7 @@ async function scrapeViaWarp() {
       await new Promise(r => setTimeout(r, 1500));
     }
     phase = 'Leyendo Ciriaco vía WARP…';
-    return { ...(await scrapeOnce('', 45000)), via: 'warp' };
+    return { ...(await scrapeOnce('', 90000)), via: 'warp' };
   } finally {
     if (!wasOn) {
       phase = 'Desconectando WARP…';
@@ -368,5 +369,5 @@ function start(opts = {}) {
   return server;
 }
 
-module.exports = { start, extractInBrowser };
+module.exports = { start, extractInBrowser, SOURCE };
 if (require.main === module) start();

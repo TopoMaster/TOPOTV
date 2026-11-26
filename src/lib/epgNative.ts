@@ -4,6 +4,8 @@ import type { EPGEvent } from '@/types';
 import type { EPGServerStatus } from '@/lib/epg';
 
 const norm = (s: string) => s.toLowerCase().replace(/[\s._-]+/g, '').replace(/[^a-z0-9]/g, '');
+/** Igual que norm() pero sin la calidad del nombre: «DAZN_Baloncesto_720p_», «DAZN Baloncesto HD» → «daznbaloncesto». */
+const loose = (s: string) => norm(String(s || '').replace(/[_.*-]+/g, ' ').replace(/\b(?:4k|uhd|fhd|hd|sd|hevc|h265|backup|multiaudio)\b|\b\d{3,4}p\b/gi, ' '));
 const programmes = new Map<string, EPGEvent[]>(); // clave normalizada -> eventos
 let status: EPGServerStatus = { status: 'idle', progress: 0, channels: 0, error: null, lastUpdated: null };
 let running = false;
@@ -32,7 +34,8 @@ function parseXmltv(xml: string, wanted: Set<string>, from: number, to: number) 
     const id = decode(m[1].match(/channel="([^"]*)"/)?.[1]);
     const start = xmltvDate(m[1].match(/start="([^"]*)"/)?.[1] ?? null), end = xmltvDate(m[1].match(/stop="([^"]*)"/)?.[1] ?? null);
     if (!id || !start || !end || end.getTime() < from || start.getTime() > to) continue;
-    const keys = [...new Set([norm(id), ...(names.get(id) ?? []).map(norm)].filter(Boolean))];
+    const all = [id, ...(names.get(id) ?? [])];
+    const keys = [...new Set([...all.map(norm), ...all.map(loose)].filter(Boolean))];
     if (wanted.size && !keys.some(k => wanted.has(k))) continue;
     const pick = (tag: string) => decode(m[2].match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`))?.[1]);
     const icon = m[2].match(/<icon\s+src="([^"]*)"/)?.[1];
@@ -61,7 +64,7 @@ export async function nativeEPGLoad(urls: string[], knownIds: string[]): Promise
   void (async () => {
     try {
       programmes.clear();
-      const wanted = new Set(knownIds.map(norm).filter(Boolean));
+      const wanted = new Set(knownIds.flatMap(k => [norm(k), loose(k)]).filter(Boolean));
       const from = Date.now() - 6 * 3600e3, to = Date.now() + 36 * 3600e3;
       let ok = 0, lastErr = '';
       for (const url of urls) {
@@ -83,7 +86,7 @@ export async function nativeEPGLoad(urls: string[], knownIds: string[]): Promise
 }
 
 export function nativeEPGToday(channelId: string) {
-  const list = programmes.get(norm(channelId));
+  const list = programmes.get(norm(channelId)) ?? programmes.get(loose(channelId));
   if (!list?.length) return null;
   const now = Date.now();
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);

@@ -9,7 +9,8 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { warpDown, warpUp } from '@/lib/warpAndroid';
 import type { CiriacoData, CiriacoDay, CiriacoLink, CiriacoStatus } from './ciriaco';
 
-const SOURCE = 'https://ciriaco.netlify.app/';
+// En Render (gratuito): si lleva rato sin visitas tarda hasta ~1 min en despertar
+const SOURCE = 'https://ciriaco.onrender.com/';
 const CACHE_KEY = 'topotv-ciriaco-cache';
 const LOGO_BASE = 'https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/';
 const INDEX = logoIndex as Record<string, string>;
@@ -100,7 +101,7 @@ function parseLink(l: RawLink) {
   };
 }
 
-function normalizeAgenda(rawDays: RawDay[]): Pick<CiriacoData, 'days' | 'channels'> {
+export function normalizeAgenda(rawDays: RawDay[]): Pick<CiriacoData, 'days' | 'channels'> {
   const variants = new Map<string, Map<string, number>>();
   const see = (raw: string) => {
     const key = canon(raw);
@@ -191,14 +192,14 @@ async function readAgenda(): Promise<RawDay[]> {
   // 1) WebView oculto: la tabla de Ciriaco se dibuja con JavaScript, igual que en Windows
   let webError = '';
   try {
-    const res = await AgendaScraper.scrape({ url: SOURCE, script: IN_PAGE_SCRIPT, readySelector: 'table.tabla-eventos tbody tr', timeoutMs: 45000 });
+    const res = await AgendaScraper.scrape({ url: SOURCE, script: IN_PAGE_SCRIPT, readySelector: 'table.tabla-eventos tbody tr', timeoutMs: 80000 });
     const raw = JSON.parse(JSON.parse(res.data)) as RawDay[];
     if (raw.some(d => d.events.length)) return raw;
     webError = 'La página cargó pero sin eventos.';
   } catch (e) { webError = e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e); }
   // 2) Descarga directa del HTML (por si la web llegara a servir las tablas ya hechas)
   try {
-    const res = await CapacitorHttp.get({ url: SOURCE, headers: { Accept: 'text/html' }, connectTimeout: 20000, readTimeout: 30000, responseType: 'text' });
+    const res = await CapacitorHttp.get({ url: SOURCE, headers: { Accept: 'text/html' }, connectTimeout: 30000, readTimeout: 70000, responseType: 'text' });
     if (res.status >= 200 && res.status < 300) {
       const raw = extractAgenda(new DOMParser().parseFromString(String(res.data), 'text/html'));
       if (raw.some(d => d.events.length)) return raw;
@@ -238,9 +239,19 @@ export async function nativeScrape(): Promise<CiriacoData> {
 }
 
 /** Agenda en caché; si no es de hoy intenta actualizarla y, si falla, usa la antigua. */
+/** Espera a que el usuario termine (o salte) la guía de bienvenida. */
+function afterOnboarding(): Promise<void> {
+  if (useSettingsStore.getState().onboardingDone) return Promise.resolve();
+  return new Promise(resolve => {
+    const stop = useSettingsStore.subscribe(s => { if (s.onboardingDone) { stop(); resolve(); } });
+  });
+}
+
 export async function nativeAgenda(): Promise<CiriacoData> {
   const c = readCache();
   if (c && sameDay(c.fetchedAt)) return { ...c.data, status: nativeStatus() };
+  // la primera vez, el permiso de VPN (WARP) no debe saltar antes de que la guía explique la app
+  if (useSettingsStore.getState().warpAuto) await afterOnboarding();
   try { return await nativeScrape(); }
   catch (e) { if (c) return { ...c.data, status: nativeStatus() }; throw e; }
 }

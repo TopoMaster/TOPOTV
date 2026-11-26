@@ -5,7 +5,8 @@ import { sourceLabel, withDefaultSources } from '@/lib/ciriaco';
 import { compareWithSnapshot } from '@/lib/listChanges';
 import { useListChangesStore } from './useListChangesStore';
 import { useSettingsStore } from './useSettingsStore';
-import { loadM3UFromFile, loadM3UFromUrl, mergeM3ULists } from '@/lib/m3uParser';
+import { loadM3UFromUrl, mergeM3ULists, parseM3UText } from '@/lib/m3uParser';
+import { saveLocalList } from '@/lib/localLists';
 import { matchScore } from '@/lib/text';
 
 interface M3UState {
@@ -27,11 +28,17 @@ export const useM3UStore = create<M3UState>()(
     (set, get) => ({
       meta: null, groups: [], allChannels: [], isLoading: false, error: null, lastSource: null,
       setData: (parsed) => set({ meta: parsed.meta, groups: parsed.groups, allChannels: parsed.allChannels, error: null, lastSource: parsed.meta.source }),
+      // el archivo se guarda en el dispositivo y pasa a ser una fuente más (no se pierde al actualizar)
       loadFromFile: async (file) => {
         set({ isLoading: true, error: null });
-        try { const p = await loadM3UFromFile(file); get().setData(p); }
-        catch (err) { set({ error: err instanceof Error ? err.message : 'Error' }); }
-        finally { set({ isLoading: false }); }
+        try {
+          const text = await file.text();
+          const p = parseM3UText(text, file.name);
+          if (!p.allChannels.length) throw new Error('El archivo no tiene canales.');
+          saveLocalList(file.name, text, p.allChannels.length);
+        } catch (err) { set({ error: err instanceof Error ? err.message : 'Error', isLoading: false }); return; }
+        set({ isLoading: false });
+        await get().reloadSources();
       },
       loadFromUrl: async (url) => {
         await get().loadFromUrls([url]);

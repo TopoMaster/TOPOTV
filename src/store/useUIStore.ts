@@ -4,6 +4,8 @@ interface UIState {
   setSidebarOpen: (v: boolean) => void; toggleSidebar: () => void;
   setSearchOpen: (v: boolean) => void; setActiveGroup: (id: string | null) => void;
   onboardingOpen: boolean; setOnboardingOpen: (v: boolean) => void;
+  /** Hoja «Más» del menú del móvil */
+  moreOpen: boolean; setMoreOpen: (v: boolean) => void;
 }
 export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: true, searchOpen: false, activeGroupId: null,
@@ -12,4 +14,5 @@ export const useUIStore = create<UIState>((set) => ({
   setSearchOpen: (v) => set({ searchOpen: v }),
   setActiveGroup: (id) => set({ activeGroupId: id }),
   onboardingOpen: false, setOnboardingOpen: (v) => set({ onboardingOpen: v }),
+  moreOpen: false, setMoreOpen: (v) => set({ moreOpen: v }),
 }));

@@ -47,7 +47,7 @@ export function Onboarding() {
       title: 'Canales por categorías',
       body: (
         <>
-          <p>{isNative ? 'En la pestaña «Canales» tienes todas las categorías' : 'A la izquierda tienes todas las categorías'} (DAZN, La Liga, Liga de Campeones, TDT…). Las listas de Elcano y los canales de Ciriaco se fusionan solos en ellas.</p>
+          <p>{isNative ? 'En la pestaña «Canales» tienes todas las categorías' : 'A la izquierda tienes todas las categorías'} (TDT, deportes…). Tus listas M3U (de archivo o de enlace, en Ajustes → Canales y listas) y los canales de la agenda se fusionan solos en ellas.</p>
           <button style={{ ...choice(includeTdt), width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} onClick={() => { setIncludeTdt(!includeTdt); void reloadSources(); }}>
             {includeTdt && <Check size={14} />}Incluir TDT en abierto (RTVE y autonómicas)
           </button>
