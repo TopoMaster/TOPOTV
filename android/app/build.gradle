@@ -108,7 +108,7 @@ dependencies {
     implementation 'androidx.mediarouter:mediarouter:1.7.0'
     implementation 'com.google.mlkit:translate:17.0.3'                 // traducción en el móvil (Google, sin conexión, gratis)
     implementation 'com.google.mlkit:language-id:17.0.6'               // detectar el idioma del texto
-    implementation 'com.wireguard.android:tunnel:1.0.20230706'   // túnel WARP integrado
+    implementation 'com.wireguard.android:tunnel:1.0.20260102'   // túnel WARP integrado
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     implementation project(':capacitor-cordova-android-plugins')
 }
