@@ -1,4 +1,5 @@
 import { localListFor, localListUrls } from '@/lib/localLists';
+import { folderListName, folderListUrls } from '@/lib/folderLists';
 import type { Channel, Stream } from '@/types';
 import { Capacitor } from '@capacitor/core';
 import { buildStreamUrl } from '@/lib/aceApi';
@@ -13,12 +14,18 @@ export const CIRIACO_PLAYLIST_URL = `${CIRIACO_URL}/api/ciriaco/playlist.m3u`;
 export const TDT_SOURCE_URL = 'topotv://tdt';
 /** Listas que TOPOTV carga siempre: TDT (si está activada), las tuyas (archivos guardados y enlaces) y, al final, la agenda de Ciriaco (que se fusiona con las anteriores). */
 export const withDefaultSources = (userUrls: string[] = []) => [...new Set([...(useSettingsStore.getState().includeTdt ? [TDT_SOURCE_URL] : []), ...localListUrls(), ...userUrls, CIRIACO_PLAYLIST_URL])];
+/** Igual, más las listas de la carpeta Documentos\TOPOTV\Listas (Windows). */
+export async function allSources(userUrls: string[] = []): Promise<string[]> {
+  return withDefaultSources([...await folderListUrls(), ...userUrls]);
+}
 
 /** Nombre que se enseña para una fuente al avisar de novedades (null = no se vigila: cambia a diario o es interna). Nunca se enseña la dirección. */
 export function sourceLabel(url: string): string | null {
   if (url === TDT_SOURCE_URL || url === CIRIACO_PLAYLIST_URL) return null;
   const local = localListFor(url);
   if (local) return `Tu lista «${local.name}»`;
+  const inFolder = folderListName(url);
+  if (inFolder) return `Tu lista «${inFolder}»`;
   const i = useSettingsStore.getState().m3uSourceUrls.indexOf(url);
   return i >= 0 ? `Tu lista ${i + 1}` : 'La lista cargada';
 }

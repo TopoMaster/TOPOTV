@@ -289,3 +289,12 @@ html.amoled {
 }
 /* Rejilla de una categoría: las tarjetas llenan su columna */
 .cat-grid > .channel-card, .cat-grid > * > .channel-card { width: 100% !important; }
+/* Menú lateral de escritorio: con muchas categorías, todo el menú se desplaza junto y el bloque
+   del motor/ajustes queda fijo abajo (antes las carpetas se quedaban en un hueco de pocos píxeles) */
+@media (min-width: 701px) {
+  .app-sidebar { overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
+  .app-sidebar > div:first-child { position: sticky; top: 0; z-index: 3; background: var(--bg-surface); }
+  .app-sidebar > .sidebar-cats { flex: 1 0 auto !important; overflow: visible !important; padding-bottom: 8px; }
+  .app-sidebar > div:last-child { position: sticky; bottom: 0; z-index: 3; background: var(--bg-surface); margin-top: auto; }
+  .app-sidebar > nav .nav-item { padding-top: 7px; padding-bottom: 7px; }
+}

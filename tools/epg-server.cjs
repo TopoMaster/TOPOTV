@@ -3,6 +3,8 @@
  *   GET  /health
  *   GET  /status                      -> { status, progress, channels, error, lastUpdated }
  *   POST /load  {urls[], knownIds[]}  -> descarga y procesa las guías en segundo plano
+ *   GET  /all/<id>                     -> toda la programación guardada de ese canal
+ *   POST /coverage {ids[]}             -> {have[]}: cuáles tienen programación
  *   GET  /today/<canal>               -> { events, now, next } con la programación de hoy
  *   GET  /clear-cache
  *
@@ -128,6 +130,14 @@ function today(id) {
   return { events, now: cur, next };
 }
 
+/** Toda la programación guardada de un canal (de 6 h antes a 36 h después de cargar la guía). */
+function all(id) {
+  const arr = store.get(norm(id)) || store.get(loose(id));
+  return arr && arr.length ? arr : null;
+}
+/** De una lista de ids, cuáles tienen programación. */
+const covered = ids => (Array.isArray(ids) ? ids : []).slice(0, 20000).filter(id => typeof id === 'string' && !!all(id));
+
 function start(opts = {}) {
   log = opts.log || console.log;
   const server = http.createServer(async (req, res) => {
@@ -144,6 +154,14 @@ function start(opts = {}) {
         const d = JSON.parse(body || '{}');
         void load(d.urls, d.knownIds);
         return json(200, { ok: true });
+      }
+      if (u.pathname.startsWith('/all/')) {
+        const r = all(decodeURIComponent(u.pathname.slice(5)));
+        return r ? json(200, { events: r }) : json(404, { error: 'sin programación' });
+      }
+      if (u.pathname === '/coverage' && req.method === 'POST') {
+        let body = ''; for await (const c of req) { body += c; if (body.length > 2e6) break; }
+        return json(200, { have: covered(JSON.parse(body || '{}').ids) });
       }
       if (u.pathname.startsWith('/today/')) {
         const r = today(decodeURIComponent(u.pathname.slice(7)));

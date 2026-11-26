@@ -178,7 +178,7 @@ async function startTunnel(binDir, log) {
       if (!usable(exe)) { try { fs.unlinkSync(exe); } catch { /* en uso */ } throw new Error('No se pudo preparar el túnel: el archivo descargado no arranca. Reintenta o instala cloudflared a mano.'); }
       tunnel.state = 'starting';
     }
-    const proc = spawn(exe, ['tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${PUBLIC_PORT}`], { windowsHide: true });
+    const proc = spawn(exe, ['tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${PUBLIC_PORT}`], { cwd: path.dirname(exe), windowsHide: true });
     tunnel.proc = proc;
     const onData = d => {
       const m = String(d).match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);

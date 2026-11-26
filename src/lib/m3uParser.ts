@@ -5,7 +5,8 @@ import { localListFor } from '@/lib/localLists';
 import { canon } from '@/lib/ciriacoNative';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import type { Channel, Group, M3UMeta, ParsedM3U, Stream } from '@/types';
-function slugify(t: string) { return t.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').replace(/-+/g,'-').trim(); }
+// Respeta cualquier alfabeto (antes «Матч! Футбол 1» y «Матч! Футбол 2» quedaban igual y se mezclaban)
+function slugify(t: string) { return t.toLowerCase().replace(/\s+/g,'-').replace(/[^\p{L}\p{N}-]/gu,'').replace(/-+/g,'-').trim(); }
 function extractAceId(url: string) {
   return url.match(/^acestream:\/\/([a-f0-9]+)/i)?.[1] ?? url.match(/[?&]id=([a-f0-9]+)/i)?.[1] ?? '';
 }
@@ -83,7 +84,7 @@ export async function loadM3UFromUrl(url: string): Promise<ParsedM3U> {
   return parseM3U(await res.text(), url);
 }
 
-const canonical = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const canonical = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
 /** Grupo donde la agenda de Ciriaco deja sus canales; se fusionan con los de las demás listas por nombre. */
 const FUSE_GROUP = 'topotv';
@@ -105,10 +106,19 @@ export function mergeM3ULists(sources: ParsedM3U[]): ParsedM3U {
   const byName = new Map<string, Channel[]>();   // nombre canónico -> canales ya fusionados (de cualquier categoría)
   const epgUrls = new Set<string>();
 
-  const addStreams = (channel: Channel, from: Channel) => {
+  // Un mismo ID de AceStream solo se guarda una vez en toda la app: el de la primera lista que lo trae.
+  // Los repetidos de otras listas no se añaden (se cuentan para avisar en Ajustes). La agenda sí suma sus
+  // enlaces a los canales que ya existen, pero tampoco repite IDs.
+  const seenIds = new Set<string>();
+  const dup = { links: 0, channels: 0 };
+  const isDup = (stream: Stream) => !stream.direct && seenIds.has(stream.aceId);
+  const addStreams = (channel: Channel, from: Channel, count = true) => {
     const known = new Set(channel.streams.map(stream => stream.aceId));
     for (const stream of from.streams) {
-      if (!known.has(stream.aceId)) { channel.streams.push(stream); known.add(stream.aceId); }
+      if (known.has(stream.aceId)) continue;
+      if (isDup(stream)) { if (count) dup.links++; continue; }
+      channel.streams.push(stream); known.add(stream.aceId);
+      if (!stream.direct) seenIds.add(stream.aceId);
     }
     if (!channel.logo && from.logo) channel.logo = from.logo;
     if (!channel.tvgId && from.tvgId) channel.tvgId = from.tvgId;
@@ -133,19 +143,26 @@ export function mergeM3ULists(sources: ParsedM3U[]): ParsedM3U {
     if (!fuse) groupFor(sourceGroup.title, sourceGroup.logo, sourceGroup.id);
 
     for (const sourceChannel of sourceGroup.channels) {
-      const nameKey = canon(sourceChannel.name) || canonical(sourceChannel.name);
+      // el país del nombre («[DE]») cuenta: «Eurosport 1 [DE]» no es el Eurosport 1 de España
+      const cc = sourceChannel.name.match(/\[([A-Z]{2})\]/)?.[1];
+      const nameKey = (canon(sourceChannel.name) || canonical(sourceChannel.name)) + (cc && cc !== 'ES' ? ` ${cc.toLowerCase()}` : '');
       let target: { group: Group; key: string };
       if (fuse) {
         // Canal de Ciriaco: si ya existe en alguna categoría se le añaden los enlaces; si no, se guarda en la categoría que le corresponde.
         const existing = byName.get(nameKey);
-        if (existing?.length) { for (const channel of existing) addStreams(channel, sourceChannel); continue; }
+        if (existing?.length) { for (const channel of existing) addStreams(channel, sourceChannel, false); continue; }
         target = groupFor(categoryFor(nameKey));
       } else {
         target = groupFor(sourceGroup.title, sourceGroup.logo, sourceGroup.id);
       }
+      // canal cuyos enlaces ya estaban todos en otra lista: no se repite
+      if (sourceChannel.streams.length && sourceChannel.streams.every(isDup)) {
+        if (!fuse) { dup.channels++; dup.links += sourceChannel.streams.length; }
+        continue;
+      }
       // mismo nombre dentro de la misma categoría (aunque venga de otra lista o con otro tvg-id): se fusionan
       const sameGroup = (byName.get(nameKey) ?? []).find(c => c.group === target.group.title);
-      if (sameGroup) { addStreams(sameGroup, sourceChannel); continue; }
+      if (sameGroup) { addStreams(sameGroup, sourceChannel, !fuse); continue; }
       const channelKey = target.key + ':' + (canonical(sourceChannel.tvgId) || canonical(sourceChannel.name));
       let channel = channels.get(channelKey);
       if (!channel) {
@@ -154,12 +171,13 @@ export function mergeM3ULists(sources: ParsedM3U[]): ParsedM3U {
         target.group.channels.push(channel);
         byName.set(nameKey, [...(byName.get(nameKey) ?? []), channel]);
       }
-      addStreams(channel, sourceChannel);
+      addStreams(channel, sourceChannel, !fuse);
     }
   }
 
   return {
     meta: {
+      duplicates: dup,
       epgUrls: [...epgUrls],
       refreshInterval: Math.min(...sources.map(source => source.meta.refreshInterval)),
       loadedAt: new Date(),

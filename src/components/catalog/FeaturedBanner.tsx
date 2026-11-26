@@ -19,7 +19,7 @@ export function FeaturedBanner({ groups }: { groups: Group[] }) {
         <div className="flex items-end justify-between gap-6 mt-4">
           <div>
             <h1 className="font-display" style={{fontSize:'clamp(2rem,5vw,3.5rem)',color:'var(--text-primary)',lineHeight:1}}>{active.title}</h1>
-            <p style={{color:'var(--text-secondary)',fontSize:'0.85rem',marginTop:'8px'}}>{active.channels.length} canales</p>
+            <p style={{color:'var(--text-secondary)',fontSize:'0.85rem',marginTop:'8px'}}>{active.channels.length} {active.channels.length === 1 ? 'canal' : 'canales'}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {active.channels.slice(0,5).map(ch=>(

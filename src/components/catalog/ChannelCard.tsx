@@ -25,6 +25,8 @@ export function ChannelCard({ channel, size='md' }: ChannelCardProps) {
     return ()=>{ cancelled=true; };
   },[epgStatus,channel.id]); // eslint-disable-line
   const nowPlaying = getNowPlaying(schedule??undefined);
+  // sin guía: la guía ya se comprobó y este canal no tiene programación
+  const noGuide = useEPGStore(s => s.coverage ? s.coverage[channel.id] === false : false);
   return (
     <div className="channel-card flex flex-col items-center justify-center gap-2 select-none group" style={{width:dims.card,minHeight:dims.card,padding:'14px 8px 10px',opacity:dead?0.45:1}} title={dead?'Sus enlaces no responden ahora mismo':undefined} onClick={()=>navigate(`/channel/${channel.id}`)} tabIndex={0} role="button" aria-label={`Ver ${channel.name}`} onKeyDown={e=>e.key==='Enter'&&navigate(`/channel/${channel.id}`)}>
       {isFav&&<div className="absolute top-2 right-2 z-10" onClick={e=>{e.stopPropagation();toggleFav(channel.id);}} style={{cursor:'pointer'}}><Heart size={12} fill="var(--accent)" color="var(--accent)" strokeWidth={0} /></div>}
@@ -32,7 +34,7 @@ export function ChannelCard({ channel, size='md' }: ChannelCardProps) {
         {channel.logo&&!imgError?<img src={channel.logo} alt={channel.name} style={{width:'80%',height:'80%',objectFit:'contain'}} onError={()=>setImgError(true)} loading="lazy" />:<Tv size={parseInt(dims.logo)*0.4} strokeWidth={1.5} style={{color:'var(--text-muted)'}} />}
       </div>
       <span className="text-center leading-tight font-medium w-full" style={{fontSize:dims.fontSize,color:'var(--text-secondary)',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',letterSpacing:'0.02em'}}>{channel.name}</span>
-      {nowPlaying?<span style={{fontSize:'0.58rem',color:'var(--accent)',letterSpacing:'0.02em',textAlign:'center',width:'100%',display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden',opacity:0.85}} title={nowPlaying.title}>▶ {nowPlaying.title}</span>:channel.streams.length>1?<span style={{fontSize:'0.58rem',color:'var(--text-muted)',letterSpacing:'0.05em',textTransform:'uppercase'}}>{channel.streams.length} streams</span>:null}
+      {nowPlaying?<span style={{fontSize:'0.58rem',color:'var(--accent)',letterSpacing:'0.02em',textAlign:'center',width:'100%',display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden',opacity:0.85}} title={nowPlaying.title}>▶ {nowPlaying.title}</span>:noGuide?<span style={{fontSize:'0.56rem',color:'var(--text-muted)',letterSpacing:'0.04em',opacity:0.8}} title="Este canal no tiene guía de programación de momento">sin guía</span>:channel.streams.length>1?<span style={{fontSize:'0.58rem',color:'var(--text-muted)',letterSpacing:'0.05em',textTransform:'uppercase'}}>{channel.streams.length} streams</span>:null}
       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{background:'rgba(8,10,14,0.75)',borderRadius:'var(--radius-md)'}}>
         <div className="flex items-center justify-center" style={{width:'40px',height:'40px',borderRadius:'50%',background:'var(--accent)'}}><Play size={16} fill="#080a0e" color="#080a0e" strokeWidth={0} /></div>
       </div>

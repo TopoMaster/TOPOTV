@@ -104,7 +104,8 @@ function start(opts = {}) {
         };
         const networkCaching = boundedCaching(u.searchParams.get('networkCaching'), 3000);
         const liveCaching = boundedCaching(u.searchParams.get('liveCaching'), 3000);
-        const p = spawn(vlc, [target, `--network-caching=${networkCaching}`, `--live-caching=${liveCaching}`], { detached: true, stdio: 'ignore' });
+        // carpeta de trabajo la de VLC: si heredara la de TOPOTV, mientras VLC siga abierto no se podría actualizar TOPOTV
+        const p = spawn(vlc, [target, `--network-caching=${networkCaching}`, `--live-caching=${liveCaching}`], { cwd: path.dirname(vlc), detached: true, stdio: 'ignore' });
         p.on('error', e => log('[vlc] error', e.message));
         p.unref();
         log('[vlc] abierto', target);

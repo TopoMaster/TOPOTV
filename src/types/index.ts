@@ -8,7 +8,9 @@ export interface Stream {
 export interface VodInfo { type: string; id: string; videoId: string; addon: string; poster?: string; title: string; subtitles?: { url: string; lang: string }[] }
 export interface Channel { id: string; tvgId: string; name: string; rawName: string; logo: string; group: string; streams: Stream[]; vod?: VodInfo; }
 export interface Group { id: string; title: string; logo: string; channels: Channel[]; }
-export interface M3UMeta { epgUrls: string[]; refreshInterval: number; loadedAt: Date; source: string; }
+export interface M3UMeta { epgUrls: string[]; refreshInterval: number; loadedAt: Date; source: string;
+  /** Enlaces que no se añadieron porque su ID de AceStream ya estaba en otra lista, y canales que solo tenían esos enlaces */
+  duplicates?: { links: number; channels: number } }
 export interface ParsedM3U { meta: M3UMeta; groups: Group[]; allChannels: Channel[]; }
 type PlaybackStatus = 'idle' | 'connecting' | 'playing' | 'error' | 'buffering';
 export interface PlayerState { channel: Channel | null; stream: Stream | null; status: PlaybackStatus; errorMessage: string | null; startedAt: Date | null; }

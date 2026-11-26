@@ -29,7 +29,7 @@ export function canon(name: string) {
   s = s.replace(/movistar\s*plus\s*\+?|movistar\s*\+|\bm\s*\+|\bm\.\s|\bmovistar\b/g, ' mplus ');
   s = s.replace(/\bla\s+liga\b/g, 'laliga').replace(/formula\s*1/g, 'f1');
   s = s.replace(/\b(dazn|esport|eurosport)\s*(\d)/g, '$1 $2').replace(/\bdazn(\d)/g, 'dazn $1');
-  s = s.replace(NOISE, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  s = s.replace(NOISE, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim();   // cualquier alfabeto (cirílico incluido)
   return s.replace(/^mplus laliga tv\b/, 'mplus laliga');
 }
 function clean(raw: string) {

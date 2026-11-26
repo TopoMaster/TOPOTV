@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import type { Channel, EPGEvent, EPGSchedule } from '@/types';
-import { nativeEPGClear, nativeEPGLoad, nativeEPGStatus, nativeEPGToday } from '@/lib/epgNative';
+import { nativeEPGAll, nativeEPGClear, nativeEPGCoverage, nativeEPGLoad, nativeEPGStatus, nativeEPGToday } from '@/lib/epgNative';
 export interface EPGData { schedules: Map<string, EPGSchedule>; fetchedAt: Date; }
 const EPG = 'http://localhost:3003';
 export interface EPGServerStatus { status: 'idle'|'loading'|'parsing'|'ready'|'error'; progress: number; channels: number; error: string|null; lastUpdated: string|null; }
@@ -23,6 +23,23 @@ export async function fetchTodaySchedule(channelId: string): Promise<{events:EPG
     const d=await r.json();
     return { events: d.events.map(de), now: d.now?de(d.now):null, next: d.next?de(d.next):null };
   } catch { return null; }
+}
+/** Toda la programación cargada de un canal (hoy y mañana), no solo la de hoy. */
+export async function fetchAllSchedule(channelId: string): Promise<EPGEvent[] | null> {
+  if (Capacitor.isNativePlatform()) return nativeEPGAll(channelId);
+  try {
+    const r = await fetch(`${EPG}/all/${encodeURIComponent(channelId)}`, { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) return null;
+    return ((await r.json()).events as unknown[]).map(de);
+  } catch { return null; }
+}
+/** De una lista de ids de canal (tvg-id o nombre), cuáles tienen guía. */
+export async function fetchCoverage(ids: string[]): Promise<Set<string>> {
+  if (Capacitor.isNativePlatform()) return new Set(nativeEPGCoverage(ids));
+  try {
+    const r = await fetch(`${EPG}/coverage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }), signal: AbortSignal.timeout(8000) });
+    return new Set(r.ok ? (await r.json()).have as string[] : []);
+  } catch { return new Set(); }
 }
 function de(e: any): EPGEvent { return {...e, startTime:new Date(e.startTime), endTime:new Date(e.endTime)}; }
 export function buildEmptyEPGData(): EPGData { return {schedules:new Map(),fetchedAt:new Date()}; }
@@ -50,7 +67,8 @@ const ELCANO_EPG_URLS = [
 ];
 /** Guías a cargar: la manual, las de las listas y las de siempre (sin repetir). */
 export function epgSourceUrls(m3uEpgUrls: string[] = [], manual = ''): string[] {
-  return [...new Set([manual.trim(), ...m3uEpgUrls, ...ELCANO_EPG_URLS].filter(Boolean))];
+  // «…/refs/heads/master/…» y «…/master/…» son el mismo archivo de GitHub: se descarga una vez
+  return [...new Set([manual.trim(), ...m3uEpgUrls, ...ELCANO_EPG_URLS].filter(Boolean).map(u => u.replace('/refs/heads/master/', '/master/')))];
 }
 /** Ids por los que se buscan canales en la guía: tvg-id y nombre. */
 export function epgKnownIds(channels: Channel[]): string[] {

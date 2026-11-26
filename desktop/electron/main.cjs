@@ -119,7 +119,7 @@ if (gotLock) app.whenReady().then(async () => {
         if (busy && sleepBlock === null) sleepBlock = powerSaveBlocker.start('prevent-app-suspension');
         else if (!busy && sleepBlock !== null) { powerSaveBlocker.stop(sleepBlock); sleepBlock = null; }
       },
-      openFile: file => { const exe = vlc.findVlc(); if (exe) require('child_process').spawn(exe, [file], { detached: true, stdio: 'ignore' }).unref(); else shell.openPath(file); },
+      openFile: file => { const exe = vlc.findVlc(); if (exe) { const p = require('child_process').spawn(exe, [file], { cwd: path.dirname(exe), detached: true, stdio: 'ignore' }); p.on('error', () => shell.openPath(file)); p.unref(); } else shell.openPath(file); },
       openFolder: dir => shell.openPath(dir),
     });
     // Sistema: actualizaciones desde GitHub, registro y diagnóstico (puerto 3008)
@@ -128,7 +128,24 @@ if (gotLock) app.whenReady().then(async () => {
     require(path.join(TOOLS, 'system-server.cjs')).start({
       log, version: app.getVersion(), logFile: LOG(),
       openLog: () => shell.showItemInFolder(LOG()),
-      runInstaller: file => { try { require('child_process').spawn(file, [], { detached: true, stdio: 'ignore' }).unref(); } catch (e) { log('no se pudo abrir el instalador', e.message); return; } setTimeout(() => app.quit(), 1500); },
+      // El instalador pide permisos de administrador: se abre con Start-Process (ShellExecute, que muestra el aviso
+      // de Windows) y desde su carpeta temporal, no desde la de instalación (si no, esa carpeta queda en uso y el
+      // instalador no puede quitar la versión anterior). La app se cierra para no bloquear sus archivos.
+      runInstaller: file => {
+        const dir = path.dirname(file);
+        const ps = `Start-Process -FilePath '${file.replace(/'/g, "''")}' -WorkingDirectory '${dir.replace(/'/g, "''")}'`;
+        let opened = false;
+        try {
+          const p = require('child_process').spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', ps], { cwd: dir, detached: true, stdio: 'ignore', windowsHide: true });
+          p.on('error', e => { log('no se pudo abrir el instalador con PowerShell:', e.message); shell.openPath(file).catch(() => {}); });
+          p.unref();
+          opened = true;
+        } catch (e) { log('no se pudo abrir el instalador:', e.message); }
+        if (!opened) shell.openPath(file).then(err => { if (err) log('no se pudo abrir el instalador:', err); }).catch(() => {});
+        setTimeout(() => app.quit(), 2500);
+      },
+      listsDir: path.join(app.getPath('documents'), 'TOPOTV', 'Listas'),
+      openFolder: dir => { try { fs.mkdirSync(dir, { recursive: true }); } catch { /* ya existe */ } shell.openPath(dir).catch(() => {}); },
     });
     require(path.join(TOOLS, 'share-server.cjs')).start({ log, binDir: path.join(app.getPath('userData'), 'bin') });
     createWindow();

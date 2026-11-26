@@ -20,6 +20,7 @@ interface GuideEventsState {
 }
 
 let lastKey = '';
+const NOT_SPORT_GROUP = /^(CINE|INFANTIL|MÚSICA|DOCUMENTALES|ALEMANIA|POLONIA|RUSIA|TURQUÍA|BÉLGICA|REINO UNIDO|EE\. UU\.|PORTUGAL|FRANCIA|ITALIA|PAÍSES BAJOS)$/i;
 const EMPTY: GuideCross = { related: {}, extra: {} };
 
 export const useGuideEventsStore = create<GuideEventsState>((set, get) => ({
@@ -28,7 +29,8 @@ export const useGuideEventsStore = create<GuideEventsState>((set, get) => ({
     if (get().busy) return;
     const epg = useEPGStore.getState();
     const data = useCiriacoStore.getState().data;
-    const all = useM3UStore.getState().allChannels.filter(c => !c.vod && c.streams.length > 0);
+    // solo canales que pueden emitir deporte (con listas grandes, los de cine, infantil o generalistas de otros países sobran)
+    const all = useM3UStore.getState().allChannels.filter(c => !c.vod && c.streams.length > 0 && !NOT_SPORT_GROUP.test(c.group));
     if (!all.length) return;
     const key = `${epg.status}|${data?.fetchedAt ?? ''}|${all.length}`;
     if (!force && key === lastKey && Date.now() - get().computedAt < 10 * 60000) return;
@@ -43,8 +45,8 @@ export const useGuideEventsStore = create<GuideEventsState>((set, get) => ({
         const worker = async () => {
           while (i < all.length) {
             const ch = all[i++];
-            const s = await useEPGStore.getState().getScheduleForChannel(ch).catch(() => null);
-            guides.push({ channel: ch, events: s?.events ?? [] });
+            const events = await useEPGStore.getState().getAllForChannel(ch).catch(() => null);
+            guides.push({ channel: ch, events: events ?? [] });
           }
         };
         await Promise.all(Array.from({ length: 6 }, worker));

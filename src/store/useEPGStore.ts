@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import type { Channel, EPGSchedule } from '@/types';
 import { Capacitor } from '@capacitor/core';
-import { clearEPGCache, getEPGStatus, triggerEPGLoad, fetchTodaySchedule, buildEmptyEPGData, type EPGData } from '@/lib/epg';
+import { clearEPGCache, getEPGStatus, triggerEPGLoad, fetchTodaySchedule, fetchAllSchedule, fetchCoverage, buildEmptyEPGData, type EPGData } from '@/lib/epg';
+import type { EPGEvent } from '@/types';
 
 type EPGStatus = 'idle'|'loading'|'parsing'|'ready'|'error'|'unavailable';
 function normalize(s: string) { return s.toLowerCase().replace(/[\s._-]+/g,'').replace(/[^a-z0-9]/g,''); }
@@ -17,13 +18,18 @@ interface EPGState {
   load: (epgUrls: string[], knownIds?: string[]) => Promise<void>;
   pollUntilReady: () => Promise<void>;
   getScheduleForChannel: (channel: Channel) => Promise<EPGSchedule|null>;
+  /** Toda la programación cargada (hoy y mañana) */
+  getAllForChannel: (channel: Channel) => Promise<EPGEvent[]|null>;
+  /** id de canal → tiene guía (null hasta que la guía esté lista y se haya comprobado) */
+  coverage: Record<string, boolean> | null;
+  computeCoverage: (channels: Channel[]) => Promise<void>;
   syncStatus: () => Promise<void>;
   reset: () => void;
 }
 
 export const useEPGStore = create<EPGState>((set, get) => ({
   status: 'idle', progress: 0, channelCount: 0,
-  data: buildEmptyEPGData(), error: null, serverAvailable: false,
+  data: buildEmptyEPGData(), error: null, serverAvailable: false, coverage: null,
 
   load: async (epgUrls, knownIds=[]) => {
     const cur = get().status;
@@ -82,10 +88,28 @@ export const useEPGStore = create<EPGState>((set, get) => ({
     return null;
   },
 
+  getAllForChannel: async (channel) => {
+    if (get().status!=='ready') return null;
+    for (const cid of [channel.tvgId, channel.name, channel.id].filter(Boolean)) {
+      const events = await fetchAllSchedule(cid);
+      if (events?.length) return events;
+    }
+    return null;
+  },
+
+  computeCoverage: async (channels) => {
+    if (get().status!=='ready' || !channels.length) return;
+    const ids = [...new Set(channels.flatMap(c => [c.tvgId, c.name]).filter(Boolean))];
+    const have = await fetchCoverage(ids);
+    const coverage: Record<string, boolean> = {};
+    for (const c of channels) coverage[c.id] = have.has(c.tvgId) || have.has(c.name);
+    set({ coverage });
+  },
+
   reset: async () => {
     scheduleCache.clear();
     if (Capacitor.isNativePlatform()) clearEPGCache();
     else try { await fetch('http://localhost:3003/clear-cache',{signal:AbortSignal.timeout(2000)}); } catch {}
-    set({status:'idle',channelCount:0,progress:0,error:null});
+    set({status:'idle',channelCount:0,progress:0,error:null,coverage:null});
   },
 }));

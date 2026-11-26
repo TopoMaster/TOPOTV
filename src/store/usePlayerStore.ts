@@ -134,7 +134,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     },
     stop: () => {
       openId++;
-      if (get().stream?.torrent) void stopTorrents();
+      // Si VLC ya está reproduciendo el torrent, el vídeo es suyo: cerrar el aviso de TOPOTV no lo para
+      // (antes se apagaba el motor a los 5 s y VLC se cortaba). El motor lo cierra solo cuando VLC deja de pedir datos.
+      const vlcOwnsIt = get().status === 'playing' && useSettingsStore.getState().preferredPlayer === 'vlc';
+      if (get().stream?.torrent && !vlcOwnsIt) void stopTorrents();
       set({ channel: null, stream: null, status: 'idle', errorMessage: null, startedAt: null, tried: [], detail: null, resumeAt: 0 });
     },
     setStream: stream => set({ stream }),

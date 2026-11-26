@@ -4,6 +4,7 @@
  *   GET  /version
  *   GET  /update/check     -> mira la última release de GitHub y dice si hay versión nueva
  *   POST /update/install   -> descarga el instalador oficial y lo abre (la app se cierra para actualizarse)
+ *   GET  /lists            -> listas .m3u de Documentos\TOPOTV\Listas · GET /lists/file?name=… · POST /lists/open
  *   GET  /update/status    -> progreso de la descarga
  *   GET  /log?lines=200    -> últimas líneas del registro
  *   POST /log/open         -> muestra el archivo de registro en el explorador
@@ -91,6 +92,27 @@ async function install() {
   } catch (e) { up.phase = 'error'; up.error = e.message; log('[sys] actualización falló:', e.message); }
 }
 
+const LIST_RE = /\.(m3u8?|txt)$/i;
+const listsDir = () => opts.listsDir || path.join(os.homedir(), 'Documents', 'TOPOTV', 'Listas');
+function listFiles() {
+  const dir = listsDir();
+  try { fs.mkdirSync(dir, { recursive: true }); } catch { /* sin permiso */ }
+  let files = [];
+  try {
+    files = fs.readdirSync(dir).filter(n => LIST_RE.test(n)).map(name => {
+      const st = fs.statSync(path.join(dir, name));
+      return { name, size: st.size, mtime: st.mtime.toISOString() };
+    }).filter(f => f.size > 0 && f.size < 30 * 1024 * 1024).sort((a, b) => a.name.localeCompare(b.name));
+  } catch { /* carpeta ilegible */ }
+  return { dir, files };
+}
+/** Solo nombres de archivo de esa carpeta (sin rutas): nada de «..\» ni otras carpetas. */
+function listPath(name) {
+  if (!name || name !== path.basename(name) || !LIST_RE.test(name)) return null;
+  const file = path.join(listsDir(), name);
+  try { const st = fs.statSync(file); return st.isFile() && st.size < 30 * 1024 * 1024 ? file : null; } catch { return null; }
+}
+
 function tailLog(n) {
   try {
     const lines = fs.readFileSync(opts.logFile, 'utf8').split(/\r?\n/).filter(Boolean);
@@ -144,6 +166,15 @@ function start(o = {}) {
       if (u.pathname === '/log') return text(200, tailLog(Number(u.searchParams.get('lines')) || 200));
       if (u.pathname === '/log/open' && req.method === 'POST') { opts.openLog && opts.openLog(); return json(200, { ok: true }); }
       if (u.pathname === '/diagnostic') return text(200, await diagnostic());
+      // Carpeta de listas: las .m3u que el usuario deje en Documentos\TOPOTV\Listas se cargan solas
+      if (u.pathname === '/lists') return json(200, listFiles());
+      if (u.pathname === '/lists/file') {
+        const name = u.searchParams.get('name') || '';
+        const file = listPath(name);
+        if (!file) return json(404, { error: 'no existe' });
+        return text(200, fs.readFileSync(file, 'utf8'));
+      }
+      if (u.pathname === '/lists/open' && req.method === 'POST') { opts.openFolder && opts.openFolder(listsDir()); return json(200, { ok: true }); }
       json(404, { error: 'not found' });
     } catch (e) { json(500, { error: e.message }); }
   });

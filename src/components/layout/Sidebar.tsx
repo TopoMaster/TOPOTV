@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home,Search,Settings,Tv,LayoutGrid,CircleDot,ChevronLeft,ChevronRight,Heart,Activity,Shield,Power,Trophy,Film,Columns2,CalendarRange,Menu } from 'lucide-react';
+import { Home,Settings,Tv,LayoutGrid,CircleDot,ChevronLeft,ChevronRight,Heart,Activity,Shield,Power,Trophy,Film,Columns2,CalendarRange,Menu } from 'lucide-react';
 import { MoreSheet } from './MoreSheet';
+import { SidebarCategories } from './SidebarCategories';
 import { LogoMark, LogoWord } from '@/components/brand/Logo';
 import { useUIStore } from '@/store/useUIStore';
 import { useM3UStore } from '@/store/useM3UStore';
@@ -21,7 +22,6 @@ const TOP_NAV: {to:string;icon:React.ElementType;label:string;short?:string;badg
   {to:'/multi',icon:Columns2,label:'Multivista',badge:false,cls:'nav-desktop-only'},
   {to:'/flashscore',icon:Trophy,label:'Resultados',badge:false,cls:'nav-desktop-only'},
   {to:'/checker',icon:Shield,label:'Comprobar enlaces',badge:false,cls:'nav-desktop-only'},
-  {to:'/search',icon:Search,label:'Buscar',badge:false,cls:'nav-desktop-only'},
 ];
 const BOTTOM_NAV = [{to:'/settings',icon:Settings,label:'Ajustes'}];
 export function Sidebar() {
@@ -68,15 +68,12 @@ export function Sidebar() {
       </nav>
       <MoreSheet />
       <div style={{height:'1px',background:'var(--border-subtle)',margin:'8px 12px'}} />
-      {sidebarOpen&&groups.length>0&&<div className="px-4 pb-2"><span style={{fontSize:'0.65rem',color:'var(--text-muted)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Categorías</span></div>}
-      {<div className="flex-1 overflow-y-auto px-2 flex flex-col gap-0.5">
-        {groups.map(group=>(
-          <button key={group.id} onClick={()=>navigate(`/category/${group.id}`)} className="nav-item w-full text-left" title={!sidebarOpen?group.title:undefined}>
-            {group.logo?<img src={group.logo} alt={group.title} className="shrink-0 object-contain" style={{width:'18px',height:'18px'}} onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />:<Tv size={18} strokeWidth={1.8} className="shrink-0" />}
-            {sidebarOpen&&<span className="fade-in truncate text-xs uppercase tracking-wider">{group.title}</span>}
-          </button>
-        ))}
-      </div>}
+      {sidebarOpen&&groups.length>0&&<div className="px-4 pb-1 flex items-center justify-between"><span style={{fontSize:'0.65rem',color:'var(--text-muted)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Categorías</span><button onClick={()=>navigate('/categories')} style={{background:'none',border:'none',color:'var(--text-muted)',fontSize:'0.62rem',cursor:'pointer'}} title="Ver todas las categorías en grande">Ver todas</button></div>}
+      <div className="sidebar-cats flex-1 overflow-y-auto px-2 flex flex-col gap-0.5" style={{minHeight:0}}>
+        {sidebarOpen
+          ? <SidebarCategories groups={groups} />
+          : groups.length>0&&<button onClick={()=>navigate('/categories')} className="nav-item w-full justify-center" title="Categorías"><Tv size={18} strokeWidth={1.8} /></button>}
+      </div>
       <div className="px-2 pb-3 flex flex-col gap-0.5" style={{borderTop:'1px solid var(--border-subtle)',paddingTop:'12px'}}>
         {!isNativeApp&&sidebarOpen&&<div className="flex flex-col gap-1 px-3 py-1.5">
           <div className="flex items-center gap-2"><span className={`status-dot ${backendStatus}`} /><span style={{fontSize:'0.7rem',color:'var(--text-muted)',letterSpacing:'0.04em'}}>{backendStatus==='online'?'AceStream online':backendStatus==='offline'?'AceStream offline':'Comprobando...'}</span>
@@ -100,9 +97,6 @@ export function Sidebar() {
               <Power size={11} />{warpBusy?'Cambiando…':ciriacoStatus.warp.connected?'Desconectar':'Conectar'}
             </button>}
           </div>
-          <p style={{fontSize:'0.62rem',lineHeight:1.4,color:'var(--text-muted)',paddingLeft:'16px'}}>
-            Solo para actualizar eventos y canales. Desconéctalo para reproducir.
-          </p>
           {warpError&&<p role="alert" style={{fontSize:'0.62rem',lineHeight:1.4,color:'var(--offline-red)',paddingLeft:'16px'}}>{warpError}</p>}
         </div>}
         {BOTTOM_NAV.map(({to,icon:Icon,label})=>(

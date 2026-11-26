@@ -16,11 +16,11 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 
 | Plataforma | Descarga |
 | --- | --- |
-| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.4.0.exe) |
-| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.4.0.apk) |
-| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.4.0.zip) |
+| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.4.1.exe) |
+| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.4.1.apk) |
+| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.4.1.zip) |
 
-**Versión actual: v1.4.0.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
+**Versión actual: v1.4.1.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
 
 ## Qué incluye
 
@@ -29,7 +29,10 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 - Agenda de eventos deportivos y enlaces de reproducción disponibles en las fuentes configuradas.
 - Pestaña Flashscore: integrada en Web y Windows; en Android se abre en el navegador del dispositivo.
 - Agenda de eventos y guía EPG también en Android (se descargan directamente en el móvil).
-- Canales organizados por categorías: tus listas M3U (de archivo o de enlace) se fusionan con la agenda de Ciriaco. Las listas cargadas desde un archivo se guardan en el dispositivo y no se pierden al actualizar.
+- Canales organizados por categorías: tus listas M3U (de archivo o de enlace) se fusionan con la agenda de Ciriaco. Las listas cargadas desde un archivo se guardan en el dispositivo y no se pierden al actualizar. En Windows, las listas que dejes en **Documentos\TOPOTV\Listas** se cargan solas en cada actualización.
+- Sin enlaces repetidos: un mismo ID de AceStream solo se guarda una vez aunque venga en varias listas; Ajustes indica cuántos repetidos se han quitado.
+- Guía para cada canal: cada canal muestra su programación o el aviso «sin guía de momento», y Ajustes indica cuántos canales tienen guía. Los canales de otros países usan guías de su país.
+- En Windows, menú lateral con las categorías en carpetas (las de otros países, una carpeta por país) y buscador de categorías.
 - Eventos cruzados con la guía: cada evento muestra los canales de tus listas que lo emiten, y los partidos en directo que solo aparecen en la guía se añaden como eventos («GUÍA TV»).
 - En Android, reproducción dentro de la app o en VLC for Android (Ajustes → Reproductor).
 - Grabación programada de eventos (Windows y Android): botón «Grabar» en Eventos y sección Grabaciones para verlas después en VLC. En Android graba en segundo plano y guarda en Películas/TOPOTV.

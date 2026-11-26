@@ -93,4 +93,9 @@ export function nativeEPGToday(channelId: string) {
   const events = list.filter(e => e.endTime.getTime() > dayStart.getTime() && e.startTime.getTime() < dayStart.getTime() + 86400e3);
   return { events, now: events.find(e => e.startTime.getTime() <= now && e.endTime.getTime() > now) ?? null, next: events.find(e => e.startTime.getTime() > now) ?? null };
 }
+export function nativeEPGAll(channelId: string) {
+  const list = programmes.get(norm(channelId)) ?? programmes.get(loose(channelId));
+  return list?.length ? list : null;
+}
+export const nativeEPGCoverage = (ids: string[]) => ids.filter(id => !!nativeEPGAll(id));
 export function nativeEPGClear() { programmes.clear(); status = { status: 'idle', progress: 0, channels: 0, error: null, lastUpdated: null }; }

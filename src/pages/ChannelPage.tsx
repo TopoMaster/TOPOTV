@@ -77,6 +77,7 @@ export function ChannelPage() {
   const { toggle: toggleFav, isFavorite } = useFavoritesStore();
   const healthMap = useHealthStore(s => s.streams);
   const epgStatus = useEPGStore(s => s.status);
+  const coverage = useEPGStore(s => s.coverage);
   const getScheduleForChannel = useEPGStore(s => s.getScheduleForChannel);
   const [selectedStream, setSelectedStream] = useState<Stream | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -103,6 +104,7 @@ export function ChannelPage() {
   const isFav = isFavorite(channel.id);
   const nowPlaying = getNowPlaying(schedule ?? undefined);
   const upNext = getUpNext(schedule ?? undefined);
+  const noGuide = !!coverage && coverage[channel.id] === false;
 
   async function handlePlay(stream?: Stream) {
     await play(channel!, stream ?? activeStream ?? undefined);
@@ -152,6 +154,9 @@ export function ChannelPage() {
                 </div>
                 <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>{nowPlaying.title}</p>
               </div>
+            )}
+            {noGuide && !nowPlaying && !upNext && (
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '10px' }} title="Ninguna de las guías cargadas tiene la programación de este canal">Este canal no tiene guía de programación de momento.</p>
             )}
             {upNext && !nowPlaying && (
               <div style={{ padding: '7px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', marginBottom: '10px' }}>

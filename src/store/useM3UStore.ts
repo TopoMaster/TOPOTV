@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Channel, Group, M3UMeta, ParsedM3U } from '@/types';
-import { sourceLabel, withDefaultSources } from '@/lib/ciriaco';
+import { allSources, sourceLabel } from '@/lib/ciriaco';
 import { compareWithSnapshot } from '@/lib/listChanges';
 import { useListChangesStore } from './useListChangesStore';
 import { useSettingsStore } from './useSettingsStore';
@@ -43,7 +43,7 @@ export const useM3UStore = create<M3UState>()(
       loadFromUrl: async (url) => {
         await get().loadFromUrls([url]);
       },
-      reloadSources: async () => { await get().loadFromUrls(withDefaultSources(useSettingsStore.getState().m3uSourceUrls)); },
+      reloadSources: async () => { await get().loadFromUrls(await allSources(useSettingsStore.getState().m3uSourceUrls)); },
       loadFromUrls: async (urls) => {
         const uniqueUrls = [...new Set(urls.map(url => url.trim()).filter(Boolean))];
         if (!uniqueUrls.length) { set({ error: 'Añade al menos una URL M3U.' }); return; }

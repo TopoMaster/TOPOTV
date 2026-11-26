@@ -6,6 +6,9 @@
  *
  *   node tools/ordenar-lista.cjs [entrada=lista.txt] [salida=lista.m3u]
  *
+ * También deja una copia en la carpeta de listas de TOPOTV (Documentos\TOPOTV\Listas), que la app de
+ * Windows carga sola en cada actualización.
+ *
  * La lista es tuya y se queda en tu equipo: lista*.txt y lista*.m3u están en .gitignore.
  */
 const fs = require('fs');
@@ -17,7 +20,13 @@ const { loose } = require('./epg-server.cjs');
 const ROOT = path.join(__dirname, '..');
 const input = path.resolve(ROOT, process.argv[2] || 'lista.txt');
 const output = path.resolve(ROOT, process.argv[3] || 'lista.m3u');
-const DEFAULT_EPG = ['https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml'];
+const DEFAULT_EPG = ['https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml', 'https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz'];
+/** Guías gratuitas por país (epgshare01) que se añaden si la lista tiene canales de ese país. Rusia no tiene (la única pesa ~50 MB). */
+const EPG_BY_COUNTRY = {
+  DE: 'epg_ripper_DE1', PL: 'epg_ripper_PL1', UK: 'epg_ripper_UK1', BE: 'epg_ripper_BE2', TR: 'epg_ripper_TR1',
+  US: 'epg_ripper_US2', PT: 'epg_ripper_PT1', NL: 'epg_ripper_NL1',
+};
+const epgFor = cc => EPG_BY_COUNTRY[cc] ? `https://epgshare01.online/epgshare01/${EPG_BY_COUNTRY[cc]}.xml.gz` : null;
 
 /* ── Grupos (en este orden). Mismos nombres que usa TOPOTV para los canales de la agenda
    (src/lib/m3uParser.ts → CATEGORY_RULES), para que no salgan categorías repetidas. ── */
@@ -39,9 +48,19 @@ const GROUPS = [
   ['TDT AUTONÓMICAS', /^(esport ?3|tv3|[àa] punt|etb|tvg|canal sur|telemadrid|aragon|cmm|ib3)\b/i],
   ['RFEF TV', /rfef/i],
   ['TOROS', /toro/i],
-  ['INTERNACIONAL', /sport ?tv|fox sports|azteca|nbc|espn|sky sport|tnt|bein|eleven/i],
+  ['COMBATE', /\bufc\b|boxeo|boxing|\bwwe\b|combate/i],
+  ['INTERNACIONAL', /sport ?tv|fox sports|azteca|nbc|espn|sky sport|tnt|bein|eleven|ziggo/i],
 ];
-const groupOf = name => (GROUPS.find(([, re]) => re.test(name)) || ['DEPORTES'])[0];
+/* Canales de otros países («Eurosport 1 HD [DE] (sport)»): un grupo por país y otro con sus deportes */
+const COUNTRIES = { UK: 'REINO UNIDO', US: 'EE. UU.', PT: 'PORTUGAL', FR: 'FRANCIA', IT: 'ITALIA', DE: 'ALEMANIA', NL: 'PAÍSES BAJOS', BE: 'BÉLGICA', PL: 'POLONIA', TR: 'TURQUÍA', RU: 'RUSIA' };
+const countryName = cc => COUNTRIES[cc] || cc;
+const SPORT_WORDS = /sport|dazn|eurosport|bundesliga|bein|eleven|espn|setanta|ufc|fight|motorvision|motowizja|матч|футбол|хоккей|кхл|бокс|спорт/i;
+function groupOf(name, country, kind) {
+  if (country && country !== 'ES' && kind !== 'sport' && SPORT_WORDS.test(name)) kind = 'sport';
+  if (country && country !== 'ES') return `${countryName(country)}${kind === 'sport' ? ' · DEPORTES' : ''}`;
+  if (kind && kind !== 'sport') return { movies: 'CINE', kids: 'INFANTIL', music: 'MÚSICA', educational: 'DOCUMENTALES' }[kind] || 'OTROS';
+  return (GROUPS.find(([, re]) => re.test(name)) || ['DEPORTES'])[0];
+}
 
 /* ── Nombres ────────────────────────────────────────────────── */
 const FIXES = [
@@ -49,17 +68,21 @@ const FIXES = [
   [/^la ?1( tve)?$/i, 'La 1'], [/^la ?2( tve)?$/i, 'La 2'], [/^cuatro$/i, 'Cuatro'], [/^a punt$/i, 'À Punt'], [/^rally tv$/i, 'Rally TV'],
   [/^azteca deportes$/i, 'Azteca Deportes'], [/^sport ?tv ?(\d)$/i, 'Sport TV $1'], [/^nbc sports$/i, 'NBC Sports'],
 ];
-/** «DAZN 2 1080p **» → { base: 'DAZN 2', quality: '1080p', mark: 2 } */
+/** «DAZN 2 1080p **» → { base: 'DAZN 2', quality: '1080p', mark: 2 } · «Eurosport 1 HD [DE] (sport)» → país DE, tipo sport */
 function splitName(raw) {
   let s = raw.trim();
+  let kind = '', country = '';
+  s = s.replace(/\s*\(([a-z]+)\)\s*$/i, (_, k) => { kind = k.toLowerCase(); return ''; }).trim();
+  s = s.replace(/\s*\[([A-Z]{2})\]\s*$/, (_, c) => { country = c; return ''; }).trim();
   const mark = (s.match(/\*+\s*$/) || [''])[0].trim().length;
   s = s.replace(/\*+\s*$/, '').trim();
+  s = s.replace(/^M\.\s+/, 'M+ ').replace(/^(DAZN)(\d)\b/i, 'DAZN $2');
   let quality = '';
   const q = s.match(/\s(4k|uhd|\d{3,4}p|fhd|hd|sd)$/i);
   if (q) { quality = q[1].toUpperCase().replace(/(\d)P$/, '$1p'); s = s.slice(0, q.index).trim(); }
   s = s.replace(/\s+tve(\s+4k)?$/i, (_, k) => { if (k) quality = '4K'; return ''; }).trim();
   for (const [re, fix] of FIXES) if (re.test(s)) { s = s.replace(re, fix); break; }
-  return { base: s, quality, mark };
+  return { base: country ? `${s} [${country}]` : s, plain: s, quality, mark, kind, country };
 }
 const QRANK = q => ({ '4K': 4, UHD: 4, '1080p': 3, FHD: 3, '720p': 2, HD: 2, SD: 1 }[q] || 0);
 
@@ -96,7 +119,7 @@ function download(url) {
 /** loose(nombre) → id de canal de la guía */
 async function epgIndex(urls) {
   const idx = new Map();
-  for (const u of urls.filter(x => /^https:\/\//.test(x)).slice(0, 3)) {
+  for (const u of urls.filter(x => /^https:\/\//.test(x))) {
     try {
       const xml = await download(u);
       for (const m of xml.matchAll(/<channel\s+id="([^"]*)"[^>]*>([\s\S]*?)<\/channel>/g)) {
@@ -109,9 +132,26 @@ async function epgIndex(urls) {
   return idx;
 }
 
+/** Carpeta de listas de TOPOTV: se la pregunta a la app si está abierta; si no, Documentos\TOPOTV\Listas. */
+async function listsFolder() {
+  if (process.platform !== 'win32') return null;
+  const fromApp = await new Promise(resolve => {
+    const req = require('http').get({ host: '127.0.0.1', port: 3008, path: '/lists', timeout: 2000 }, res => {
+      let d = ''; res.on('data', c => d += c); res.on('end', () => { try { resolve(JSON.parse(d).dir || null); } catch { resolve(null); } });
+    });
+    req.on('timeout', () => { req.destroy(); resolve(null); }); req.on('error', () => resolve(null));
+  });
+  if (fromApp) return fromApp;
+  try {
+    const docs = require('child_process').execFileSync('powershell.exe', ['-NoProfile', '-Command', "[Environment]::GetFolderPath('MyDocuments')"], { encoding: 'utf8', windowsHide: true }).trim();
+    return docs ? path.join(docs, 'TOPOTV', 'Listas') : null;
+  } catch { return path.join(require('os').homedir(), 'Documents', 'TOPOTV', 'Listas'); }
+}
+
 (async () => {
   const { tvgUrls, entries } = parse(fs.readFileSync(input, 'utf8'));
-  const epgUrls = [...new Set([...tvgUrls.map(u => u.replace('/refs/heads/master/', '/master/')), ...DEFAULT_EPG])];
+  const countries = new Set(entries.map(e => splitName(e.name).country).filter(Boolean));
+  const epgUrls = [...new Set([...tvgUrls.map(u => u.replace('/refs/heads/master/', '/master/')), ...DEFAULT_EPG, ...[...countries].map(epgFor).filter(Boolean)])];
   const idx = await epgIndex(epgUrls);
 
   const seen = new Set();
@@ -120,14 +160,16 @@ async function epgIndex(urls) {
   for (const e of entries) {
     if (seen.has(e.url)) { dup++; continue; }
     seen.add(e.url);
-    const { base, quality, mark } = splitName(e.name);
-    if (!channels.has(base)) channels.set(base, { base, group: groupOf(base), logo: e.logo, tvgId: idx.get(loose(base)) || '', links: [] });
+    const { base, plain, quality, mark, kind, country } = splitName(e.name);
+    if (!channels.has(base)) channels.set(base, { base, group: groupOf(plain, country, kind), logo: e.logo, tvgId: idx.get(loose(base)) || (country ? '' : idx.get(loose(plain))) || '', links: [] });
     const ch = channels.get(base);
     if (!ch.logo && e.logo) ch.logo = e.logo;
     ch.links.push({ quality, mark, url: e.url });
   }
 
-  const order = [...GROUPS.map(g => g[0]), 'DEPORTES'];
+  const order = [...GROUPS.map(g => g[0]), 'DEPORTES', 'CINE', 'INFANTIL', 'MÚSICA', 'DOCUMENTALES', 'OTROS',
+    ...Object.values(COUNTRIES).flatMap(c => [`${c} · DEPORTES`, c])];
+  for (const ch of channels.values()) if (!order.includes(ch.group)) order.push(ch.group);
   const list = [...channels.values()].sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group) || a.base.localeCompare(b.base, 'es', { numeric: true }));
   const esc = s => String(s).replace(/"/g, "'");
   const out = [`#EXTM3U url-tvg="${epgUrls.join(',')}" refresh="3600"`, '',
@@ -148,6 +190,12 @@ async function epgIndex(urls) {
     out.push('');
   }
   fs.writeFileSync(output, out.join('\n'));
+  // copia en la carpeta de listas de TOPOTV (Windows): la app la carga sola en cada actualización
+  const folder = await listsFolder();
+  if (folder) {
+    try { fs.mkdirSync(folder, { recursive: true }); fs.writeFileSync(path.join(folder, path.basename(output)), out.join('\n')); console.log(`copiada en la carpeta de listas de TOPOTV: ${path.join(folder, path.basename(output))}`); }
+    catch (e) { console.log(`no se pudo copiar en la carpeta de listas (${e.message})`); }
+  }
   const byGroup = list.reduce((m, c) => (m[c.group] = (m[c.group] || 0) + 1, m), {});
   console.log(`\n${path.basename(output)}: ${list.length} canales, ${seen.size} enlaces (${dup} repetidos quitados)`);
   for (const g of order) if (byGroup[g]) console.log(`  ${g.padEnd(20)} ${byGroup[g]}`);

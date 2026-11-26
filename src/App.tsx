@@ -136,7 +136,7 @@ function BackgroundPreloader() {
     return () => clearInterval(interval);
   }, []);
 
-  // Al arrancar: TDT + listas del usuario (archivos guardados y enlaces) + agenda de Ciriaco, fusionadas por categorías.
+  // Al arrancar: TDT + listas del usuario (carpeta de listas, archivos guardados y enlaces) + agenda de Ciriaco, fusionadas por categorías.
   useEffect(() => {
     let cancelled = false;
     const loadSources = async () => {
@@ -180,6 +180,13 @@ function BackgroundPreloader() {
     const timer = setTimeout(() => loadEPG(urls, knownIds), 500);
     return () => clearTimeout(timer);
   }, [meta, allChannels, manualEpgUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Qué canales tienen guía (una sola consulta): para avisar de los que no tienen
+  useEffect(() => {
+    if (epgStatus !== 'ready' || !allChannels.length) return;
+    const t = setTimeout(() => void useEPGStore.getState().computeCoverage(allChannels), 800);
+    return () => clearTimeout(t);
+  }, [epgStatus, allChannels]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If server was already loading when we opened, poll for completion
   useEffect(() => {

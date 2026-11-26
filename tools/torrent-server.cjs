@@ -19,7 +19,8 @@ const TRUSTED_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1):(5173|5174|4173)$/;
 const HASH_RE = /^[0-9a-f]{40}$/i;
 const TRACKER_RE = /^(udp|http|https):\/\/[^\s]{4,300}$/i;
 const READY_TIMEOUT_MS = Number(process.env.TORRENT_READY_MS || 90000);
-const IDLE_MS = 10 * 60 * 1000;
+const IDLE_MS = Number(process.env.TORRENT_IDLE_MS || 10 * 60 * 1000);
+const IDLE_CHECK_MS = Math.min(60000, IDLE_MS / 2);
 /** Trackers públicos de apoyo: algunos addons (p. ej. Torrentio) no mandan ninguno y solo con DHT tarda en encontrar pares. */
 const FALLBACK_TRACKERS = ['udp://tracker.opentrackr.org:1337/announce', 'udp://open.demonii.com:1337/announce', 'udp://tracker.openbittorrent.com:6969/announce', 'udp://exodus.desync.com:6969/announce', 'udp://tracker.torrent.eu.org:451/announce', 'udp://open.stealth.si:80/announce'];
 
@@ -35,7 +36,7 @@ function pub(s) {
   const e = s.engine;
   let peers = 0, downloaded = 0, speed = 0;
   try { peers = e.swarm.wires.length; downloaded = e.swarm.downloaded; speed = e.swarm.downloadSpeed(); } catch { /* aún sin datos */ }
-  return { id: s.id, state: s.state, url: s.state === 'ready' ? s.url : undefined, name: s.name, size: s.size, peers, downloaded, speed, error: s.error };
+  return { id: s.id, state: s.state, url: s.state === 'ready' ? s.url : undefined, name: s.name, size: s.size, peers, downloaded, speed, error: s.error, viewers: s.active || 0 };
 }
 
 function stop(id) {
@@ -83,10 +84,17 @@ function start(spec) {
     s.state = 'ready'; clearTimeout(s.readyTimer);
     log('[torrent] listo', s.name, s.url);
   });
-  engine.server.on('request', () => { s.lastUse = Date.now(); });
+  // conexiones abiertas: mientras haya alguna (VLC mantiene una sola durante toda la película) no está «sin uso»
+  s.active = 0;
+  engine.server.on('request', (req, res) => {
+    s.lastUse = Date.now(); s.active++;
+    let done = false;
+    const end = () => { if (done) return; done = true; s.active = Math.max(0, s.active - 1); s.lastUse = Date.now(); };
+    res.on('close', end); res.on('finish', end);
+  });
   engine.on('error', e => { s.state = 'error'; s.error = String(e && e.message || e); });
   s.readyTimer = setTimeout(() => { if (s.state === 'starting') { s.state = 'error'; s.error = 'No se encontraron fuentes para este torrent en 90 s.'; setTimeout(() => stop(id), 15000); } }, READY_TIMEOUT_MS);
-  s.idleTimer = setInterval(() => { if (Date.now() - s.lastUse > IDLE_MS) stop(id); }, 60000);
+  s.idleTimer = setInterval(() => { if (s.active > 0) s.lastUse = Date.now(); else if (Date.now() - s.lastUse > IDLE_MS) stop(id); }, IDLE_CHECK_MS);
   return s;
 }
 

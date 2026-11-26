@@ -8,7 +8,8 @@ import { useUIStore } from '@/store/useUIStore';
 import { warpDown, warpState, warpUp } from '@/lib/warpAndroid';
 import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
 import { ENGINE_DOCS_URL, findEngineApp, installEngine, installEngineFromFile, openEngineAppSettings, startEngineApp, type EngineApp } from '@/lib/engineAndroid';
-import { withDefaultSources } from '@/lib/ciriaco';
+import { allSources } from '@/lib/ciriaco';
+import { folderInfo, openListsFolder, type FolderInfo } from '@/lib/folderLists';
 import { getLocalLists, removeLocalList } from '@/lib/localLists';
 import { useEPGStore } from '@/store/useEPGStore';
 import { AddonsSection, AppearanceSection, BackupSection, ProfilesSection, ChecksSection, SystemSection, TeamsSection } from '@/pages/SettingsExtras';
@@ -108,6 +109,8 @@ function PlayerSection() {
 function M3USection() {
   const {loadFromFile,loadFromUrls,reloadSources,reset,meta,allChannels,isLoading,error} = useM3UStore();
   const [locals,setLocals] = useState(getLocalLists);
+  const [folder,setFolder] = useState<FolderInfo|null>(null);
+  useEffect(() => { void folderInfo().then(setFolder); }, [allChannels.length]);
   const {m3uSourceUrls,setM3uSourceUrls} = useSettingsStore();
   const [sourcesInput,setSourcesInput] = useState(m3uSourceUrls.join('\n'));
   const [sourceError,setSourceError] = useState<string|null>(null);
@@ -121,15 +124,25 @@ function M3USection() {
     if (invalid) { setSourceError('Cada línea debe ser una URL HTTP o HTTPS válida.'); return; }
     setSourceError(null);
     setM3uSourceUrls(urls);
-    const sources = withDefaultSources(urls);
+    const sources = await allSources(urls);
     if (sources.length) await loadFromUrls(sources);
   }
   return (
     <section className="mb-8">
       <SLabel icon={Upload} label="Lista M3U" />
       <Card>
-        {meta&&<div style={{padding:'10px 14px',background:'var(--bg-elevated)',borderRadius:'var(--radius-md)',border:'1px solid var(--border-subtle)',marginBottom:'16px'}}><div className="flex items-center gap-2 mb-1"><Check size={14} style={{color:'var(--online-green)'}} strokeWidth={2.5} /><span style={{fontSize:'0.78rem',color:'var(--online-green)',fontWeight:600}}>Lista cargada</span></div><p style={{fontSize:'0.72rem',color:'var(--text-muted)'}}>{allChannels.length} canales · guía de programación incluida</p></div>}
+        {meta&&<div style={{padding:'10px 14px',background:'var(--bg-elevated)',borderRadius:'var(--radius-md)',border:'1px solid var(--border-subtle)',marginBottom:'16px'}}><div className="flex items-center gap-2 mb-1"><Check size={14} style={{color:'var(--online-green)'}} strokeWidth={2.5} /><span style={{fontSize:'0.78rem',color:'var(--online-green)',fontWeight:600}}>Lista cargada</span></div><p style={{fontSize:'0.72rem',color:'var(--text-muted)'}}>{allChannels.length} canales · {allChannels.reduce((n,c)=>n+c.streams.length,0)} enlaces</p>{!!meta.duplicates?.links&&<p style={{fontSize:'0.72rem',color:'var(--accent)',marginTop:4}}>{meta.duplicates.links} {meta.duplicates.links===1?'enlace repetido':'enlaces repetidos'} (mismo ID de AceStream que otra lista) no se han añadido{meta.duplicates.channels?` · ${meta.duplicates.channels} ${meta.duplicates.channels===1?'canal ya lo tenías':'canales ya los tenías'}`:''}.</p>}</div>}
         <div className="flex flex-col gap-4">
+          {folder&&<div>
+            <p style={{fontSize:'0.72rem',color:'var(--text-muted)',marginBottom:'8px',textTransform:'uppercase',letterSpacing:'0.04em'}}>Carpeta de listas</p>
+            <p style={{fontSize:'0.68rem',color:'var(--text-muted)',lineHeight:1.5,marginBottom:8}}>Las listas .m3u que dejes en esta carpeta se cargan solas cada vez que TOPOTV actualiza. Si renuevas tu lista, sustituye el archivo y pulsa «Actualizar» en Eventos.</p>
+            <code style={{display:'block',fontSize:'0.7rem',color:'var(--text-secondary)',background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)',padding:'8px 10px',marginBottom:8,wordBreak:'break-all'}}>{folder.dir}</code>
+            <div className="flex gap-2 flex-wrap items-center">
+              <button onClick={()=>void openListsFolder()} style={{padding:'9px 16px',background:'var(--bg-elevated)',color:'var(--text-secondary)',border:'1px solid var(--border-mid)',borderRadius:'var(--radius-md)',fontSize:'0.78rem',fontWeight:600,cursor:'pointer'}}>Abrir la carpeta</button>
+              <button onClick={()=>void reloadSources().then(()=>folderInfo().then(setFolder))} disabled={isLoading} style={{padding:'9px 16px',background:'var(--bg-elevated)',color:'var(--text-secondary)',border:'1px solid var(--border-mid)',borderRadius:'var(--radius-md)',fontSize:'0.78rem',fontWeight:600,cursor:isLoading?'wait':'pointer'}}>{isLoading?'Cargando…':'Volver a leerla'}</button>
+              <span style={{fontSize:'0.7rem',color:folder.files.length?'var(--online-green)':'var(--text-muted)'}}>{folder.files.length?`${folder.files.length} ${folder.files.length===1?'lista':'listas'}: ${folder.files.map(f=>f.name).join(', ')}`:'Todavía no hay ninguna lista'}</span>
+            </div>
+          </div>}
           <div>
             <p style={{fontSize:'0.72rem',color:'var(--text-muted)',marginBottom:'8px',textTransform:'uppercase',letterSpacing:'0.04em'}}>Desde archivo</p>
             <button onClick={()=>fileRef.current?.click()} disabled={isLoading} style={{padding:'9px 18px',background:'var(--bg-elevated)',color:'var(--text-secondary)',border:'1px solid var(--border-mid)',borderRadius:'var(--radius-md)',fontSize:'0.78rem',fontWeight:600,cursor:isLoading?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'6px'}} onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--border-accent)';e.currentTarget.style.color='var(--text-primary)';}} onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border-mid)';e.currentTarget.style.color='var(--text-secondary)';}}>
@@ -166,15 +179,34 @@ function M3USection() {
   );
 }
 
+/** Cuántos canales tienen guía y cuáles no (se comprueba una vez cargada la guía). */
+function EPGCoverage() {
+  const coverage = useEPGStore(s => s.coverage);
+  const allChannels = useM3UStore(s => s.allChannels);
+  const [open, setOpen] = useState(false);
+  if (!coverage || !allChannels.length) return null;
+  const without = allChannels.filter(c => coverage[c.id] === false);
+  const withGuide = allChannels.length - without.length;
+  return (
+    <div style={{ padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: 16 }}>
+      <p style={{ fontSize: '0.78rem', fontWeight: 600 }}>{withGuide} de {allChannels.length} canales tienen guía de programación</p>
+      {without.length > 0 && <>
+        <button onClick={() => setOpen(o => !o)} style={{ background: 'none', border: 'none', padding: 0, marginTop: 4, color: 'var(--accent)', fontSize: '0.72rem', cursor: 'pointer' }}>{open ? 'Ocultar' : 'Ver'} los {without.length} que no tienen guía de momento</button>
+        {open && <p style={{ marginTop: 6, fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.6, maxHeight: 220, overflowY: 'auto' }}>{without.map(c => c.name).join(' · ')}</p>}
+      </>}
+    </div>
+  );
+}
+
 function EPGSection() {
   const {manualEpgUrl,setManualEpgUrl} = useSettingsStore();
   const meta = useM3UStore(s=>s.meta);
-  const {status:epgStatus,progress,channelCount,load:loadEPG,reset:resetEPG,syncStatus} = useEPGStore();
+  const {status:epgStatus,progress,load:loadEPG,reset:resetEPG,syncStatus} = useEPGStore();
   const allChannels = useM3UStore(s=>s.allChannels);
   const [inputUrl,setInputUrl] = useState(manualEpgUrl);
   const [saved,setSaved] = useState(false);
   const m3uEpgUrls = meta?.epgUrls??[];
-  const sl: Record<string,string> = {idle:'Sin cargar',unavailable:'Servidor EPG no activo',loading:`Descargando... ${progress}%`,parsing:'Procesando XML...',ready:`${channelCount} canales con guía`,error:'Error al cargar'};
+  const sl: Record<string,string> = {idle:'Sin cargar',unavailable:'Servidor EPG no activo',loading:`Descargando... ${progress}%`,parsing:'Procesando XML...',ready:'Guía cargada',error:'Error al cargar'};
   const sc: Record<string,string> = {idle:'var(--text-muted)',unavailable:'var(--offline-red)',loading:'var(--accent)',parsing:'var(--accent)',ready:'var(--online-green)',error:'var(--offline-red)'};
   function handleSave() {
     setManualEpgUrl(inputUrl.trim());
@@ -187,6 +219,7 @@ function EPGSection() {
     <section className="mb-8">
       <SLabel icon={Tv2} label="Guía de Programación (EPG)" />
       <Card>
+        <EPGCoverage />
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             {(epgStatus==='loading'||epgStatus==='parsing')&&<div style={{width:'8px',height:'8px',borderRadius:'50%',border:'2px solid var(--accent)',borderTopColor:'transparent',animation:'spin 0.8s linear infinite'}} />}

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { Capacitor } from '@capacitor/core';
 import { checkCiriaco, fetchCiriaco, fetchCiriacoStatus, refreshCiriaco, setCiriacoWarpConnected, type CiriacoData, type CiriacoStatus } from '@/lib/ciriaco';
 import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
 import { useM3UStore } from './useM3UStore';
@@ -49,10 +50,22 @@ export const useCiriacoStore = create<CiriacoState>((set, get) => ({
   refresh: async () => {
     if (get().updating) return;
     set({ updating: true, error: null });
+    // Windows: WARP se conecta al principio y se mantiene mientras se actualizan la agenda, las listas y la guía
+    // (antes solo duraba la lectura de la agenda y lo demás se descargaba sin él). Si ya estaba conectado, se deja como estaba.
+    let warpByUs = false;
+    let agendaError: string | null = null;
+    if (!Capacitor.isNativePlatform()) {
+      const st = await fetchCiriacoStatus();
+      if (st?.warp.available && st.warp.mode === 'always' && st.warp.connected === false) {
+        set({ step: 'Conectando WARP…' });
+        try { const s2 = await setCiriacoWarpConnected(true); set({ status: s2 }); warpByUs = s2.warp.connected === true; }
+        catch { /* el servidor lo intentará al leer la agenda */ }
+      }
+    }
+    try {
     // sondeo del progreso (conectando WARP, leyendo, desconectando…)
     const poll = setInterval(async () => { const st = await fetchCiriacoStatus(); if (st) set({ status: st }); }, 1500);
     // 1) la agenda de eventos (en Windows exige WARP)
-    let agendaError: string | null = null;
     try {
       await refreshCiriaco();
       const data = await fetchCiriaco();
@@ -69,8 +82,22 @@ export const useCiriacoStore = create<CiriacoState>((set, get) => ({
         useEPGStore.getState().reset();
         await new Promise(r => setTimeout(r, 300));
         void useEPGStore.getState().load(epgSourceUrls(meta.epgUrls ?? [], useSettingsStore.getState().manualEpgUrl), epgKnownIds(allChannels));
+        // con WARP puesto, se espera a que la guía termine de descargarse (máx. 3 min)
+        if (warpByUs) {
+          for (let i = 0; i < 90; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+            const st = useEPGStore.getState().status;
+            if (i > 1 && (st === 'ready' || st === 'error' || st === 'unavailable' || st === 'idle')) break;
+          }
+        }
       }
     } catch { /* la guía se reintenta sola más tarde */ }
+    } finally {
+      if (warpByUs) {
+        set({ step: 'Desconectando WARP…' });
+        try { set({ status: await setCiriacoWarpConnected(false) }); } catch { await get().syncStatus(); }
+      }
+    }
     set({ updating: false, step: null, error: agendaError });
   },
 }));
