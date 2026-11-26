@@ -17,12 +17,65 @@ const log = (...a) => { const line = `${new Date().toISOString()} ${a.join(' ')}
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
 
+/* ── Paquetes de idioma del traductor (Firefox Translations) ────
+ * Los modelos están en un almacén público que no deja que una web los pida directamente (sin CORS):
+ * el servidor local los descarga una vez, los guarda en el equipo y se los da a la web (mismo origen).
+ * Solo sirve archivos que aparecen en el registro oficial, y la web comprueba la huella SHA-256 de cada uno. */
+const MODELS_BASE = 'https://storage.googleapis.com/bergamot-models-sandbox/0.3.3';
+const MODELS_DIR = () => path.join(app.getPath('userData'), 'translation-models');
+const downloading = new Map();
+function download(url, dest, redirects = 3) {
+  if (downloading.has(dest)) return downloading.get(dest);
+  const job = new Promise((resolve, reject) => {
+    const req = require('https').get(url, { headers: { 'Accept-Encoding': 'identity', 'User-Agent': 'TOPOTV' }, timeout: 60000 }, r => {
+      if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location && redirects > 0) { r.resume(); downloading.delete(dest); return download(new URL(r.headers.location, url).href, dest, redirects - 1).then(resolve, reject); }
+      if (r.statusCode !== 200) { r.resume(); return reject(new Error(`HTTP ${r.statusCode}`)); }
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      const tmp = `${dest}.part`;
+      const src = /gzip/i.test(r.headers['content-encoding'] || '') ? r.pipe(require('zlib').createGunzip()) : r;
+      const out = fs.createWriteStream(tmp);
+      src.pipe(out);
+      src.on('error', reject);
+      out.on('error', reject);
+      out.on('finish', () => { try { fs.renameSync(tmp, dest); resolve(dest); } catch (e) { reject(e); } });
+    });
+    req.on('timeout', () => req.destroy(new Error('tiempo agotado')));
+    req.on('error', reject);
+  }).finally(() => downloading.delete(dest));
+  downloading.set(dest, job);
+  return job;
+}
+async function modelRegistry() {
+  const file = path.join(MODELS_DIR(), 'registry.json');
+  const fresh = fs.existsSync(file) && Date.now() - fs.statSync(file).mtimeMs < 7 * 864e5;
+  if (!fresh) { try { await download(`${MODELS_BASE}/registry.json`, file); } catch (e) { if (!fs.existsSync(file)) throw e; } }
+  return file;
+}
+async function serveModel(rel, res) {
+  try {
+    const regFile = await modelRegistry();
+    if (rel === 'registry.json') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' }); return fs.createReadStream(regFile).pipe(res); }
+    const [pair, name, extra] = rel.split('/');
+    const reg = JSON.parse(fs.readFileSync(regFile, 'utf8'));
+    const known = !extra && /^[a-z]{4}$/.test(pair || '') && reg[pair] && Object.values(reg[pair]).some(f => f && f.name === name);
+    if (!known) { res.writeHead(404); return res.end(); }
+    const dest = path.join(MODELS_DIR(), pair, name);
+    if (!fs.existsSync(dest)) { log('traductor: descargando', pair, name); await download(`${MODELS_BASE}/${pair}/${name}`, dest); }
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': fs.statSync(dest).size, 'Cache-Control': 'no-cache' });
+    fs.createReadStream(dest).pipe(res);
+  } catch (e) {
+    log('traductor: no se pudo descargar', rel, e.message);
+    res.writeHead(502); res.end();
+  }
+}
+
 /* ── Servidor de la web (SPA) ───────────────────────────────── */
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ico': 'image/x-icon' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ico': 'image/x-icon' };
 function startWeb() {
   const server = http.createServer((req, res) => {
     let p;
     try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { res.writeHead(400); return res.end(); }
+    if (p.startsWith('/bergamot-models/')) return void serveModel(p.slice('/bergamot-models/'.length), res);
     let file = path.normalize(path.join(APP_DIR, p));
     const rel = path.relative(APP_DIR, file);
     if (rel.startsWith('..') || path.isAbsolute(rel)) { res.writeHead(403); return res.end(); }   // nada fuera de la carpeta de la web

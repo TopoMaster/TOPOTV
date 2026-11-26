@@ -186,4 +186,14 @@ export async function fetchStreamsDetailed(addons: Addon[], type: string, id: st
   };
 }
 
+/** Subtítulos que dan los addons de subtítulos instalados para un título (cada uno con su plazo). */
+export async function fetchSubtitles(addons: Addon[], type: string, id: string): Promise<{ url: string; lang: string; addon: string }[]> {
+  const list = addons.filter(a => supports(a, 'subtitles', type, id));
+  const results = await Promise.allSettled(list.map(async a => {
+    const r = await getJson<{ subtitles?: { id?: string; url: string; lang: string }[] }>(`${a.base}/subtitles/${enc(type)}/${enc(id)}.json`, STREAM_TIMEOUT_MS);
+    return (r.subtitles ?? []).filter(t => t.url && /^https?:/i.test(t.url) && t.lang).slice(0, 60).map(t => ({ url: t.url, lang: t.lang, addon: a.manifest.name }));
+  }));
+  return results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+}
+
 export const typeLabel = (t: string) => ({ movie: 'Películas', series: 'Series', tv: 'TV', channel: 'Canales', anime: 'Anime' } as Record<string, string>)[t] ?? t[0].toUpperCase() + t.slice(1);

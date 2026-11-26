@@ -12,7 +12,7 @@ import { BackgroundChecker } from '@/components/shared/BackgroundChecker';
 import { useAddonsStore } from '@/store/useAddonsStore';
 import { Reminders } from '@/components/shared/Reminders';
 import { InputControls } from '@/components/shared/InputControls';
-import { isAndroidTv } from '@/lib/externalPlayer';
+import { androidEdition, isAndroidTv } from '@/lib/externalPlayer';
 import { engineWokeBefore, findEngineApp, installEngine, startEngineApp } from '@/lib/engineAndroid';
 import { epgKnownIds, epgSourceUrls } from '@/lib/epg';
 import { useRecorderStore } from '@/store/useRecorderStore';
@@ -71,7 +71,7 @@ function BackgroundPreloader() {
   // Modo TV: clase en <html> según el ajuste (automático = solo en Android TV)
   const tvMode = useSettingsStore(s => s.tvMode);
   const [deviceTv, setDeviceTv] = useState(false);
-  useEffect(() => { if (Capacitor.isNativePlatform()) void isAndroidTv().then(setDeviceTv); }, []);
+  useEffect(() => { if (Capacitor.isNativePlatform()) void Promise.all([isAndroidTv(), androidEdition()]).then(([tv, ed]) => setDeviceTv(tv || ed === 'tv')); }, []);
   useEffect(() => {
     const active = tvMode === 'on' || (tvMode === 'auto' && deviceTv);
     document.documentElement.classList.toggle('tv-mode', active);

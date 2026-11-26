@@ -334,7 +334,7 @@ export function EventsPage() {
   const pill = (active: boolean) => ({ padding: '7px 16px', background: active ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: '100px', color: active ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: active ? 600 : 400, cursor: 'pointer' as const, whiteSpace: 'nowrap' as const, flexShrink: 0 });
 
   return (
-    <div className="fade-in page-pad" style={{ paddingBottom: '48px', maxWidth: '1180px' }}>
+    <div className="page-center fade-in page-pad" style={{ paddingBottom: '48px', maxWidth: '1180px' }}>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <CalendarDays size={22} strokeWidth={1.8} style={{ color: 'var(--accent)' }} />

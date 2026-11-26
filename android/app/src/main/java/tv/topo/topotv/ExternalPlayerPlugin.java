@@ -43,6 +43,7 @@ public class ExternalPlayerPlugin extends Plugin {
         boolean tv = um != null && um.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
         JSObject ret = new JSObject();
         ret.put("tv", tv);
+        ret.put("edition", getContext().getString(R.string.topotv_edition));   // movil o tv (la APK que se instaló)
         call.resolve(ret);
     }
 

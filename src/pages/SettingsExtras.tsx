@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Palette, Star, Activity, Cpu, X, Archive, Puzzle, Users, Lock, Check } from 'lucide-react';
+import { Palette, Star, Activity, Cpu, X, Archive, Puzzle, Users, Lock, Check, Languages } from 'lucide-react';
 import { useAddonsStore } from '@/store/useAddonsStore';
 import { useProfileStore } from '@/store/useProfileStore';
 import { Capacitor } from '@capacitor/core';
 import { buildBackup, downloadBackup, restoreBackup } from '@/lib/backup';
 import { useSettingsStore, type FontFamily, type FontScale, type ThemeId } from '@/store/useSettingsStore';
 import { useHealthStore } from '@/store/useHealthStore';
+import { availableLanguages } from '@/lib/translate';
 import { checkUpdate, diagnostic, openLog, startUpdate, systemAvailable, updateProgress, type UpdateInfo } from '@/lib/system';
 
 function Card({ children }: { children: React.ReactNode }) {
@@ -93,6 +94,29 @@ export function AppearanceSection() {
         <div className="flex gap-2 flex-wrap">
           {(['auto', 'on', 'off'] as const).map(m => <button key={m} style={opt(tvMode === m)} onClick={() => setTvMode(m)}>{m === 'auto' ? 'Automático' : m === 'on' ? 'Activado' : 'Desactivado'}</button>)}
         </div>
+      </Card>
+    </section>
+  );
+}
+
+export function LanguageSection() {
+  const { translateAuto, translateTo, setTranslate } = useSettingsStore();
+  return (
+    <section className="mb-8">
+      <SLabel icon={Languages} label="Idioma y traducción" />
+      <Card>
+        <p style={title}>Tu idioma</p>
+        <p style={help}>Se usa para traducir y para ordenar los enlaces de Cine y series (primero los que tienen audio o subtítulos en tu idioma).</p>
+        <div className="grid gap-2 mb-5" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(110px,1fr))' }}>
+          {availableLanguages().map(l => <button key={l.code} style={{ ...opt(translateTo === l.code), flex: undefined }} onClick={() => setTranslate(translateAuto, l.code)}>{l.name}</button>)}
+        </div>
+        <p style={title}>Traducir solo lo que esté en otro idioma</p>
+        <p style={help}>La guía de programación de canales de otros países y las sinopsis y episodios de Cine y series se traducen al abrirlos (se ve un icono de traducción; al pasar el ratón por encima, el texto original). Los nombres de equipos y canales no se tocan.</p>
+        <div className="flex gap-2 flex-wrap mb-3">
+          <button style={opt(translateAuto)} onClick={() => setTranslate(true)}>Traducir automáticamente</button>
+          <button style={opt(!translateAuto)} onClick={() => setTranslate(false)}>No traducir</button>
+        </div>
+        <p style={{ ...help, marginBottom: 0 }}>{Capacitor.isNativePlatform() ? 'Se traduce dentro del móvil con Google ML Kit (los paquetes sin conexión de Google Traductor).' : 'Se traduce dentro del equipo con el motor de Firefox Translations.'} Es gratis, sin cuenta y privado: el texto no sale del dispositivo. La primera vez que hace falta un idioma se descarga su paquete (unos 20–30 MB) y después funciona sin internet.</p>
       </Card>
     </section>
   );

@@ -2,7 +2,7 @@
   <img src="public/favicon.svg" alt="TOPOTV" width="88" height="88">
   <h1>TOPOTV</h1>
   <p><strong>Canales, programación y eventos. Todo en un mismo lugar.</strong></p>
-  <p>Web · Windows · Android · Android TV</p>
+  <p>Windows · Android · Android TV</p>
   <p>
     <a href="#descargas">DESCARGAR</a> ·
     <a href="#guia-de-uso">GUÍA DE USO</a> ·
@@ -10,24 +10,26 @@
   </p>
 </div>
 
-TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos deportivos desde el navegador, el ordenador o un dispositivo Android. **No incluye canales ni listas de reproducción**: usa únicamente fuentes propias o autorizadas.
+TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos deportivos desde el ordenador, el móvil o la tele. **No incluye canales ni listas de reproducción**: usa únicamente fuentes propias o autorizadas.
 
 ## Descargas
 
 | Plataforma | Descarga |
 | --- | --- |
-| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.4.1.exe) |
-| Android y Android TV | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.4.1.apk) |
-| Web | [TOPOTV Web (.zip)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Web-v1.4.1.zip) |
+| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.4.2.exe) |
+| Android (móvil y tableta) | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.4.2.apk) |
+| Android TV y Google TV | [TOPOTV para Android TV (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-TV-v1.4.2.apk) |
 
-**Versión actual: v1.4.1.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
+La versión de Android TV es la misma app preparada para la tele: arranca en modo TV y se maneja con el mando. Si en una tele tenías la de Android, al actualizar se pasa sola a la de TV.
+
+**Versión actual: v1.4.2.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
 
 ## Qué incluye
 
 - Canales organizados por categorías, búsqueda y favoritos.
 - Guía de programación cuando la lista incluye una fuente EPG compatible.
 - Agenda de eventos deportivos y enlaces de reproducción disponibles en las fuentes configuradas.
-- Pestaña Flashscore: integrada en Web y Windows; en Android se abre en el navegador del dispositivo.
+- Pestaña Flashscore: integrada en Windows; en Android se abre en el navegador del dispositivo.
 - Agenda de eventos y guía EPG también en Android (se descargan directamente en el móvil).
 - Canales organizados por categorías: tus listas M3U (de archivo o de enlace) se fusionan con la agenda de Ciriaco. Las listas cargadas desde un archivo se guardan en el dispositivo y no se pierden al actualizar. En Windows, las listas que dejes en **Documentos\TOPOTV\Listas** se cargan solas en cada actualización.
 - Sin enlaces repetidos: un mismo ID de AceStream solo se guarda una vez aunque venga en varias listas; Ajustes indica cuántos repetidos se han quitado.
@@ -70,10 +72,6 @@ Abre **Buscar** para encontrar canales por nombre. Explora las categorías desde
 ### 5. Consulta la programación
 
 La guía EPG se carga desde la información incluida en tu lista. Si tu proveedor te dio una dirección de guía, puedes añadirla en **Ajustes → Guía de Programación (EPG)**. En **Eventos** encontrarás la agenda disponible y sus enlaces; Flashscore se consulta desde su pestaña independiente.
-
-### 6. Usa la versión web
-
-El ZIP web contiene la interfaz para alojarla en un servicio web compatible. La reproducción con AceStream y algunas funciones de eventos o de compartir requieren servicios adicionales en el dispositivo; el ZIP por sí solo no los instala.
 
 ## Seguridad y privacidad
 

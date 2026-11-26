@@ -3,7 +3,7 @@ import { registerPlugin } from '@capacitor/core';
 interface ExternalPlayerPlugin {
   open(options: { url: string; title?: string; package?: string; chooser?: boolean }): Promise<{ opened: boolean }>;
   isInstalled(options?: { package?: string }): Promise<{ installed: boolean }>;
-  isTv(): Promise<{ tv: boolean }>;
+  isTv(): Promise<{ tv: boolean; edition?: 'movil' | 'tv' }>;
   launchApp(options: { package: string }): Promise<{ launched: boolean }>;
   /** Abre un enlace acestream:// en una app concreta (Ace Serve enciende así su motor sin pulsar START) */
   openAceLink(options: { id: string; package: string }): Promise<{ opened: boolean }>;
@@ -31,4 +31,9 @@ export async function openInAndroidVlc(url: string, title: string): Promise<{ ok
 /** true si la app corre en una tele con Android TV. */
 export async function isAndroidTv(): Promise<boolean> {
   try { return (await ExternalPlayer.isTv()).tv; } catch { return false; }
+}
+
+/** APK instalada: «tv» (edición Android TV) o «movil». En Windows y web, null. */
+export async function androidEdition(): Promise<'movil' | 'tv' | null> {
+  try { return (await ExternalPlayer.isTv()).edition ?? 'movil'; } catch { return null; }
 }

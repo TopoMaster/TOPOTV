@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Server, ShieldCheck, Upload, RotateCcw, Check, AlertTriangle, Tv2, RefreshCw, Wifi, Monitor, Share2, Smartphone, HelpCircle, Zap, Palette, ListVideo, Bell, Film, Users, Cpu, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Server, ShieldCheck, Upload, RotateCcw, Check, AlertTriangle, Tv2, RefreshCw, Wifi, Monitor, Share2, Smartphone, HelpCircle, Zap, Palette, Languages, ListVideo, Bell, Film, Users, Cpu, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useM3UStore } from '@/store/useM3UStore';
 import { useUIStore } from '@/store/useUIStore';
@@ -12,7 +12,7 @@ import { allSources } from '@/lib/ciriaco';
 import { folderInfo, openListsFolder, type FolderInfo } from '@/lib/folderLists';
 import { getLocalLists, removeLocalList } from '@/lib/localLists';
 import { useEPGStore } from '@/store/useEPGStore';
-import { AddonsSection, AppearanceSection, BackupSection, ProfilesSection, ChecksSection, SystemSection, TeamsSection } from '@/pages/SettingsExtras';
+import { AddonsSection, AppearanceSection, BackupSection, LanguageSection, ProfilesSection, ChecksSection, SystemSection, TeamsSection } from '@/pages/SettingsExtras';
 import { shareStatus, tunnelStart, tunnelStop, shareRevoke, type ShareStatus } from '@/lib/share';
 
 const inp: React.CSSProperties = { padding:'9px 12px',background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)',color:'var(--text-primary)',fontSize:'0.85rem',fontFamily:'DM Mono,monospace',outline:'none',width:'100%' };
@@ -59,7 +59,7 @@ function BackendSection() {
 function PlayerSection() {
   const {preferredPlayer,setPreferredPlayer,playback,setPlayback} = useSettingsStore();
   const isNativeApp = Capacitor.isNativePlatform();
-  const playerOptions = (isNativeApp ? ['native','vlc','browser'] : ['vlc','browser']) as readonly ('native'|'vlc'|'browser')[];
+  const playerOptions = (isNativeApp ? ['native','vlc','browser'] : ['browser','vlc']) as readonly ('native'|'vlc'|'browser')[];
   const range = (label: string, value: number, min: number, max: number, step: number, unit: string, help: string, onChange: (value: number) => void) => (
     <label className="block" style={{marginBottom:14}}>
       <span className="flex items-center justify-between gap-3" style={{fontSize:'0.75rem',color:'var(--text-secondary)',marginBottom:5}}>
@@ -75,13 +75,13 @@ function PlayerSection() {
     <section className="mb-8">
       <SLabel icon={Monitor} label="Reproductor" />
       <Card>
-        <p style={{fontSize:'0.8rem',color:'var(--text-secondary)',marginBottom:'16px',lineHeight:1.6}}>{isNativeApp?'«TOPOTV» usa el reproductor integrado: pantalla completa, imagen en imagen, audio y subtítulos, reanuda donde lo dejaste y, si un enlace falla, pasa al siguiente. VLC abre el stream en la app VLC for Android; «Navegador» lo reproduce en la propia pantalla. Para los canales de AceStream el motor debe estar instalado y activo.':'VLC abre el stream en una ventana aparte (recomendado, más estable). "Navegador" lo reproduce dentro de TOPOTV y puede tardar más en arrancar.'}</p>
+        <p style={{fontSize:'0.8rem',color:'var(--text-secondary)',marginBottom:'16px',lineHeight:1.6}}>{isNativeApp?'«TOPOTV» usa el reproductor integrado: pantalla completa, imagen en imagen, audio y subtítulos, reanuda donde lo dejaste y, si un enlace falla, pasa al siguiente. VLC abre el stream en la app VLC for Android; «Navegador» lo reproduce en la propia pantalla. Para los canales de AceStream el motor debe estar instalado y activo.':'«Dentro de TOPOTV» reproduce en la propia app, con subtítulos y selección de audio; si un formato no se puede ver (MKV, algunos audios), se abre solo en VLC. «VLC» lo abre siempre en una ventana aparte.'}</p>
         <div className="flex gap-3 mb-4">
           {playerOptions.map(p=>(
             <button key={p} onClick={()=>setPreferredPlayer(p)} style={{flex:1,padding:'12px',background:preferredPlayer===p?'var(--accent-dim)':'var(--bg-elevated)',border:`1px solid ${preferredPlayer===p?'var(--accent)':'var(--border-mid)'}`,borderRadius:'var(--radius-md)',color:preferredPlayer===p?'var(--accent)':'var(--text-secondary)',cursor:'pointer',textAlign:'center',transition:'all 0.15s'}}>
               <div style={{fontSize:'1.2rem',marginBottom:'4px'}}>{p==='native'?'🦫':p==='vlc'?'🎬':'🌐'}</div>
-              <div style={{fontSize:'0.78rem',fontWeight:600}}>{p==='native'?'TOPOTV':p==='vlc'?'VLC':'Navegador'}</div>
-              <div style={{fontSize:'0.65rem',color:'var(--text-muted)',marginTop:'2px'}}>{p==='native'?'Recomendado':p==='vlc'?(isNativeApp?'App externa':'Recomendado'):'En la pantalla'}</div>
+              <div style={{fontSize:'0.78rem',fontWeight:600}}>{p==='native'?'TOPOTV':p==='vlc'?'VLC':isNativeApp?'Navegador':'Dentro de TOPOTV'}</div>
+              <div style={{fontSize:'0.65rem',color:'var(--text-muted)',marginTop:'2px'}}>{p==='native'?'Recomendado':p==='vlc'?(isNativeApp?'App externa':'Ventana aparte'):isNativeApp?'En la pantalla':'Recomendado'}</div>
             </button>
           ))}
         </div>
@@ -498,6 +498,7 @@ function categories(isNativeApp: boolean): Cat[] {
     { id: 'motor', icon: Zap, title: 'Motor y reproducción', desc: isNativeApp ? 'Motor AceStream, reproductor y buffers' : 'Programas necesarios, reproductor y motor', color: '#f5b84a',
       body: () => <>{isNativeApp ? <EngineAndroidSection /> : <DepsSection />}<PlayerSection /><BackendSection /></> },
     { id: 'apariencia', icon: Palette, title: 'Apariencia', desc: 'Color, tamaño y tipo de letra, modo TV', color: '#c792ff', body: () => <AppearanceSection /> },
+    { id: 'idioma', icon: Languages, title: 'Idioma y traducción', desc: 'Traducir la guía y las sinopsis a tu idioma', color: '#6ee7d8', body: () => <LanguageSection /> },
     { id: 'canales', icon: ListVideo, title: 'Canales y listas', desc: 'Tus listas, TDT, enlaces caídos y guía', color: '#5fb8ff',
       body: () => <><M3USection /><TdtSection /><ChecksSection /><EPGSection /></> },
     { id: 'eventos', icon: Bell, title: 'Eventos y avisos', desc: isNativeApp ? 'Tus equipos, avisos y WARP' : 'Tus equipos y avisos', color: '#ff7a7a',
@@ -538,7 +539,7 @@ export function SettingsPage() {
   if (current) {
     const Icon = current.icon;
     return (
-      <div className="settings-page fade-in" style={{ padding: '24px', paddingBottom: '48px', maxWidth: '680px' }}>
+      <div className="settings-page page-center fade-in" style={{ padding: '24px', paddingBottom: '48px', maxWidth: '760px' }}>
         <button onClick={() => { if ((window.history.state?.idx ?? 0) > 0) navigate(-1); else navigate('/settings', { replace: true }); }} className="flex items-center gap-1 mb-4" style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.82rem', padding: '6px 0' }}>
           <ChevronLeft size={18} />Ajustes
         </button>
@@ -551,7 +552,7 @@ export function SettingsPage() {
     );
   }
   return (
-    <div className="settings-page fade-in" style={{ padding: '24px', paddingBottom: '48px', maxWidth: '680px' }}>
+    <div className="settings-page page-center fade-in" style={{ padding: '24px', paddingBottom: '48px', maxWidth: '760px' }}>
       <h1 className="font-display mb-5" style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)' }}>Ajustes</h1>
       <EngineStatusCard />
       <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(250px,1fr))' }}>

@@ -1,7 +1,19 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, ChevronRight, Folder, FolderOpen, Search, Tv } from 'lucide-react';
+import { ChevronDown, ChevronRight, Folder, FolderOpen, Search } from 'lucide-react';
 import type { Group } from '@/types';
+import de from 'flag-icons/flags/4x3/de.svg';
+import pl from 'flag-icons/flags/4x3/pl.svg';
+import ru from 'flag-icons/flags/4x3/ru.svg';
+import gb from 'flag-icons/flags/4x3/gb.svg';
+import us from 'flag-icons/flags/4x3/us.svg';
+import be from 'flag-icons/flags/4x3/be.svg';
+import tr from 'flag-icons/flags/4x3/tr.svg';
+import pt from 'flag-icons/flags/4x3/pt.svg';
+import fr from 'flag-icons/flags/4x3/fr.svg';
+import it from 'flag-icons/flags/4x3/it.svg';
+import nl from 'flag-icons/flags/4x3/nl.svg';
+import es from 'flag-icons/flags/4x3/es.svg';
 
 /**
  * Categorías del menú lateral (escritorio) en carpetas: las principales a la vista y los canales de otros
@@ -11,6 +23,13 @@ import type { Group } from '@/types';
 const KEY = 'topotv-sidebar-open';
 const COUNTRY_RE = /^(REINO UNIDO|EE\. UU\.|PORTUGAL|FRANCIA|ITALIA|ALEMANIA|PAÍSES BAJOS|BÉLGICA|POLONIA|TURQUÍA|RUSIA)$/i;
 const MAIN = 'Principales';
+const FLAGS: Record<string, string> = { 'Reino Unido': gb, 'EE. UU.': us, 'Portugal': pt, 'Francia': fr, 'Italia': it, 'Alemania': de, 'Países Bajos': nl, 'Bélgica': be, 'Polonia': pl, 'Turquía': tr, 'Rusia': ru, [MAIN]: es };
+/** Siglas que se quedan en mayúsculas al poner «LIGA DE CAMPEONES» como «Liga de Campeones». */
+const KEEP = /^(TDT|NBA|NFL|RFEF|DAZN|M\+|F1|UFC|TV|ACB|ESPN|BT|TNT|HD|UK|EE\.|UU\.|II|III)$/;
+const SMALL = /^(de|del|la|las|el|los|y|e|en)$/i;
+const nice = (s: string) => s === s.toUpperCase() && /[A-ZÁÉÍÓÚÑ]{3}/.test(s)
+  ? s.split(/(\s+|·)/).map((w, i) => KEEP.test(w) ? w : i > 0 && SMALL.test(w) ? w.toLowerCase() : w.charAt(0) + w.slice(1).toLowerCase()).join('')
+  : s;
 
 interface FolderNode { name: string; items: { group: Group; label: string }[]; count: number }
 const pretty = (s: string) => s === 'EE. UU.' ? s : s.toLowerCase().replace(/(^|\s)(\p{L})/gu, (_, sp, c) => sp + c.toUpperCase());
@@ -49,10 +68,10 @@ export function SidebarCategories({ groups }: { groups: Group[] }) {
     const active = pathname === `/category/${g.id}`;
     return (
       <button key={g.id} onClick={() => navigate(`/category/${g.id}`)} className={`nav-item w-full text-left ${active ? 'active' : ''}`} title={`${g.title} · ${g.channels.length} canales`}
-        style={{ padding: indent ? '6px 10px 6px 30px' : '7px 12px', gap: 8 }}>
-        {!indent && (g.logo ? <img src={g.logo} alt="" className="shrink-0 object-contain" style={{ width: 16, height: 16 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : <Tv size={15} strokeWidth={1.8} className="shrink-0" />)}
-        <span className="truncate flex-1" style={{ fontSize: '0.7rem', letterSpacing: '0.04em', textTransform: indent ? 'none' : 'uppercase' }}>{label}</span>
-        <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{g.channels.length}</span>
+        style={{ padding: indent ? '6px 10px 6px 34px' : '7px 12px', gap: 10 }}>
+        {g.logo ? <img src={g.logo} alt="" className="shrink-0 object-contain" style={{ width: 14, height: 14 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : <span className="cat-dot" />}
+        <span className="truncate flex-1" style={{ fontSize: '0.78rem' }}>{nice(label)}</span>
+        <span className="cat-count">{g.channels.length}</span>
       </button>
     );
   };
@@ -76,9 +95,9 @@ export function SidebarCategories({ groups }: { groups: Group[] }) {
               <div key={f.name}>
                 <button onClick={() => toggle(f.name)} className="nav-item w-full text-left" aria-expanded={o} style={{ padding: '7px 10px', gap: 8 }}>
                   {o ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                  {o ? <FolderOpen size={15} strokeWidth={1.8} style={{ color: 'var(--accent)' }} /> : <Folder size={15} strokeWidth={1.8} />}
-                  <span className="truncate flex-1" style={{ fontSize: '0.74rem', fontWeight: 600 }}>{f.name}</span>
-                  <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{f.count}</span>
+                  {FLAGS[f.name] ? <img className="folder-flag" src={FLAGS[f.name]} alt="" aria-hidden /> : o ? <FolderOpen size={15} strokeWidth={1.8} style={{ color: 'var(--accent)' }} /> : <Folder size={15} strokeWidth={1.8} />}
+                  <span className="truncate flex-1" style={{ fontSize: '0.8rem', fontWeight: 600 }}>{f.name}</span>
+                  <span className="cat-count">{f.count}</span>
                 </button>
                 {o && f.items.map(i => item(i.group, i.label, f.name !== MAIN))}
               </div>

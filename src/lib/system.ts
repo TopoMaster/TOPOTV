@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { checkBackendStatus } from '@/lib/aceApi';
 import { installApkFromUrl } from '@/lib/engineAndroid';
+import { androidEdition, isAndroidTv } from '@/lib/externalPlayer';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useHealthStore } from '@/store/useHealthStore';
 
@@ -12,7 +13,8 @@ import { useHealthStore } from '@/store/useHealthStore';
 declare const __APP_VERSION__: string;
 const SYS = 'http://localhost:3008';
 const REPO = 'TopoMaster/TOPOTV';
-const APK_RE = /^TOPOTV-v\d+\.\d+\.\d+\.apk$/;
+const APK_RE = /^TOPOTV-v\d+\.\d+\.\d+\.apk$/;          // edición móvil
+const TV_APK_RE = /^TOPOTV-TV-v\d+\.\d+\.\d+\.apk$/;    // edición Android TV
 const isNative = () => Capacitor.isNativePlatform();
 export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0';
 
@@ -35,7 +37,10 @@ async function nativeCheck(): Promise<UpdateInfo> {
   if (!r.ok) throw new Error(`GitHub respondió ${r.status}`);
   const rel = await r.json() as { tag_name?: string; html_url?: string; body?: string; assets?: { name: string; size: number; browser_download_url: string }[] };
   const latest = String(rel.tag_name ?? '').replace(/^v/, '');
-  const asset = (rel.assets ?? []).find(a => APK_RE.test(a.name));
+  // en una tele se baja la edición TV (aunque tenga instalada la de móvil: así se pasa sola a la de TV)
+  const tv = (await androidEdition()) === 'tv' || (await isAndroidTv());
+  const assets = rel.assets ?? [];
+  const asset = (tv ? assets.find(a => TV_APK_RE.test(a.name)) : undefined) ?? assets.find(a => APK_RE.test(a.name));
   nativeUrl = asset?.browser_download_url ?? '';
   return { current: APP_VERSION, latest, newer: !!latest && !!asset && isNewer(latest, APP_VERSION), asset: asset ? { name: asset.name, size: asset.size } : null, page: rel.html_url ?? '', notes: String(rel.body ?? '').slice(0, 1500) };
 }

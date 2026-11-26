@@ -25,11 +25,25 @@ android {
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:!<dir>bergamot'   // el traductor de Windows (Android usa ML Kit)
         }
     }
     androidResources {
         noCompress 'apk'
+    }
+    // Dos ediciones con el mismo código y el mismo identificador (una tele que tenga la de móvil se pasa a la de TV al actualizar):
+    //  - movil: teléfonos y tabletas  → TOPOTV-vX.Y.Z.apk
+    //  - tv:    Android TV / Google TV → TOPOTV-TV-vX.Y.Z.apk (arranca en modo TV, para mando)
+    flavorDimensions = ['edicion']
+    productFlavors {
+        movil {
+            dimension 'edicion'
+            resValue 'string', 'topotv_edition', 'movil'
+        }
+        tv {
+            dimension 'edicion'
+            resValue 'string', 'topotv_edition', 'tv'
+        }
     }
     signingConfigs {
         release {
@@ -44,6 +58,8 @@ android {
     buildTypes {
         release {
             minifyEnabled false
+            // solo móviles ARM (todos los reales): el traductor de ML Kit pesa ~15 MB por arquitectura
+            ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             if (releaseSigningConfigured) {
                 signingConfig signingConfigs.release
@@ -67,7 +83,8 @@ tasks.register('validateReleaseSigning') {
     }
 }
 
-tasks.matching { it.name == 'preReleaseBuild' }.configureEach {
+// con dos ediciones las tareas son preMovilReleaseBuild y preTvReleaseBuild
+tasks.matching { it.name ==~ /pre[A-Za-z]*ReleaseBuild/ }.configureEach {
     dependsOn tasks.named('validateReleaseSigning')
 }
 
@@ -89,6 +106,8 @@ dependencies {
     implementation 'androidx.media3:media3-cast:1.5.1'                // Chromecast desde el reproductor integrado
     implementation 'com.google.android.gms:play-services-cast-framework:21.5.0'
     implementation 'androidx.mediarouter:mediarouter:1.7.0'
+    implementation 'com.google.mlkit:translate:17.0.3'                 // traducción en el móvil (Google, sin conexión, gratis)
+    implementation 'com.google.mlkit:language-id:17.0.6'               // detectar el idioma del texto
     implementation 'com.wireguard.android:tunnel:1.0.20230706'   // túnel WARP integrado
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     implementation project(':capacitor-cordova-android-plugins')

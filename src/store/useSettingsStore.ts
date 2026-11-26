@@ -18,6 +18,10 @@ interface SettingsState {
   /** Fondo negro puro (pantallas OLED: más contraste y menos batería) */
   amoled: boolean;
   fontFamily: FontFamily;
+  /** Traducir solo la guía, las fichas y las descripciones que estén en otro idioma */
+  translateAuto: boolean;
+  /** Idioma al que se traduce (y preferido para audio y subtítulos en Cine y series) */
+  translateTo: string;
   preferredPlayer: PlayerApp;
   m3uSourceUrls: string[];
   /** Canales de TDT en abierto (lista incluida en la app) */
@@ -49,6 +53,7 @@ interface SettingsState {
   setTheme: (t: ThemeId) => void;
   setAmoled: (v: boolean) => void;
   setFontFamily: (f: FontFamily) => void;
+  setTranslate: (auto: boolean, to?: string) => void;
   setManualEpgUrl: (url: string) => void;
   setPreferredPlayer: (p: PlayerApp) => void;
   setM3uSourceUrls: (urls: string[]) => void;
@@ -71,8 +76,8 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       backendConfig: { host: '127.0.0.1', port: 6878 },
-      backendStatus: 'unknown', theme: 'gold', amoled: false, fontFamily: 'topotv', manualEpgUrl: '',
-      preferredPlayer: Capacitor.isNativePlatform() ? 'native' : 'vlc',   // en Android, el reproductor integrado
+      backendStatus: 'unknown', theme: 'gold', amoled: false, fontFamily: 'topotv', translateAuto: true, translateTo: 'es', manualEpgUrl: '',
+      preferredPlayer: Capacitor.isNativePlatform() ? 'native' : 'browser',   // Android: el integrado; Windows: dentro de la app (VLC si el formato no es compatible)
       
       m3uSourceUrls: [],
       includeTdt: true, warpAuto: true, engineAutoStart: true, engineApkUrl: '', engineApkToken: '', tvMode: 'auto', onboardingDone: false,
@@ -90,6 +95,7 @@ export const useSettingsStore = create<SettingsState>()(
       setTheme: (theme) => set({ theme }),
       setAmoled: (amoled) => set({ amoled }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
+      setTranslate: (translateAuto, to) => set(s => ({ translateAuto, translateTo: to ?? s.translateTo })),
       setManualEpgUrl: (url) => set({ manualEpgUrl: url }),
       setPreferredPlayer: (preferredPlayer) => set({ preferredPlayer }),
       setM3uSourceUrls: (m3uSourceUrls) => set({ m3uSourceUrls }),
@@ -109,6 +115,13 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'acestream-tv-settings',
+      // v2: el reproductor por defecto de Windows pasa a ser el de la app (antes VLC); se cambia una sola vez
+      version: 2,
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as Partial<SettingsState>;
+        if (version < 2 && p.preferredPlayer === 'vlc' && !Capacitor.isNativePlatform()) p.preferredPlayer = 'browser';
+        return p as SettingsState;
+      },
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<SettingsState> | undefined;
         return {

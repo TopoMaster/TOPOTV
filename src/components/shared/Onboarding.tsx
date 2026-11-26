@@ -13,6 +13,10 @@ const choice = (active: boolean) => ({
   borderRadius: 'var(--radius-md)', color: active ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: active ? 700 : 500,
 });
 
+/** Versión de la guía: al cambiarla, la guía se enseña otra vez (una sola) a quien ya vio la anterior. */
+const GUIDE_KEY = 'topotv-guide-version';
+const GUIDE_VERSION = '2';
+
 /** Guía interactiva del primer arranque (se puede repetir desde Ajustes). */
 export function Onboarding() {
   const navigate = useNavigate();
@@ -25,12 +29,16 @@ export function Onboarding() {
   const reloadSources = useM3UStore(s => s.reloadSources);
   const [step, setStep] = useState(0);
 
-  // primera vez: se abre sola
-  useEffect(() => { if (!done) setOpen(true); }, [done, setOpen]);
+  // primera vez (o guía renovada desde la última vez que se vio): se abre sola
+  useEffect(() => {
+    let seen = '';
+    try { seen = localStorage.getItem(GUIDE_KEY) ?? ''; } catch { /* sin almacenamiento */ }
+    if (!done || seen !== GUIDE_VERSION) setOpen(true);
+  }, [done, setOpen]);
   useEffect(() => { if (open) setStep(0); }, [open]);
   if (!open) return null;
 
-  const close = () => { setDone(true); setOpen(false); };
+  const close = () => { setDone(true); setOpen(false); try { localStorage.setItem(GUIDE_KEY, GUIDE_VERSION); } catch { /* sin almacenamiento */ } };
   const go = (path: string) => { close(); navigate(path); };
 
   const steps: { title: string; body: React.ReactNode }[] = [
@@ -38,16 +46,19 @@ export function Onboarding() {
       title: 'Bienvenido a TOPOTV',
       body: (
         <>
-          <p>Canales, eventos y TDT en un mismo sitio. Esta guía dura un minuto y puedes repetirla cuando quieras desde <strong>Ajustes</strong>.</p>
+          <p>Canales, eventos deportivos, TDT y cine en un mismo sitio. Esta guía dura un minuto y puedes repetirla cuando quieras en <strong>Ajustes → Copia y sistema</strong>.</p>
           <p style={{ color: 'var(--text-muted)' }}>TOPOTV no incluye canales de pago: usa solo listas y fuentes propias o autorizadas.</p>
         </>
       ),
     },
     {
-      title: 'Canales por categorías',
+      title: 'Tus canales',
       body: (
         <>
-          <p>{isNative ? 'En la pestaña «Canales» tienes todas las categorías' : 'A la izquierda tienes todas las categorías'} (TDT, deportes…). Tus listas M3U (de archivo o de enlace, en Ajustes → Canales y listas) y los canales de la agenda se fusionan solos en ellas.</p>
+          {isNative
+            ? <p>En la pestaña <strong>Canales</strong> están todas las categorías. Carga tu lista M3U con el botón de subir (arriba) o en <strong>Ajustes → Canales y listas</strong>: se guarda en el móvil y no se pierde al actualizar.</p>
+            : <p>Deja tus listas <strong>.m3u</strong> en la carpeta <strong>Documentos\TOPOTV\Listas</strong> y se cargan solas cada vez que actualizas (también puedes usar <strong>Cargar M3U</strong>). A la izquierda verás las categorías en carpetas, con una por país.</p>}
+          <p>Si un mismo enlace (ID de AceStream) viene en varias listas, solo se guarda una vez. Cada canal muestra su guía de programación o «sin guía».</p>
           <button style={{ ...choice(includeTdt), width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} onClick={() => { setIncludeTdt(!includeTdt); void reloadSources(); }}>
             {includeTdt && <Check size={14} />}Incluir TDT en abierto (RTVE y autonómicas)
           </button>
@@ -55,15 +66,24 @@ export function Onboarding() {
       ),
     },
     {
-      title: '¿Dónde quieres ver los canales?',
+      title: '¿Dónde quieres verlos?',
       body: (
         <>
-          <p>Elige tu reproductor. Puedes cambiarlo cuando quieras en Ajustes → Reproductor.</p>
+          <p>Elige tu reproductor (se cambia en <strong>Ajustes → Motor y reproducción</strong>).</p>
           <div className="flex gap-2 flex-wrap">
-            <button style={choice(preferredPlayer === 'vlc')} onClick={() => setPreferredPlayer('vlc')}>🎬 VLC<br /><small style={{ fontWeight: 400 }}>más estable</small></button>
-            <button style={choice(preferredPlayer === 'browser')} onClick={() => setPreferredPlayer('browser')}>🌐 Navegador<br /><small style={{ fontWeight: 400 }}>dentro de TOPOTV</small></button>
+            {isNative
+              ? <>
+                <button style={choice(preferredPlayer === 'native')} onClick={() => setPreferredPlayer('native')}>📺 TOPOTV<br /><small style={{ fontWeight: 400 }}>recomendado</small></button>
+                <button style={choice(preferredPlayer === 'vlc')} onClick={() => setPreferredPlayer('vlc')}>🎬 VLC<br /><small style={{ fontWeight: 400 }}>app aparte</small></button>
+              </>
+              : <>
+                <button style={choice(preferredPlayer === 'browser')} onClick={() => setPreferredPlayer('browser')}>📺 Dentro de TOPOTV<br /><small style={{ fontWeight: 400 }}>recomendado</small></button>
+                <button style={choice(preferredPlayer === 'vlc')} onClick={() => setPreferredPlayer('vlc')}>🎬 VLC<br /><small style={{ fontWeight: 400 }}>ventana aparte</small></button>
+              </>}
           </div>
-          <p style={{ color: 'var(--text-muted)' }}>Los canales de AceStream necesitan el motor activo; la TDT en abierto no.</p>
+          <p style={{ color: 'var(--text-muted)' }}>{isNative
+            ? 'El motor AceStream se enciende solo al ver un canal. La primera vez Android pregunta «Abrir con»: elige TOPOTV y «Siempre».'
+            : 'Si un vídeo tiene un formato que no se puede ver dentro de la app, se abre solo en VLC. La TDT en abierto no necesita el motor.'}</p>
         </>
       ),
     },
@@ -71,17 +91,27 @@ export function Onboarding() {
       title: 'Eventos del día',
       body: (
         <>
-          <p>En <strong>Eventos</strong> ves la agenda deportiva con sus enlaces. Pulsa <strong>Ver</strong> para reproducir o el desplegable para elegir otro enlace.</p>
-          {!isNative && <p>Con <strong>Grabar</strong> programas una grabación y luego la ves en <strong>Grabaciones</strong>.</p>}
-          <p>{isNative ? 'Al pulsar Actualizar, TOPOTV conecta su WARP integrado (solo para la app) y lo apaga al terminar. La primera vez Android pedirá permiso de VPN.' : 'Al pulsar Actualizar, TOPOTV conecta Cloudflare WARP solo mientras lee la agenda y lo desconecta al terminar.'}</p>
+          <p>En <strong>Eventos</strong> está la agenda deportiva. Pulsa <strong>Ver</strong>, y debajo verás <strong>«En tus canales»</strong>: los canales de tus listas que lo emiten. Los partidos que solo aparecen en la guía salen marcados <strong>GUÍA TV</strong>.</p>
+          <p>Con la <strong>campana</strong> te avisa antes de empezar y con <strong>Grabar</strong> lo guardas para verlo después.</p>
+          <p style={{ color: 'var(--text-muted)' }}>{isNative ? 'Al pulsar Actualizar, TOPOTV conecta su WARP integrado (solo para la app) y lo apaga al terminar. La primera vez Android pide permiso de VPN.' : 'Al pulsar Actualizar, TOPOTV conecta Cloudflare WARP mientras actualiza la agenda, las listas y la guía, y lo desconecta al terminar.'}</p>
         </>
       ),
     },
     {
-      title: 'Modo TV',
+      title: 'Cine y series',
       body: (
         <>
-          <p>Interfaz más grande y manejable con mando a distancia. «Automático» solo se activa en Android TV.</p>
+          <p>Con tus addons de Stremio verás películas y series. Al pulsar <strong>Ver</strong>, cada enlace indica el <strong>idioma del audio</strong> 🔊 y los <strong>subtítulos</strong> 💬; los que están en tu idioma salen primero.</p>
+          <p style={{ color: 'var(--text-muted)' }}>{isNative ? 'Los enlaces de torrent solo se pueden ver en la app de Windows.' : 'Los torrents se ven con el motor de torrents de TOPOTV, dentro de la app o en VLC.'}</p>
+        </>
+      ),
+    },
+    {
+      title: 'Hazla tuya',
+      body: (
+        <>
+          <p>En <strong>Ajustes → Apariencia</strong> eliges color, tamaño y tipo de letra. En <strong>Idioma y traducción</strong>, el idioma al que se traducen solas la guía y las sinopsis que estén en otro idioma.</p>
+          <p>Modo TV: interfaz más grande para manejarla con mando. «Automático» solo se activa en Android TV.</p>
           <div className="flex gap-2 flex-wrap">
             {(['auto', 'on', 'off'] as TvMode[]).map(m => (
               <button key={m} style={choice(tvMode === m)} onClick={() => setTvMode(m)}>{m === 'auto' ? 'Automático' : m === 'on' ? 'Activado' : 'Desactivado'}</button>
@@ -98,6 +128,7 @@ export function Onboarding() {
           <div className="flex gap-2 flex-wrap">
             <button style={choice(false)} onClick={() => go(isNative ? '/categories' : '/')}>Ver canales</button>
             <button style={choice(false)} onClick={() => go('/events')}>Ver eventos</button>
+            <button style={choice(false)} onClick={() => go('/library')}>Cine y series</button>
             <button style={choice(false)} onClick={() => go('/settings')}>Ajustes</button>
           </div>
         </>

@@ -52,31 +52,6 @@ jobs:
           path: artifacts/windows/TOPOTV-Setup-*.exe
           if-no-files-found: error
 
-  web:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Build web distribution
-        run: |
-          npm ci
-          npm run web:dist
-
-      - name: Upload web distribution
-        uses: actions/upload-artifact@v4
-        with:
-          name: topotv-web
-          path: artifacts/web/
-          if-no-files-found: error
-
   android:
     runs-on: ubuntu-latest
     steps:
@@ -134,7 +109,7 @@ jobs:
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/topotv-release.jks"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/topotv-release.jks" >> "$GITHUB_ENV"
 
-      - name: Build signed release APK
+      - name: Build signed release APKs (Android y Android TV)
         if: startsWith(github.ref, 'refs/tags/')
         working-directory: android
         env:
@@ -143,11 +118,13 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_VERSION_CODE: ${{ github.run_number }}
           ANDROID_VERSION_NAME: ${{ github.ref_name }}
-        run: bash ./gradlew --no-daemon assembleRelease
+        run: bash ./gradlew --no-daemon assembleMovilRelease assembleTvRelease
 
-      - name: Verify release APK signature
+      - name: Verify release APK signatures
         if: startsWith(github.ref, 'refs/tags/')
-        run: "$ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs android/app/build/outputs/apk/release/app-release.apk"
+        run: |
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs android/app/build/outputs/apk/movil/release/app-movil-release.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs android/app/build/outputs/apk/tv/release/app-tv-release.apk
 
       - name: Copy release APK to distribution folder
         if: startsWith(github.ref, 'refs/tags/')
@@ -160,13 +137,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: topotv-android
-          path: artifacts/android/TOPOTV-${{ github.ref_name }}.apk
+          path: |
+            artifacts/android/TOPOTV-${{ github.ref_name }}.apk
+            artifacts/android/TOPOTV-TV-${{ github.ref_name }}.apk
           if-no-files-found: error
 
       - name: Build debug APK
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         working-directory: android
-        run: bash ./gradlew --no-daemon assembleDebug
+        run: bash ./gradlew --no-daemon assembleMovilDebug assembleTvDebug
 
       - name: Copy debug APK to distribution folder
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
@@ -179,12 +158,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: topotv-android-debug
-          path: artifacts/android/TOPOTV-debug-${{ github.run_number }}.apk
+          path: |
+            artifacts/android/TOPOTV-debug-${{ github.run_number }}.apk
+            artifacts/android/TOPOTV-TV-debug-${{ github.run_number }}.apk
           if-no-files-found: error
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [windows, android, web]
+    needs: [windows, android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -200,17 +181,6 @@ jobs:
         with:
           name: topotv-android
           path: release-assets
-
-      - name: Download web distribution
-        uses: actions/download-artifact@v4
-        with:
-          name: topotv-web
-          path: web-release
-
-      - name: Archive web distribution
-        run: |
-          cd web-release
-          zip -r "../release-assets/TOPOTV-Web-${GITHUB_REF_NAME}.zip" .
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2

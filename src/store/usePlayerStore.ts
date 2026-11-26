@@ -24,6 +24,10 @@ interface PlayerStore extends PlayerState {
   stop: () => void;
   setStream: (stream: Stream) => void;
   setStatus: (status: PlayerState['status'], errorMessage?: string | null) => void;
+  /** Reproductor usado en esta reproducción si no es el elegido (p. ej. VLC porque la app no puede con el formato) */
+  forcedPlayer: 'vlc' | null;
+  /** Windows: abre en VLC el enlace actual (formato que la app no reproduce) */
+  fallbackToVlc: (reason: string) => Promise<void>;
 }
 
 const mb = (n: number) => `${(n / 1048576).toFixed(n > 1e8 ? 0 : 1)} MB`;
@@ -67,7 +71,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     const my = ++openId;
     if (get().stream?.torrent && get().stream?.aceId !== target.aceId) void stopTorrents();   // se deja el torrent anterior
     const saved = channel.vod ? useProgressStore.getState().get(channel.vod.type, channel.vod.videoId) : undefined;
-    set({ channel, stream: target, status: 'connecting', errorMessage: null, startedAt: new Date(), detail: target.torrent ? 'Buscando fuentes del torrent…' : null, resumeAt: saved && saved.dur > 0 && saved.pos / saved.dur < 0.95 ? saved.pos : 0 });
+    set({ channel, stream: target, status: 'connecting', errorMessage: null, forcedPlayer: null, startedAt: new Date(), detail: target.torrent ? 'Buscando fuentes del torrent…' : null, resumeAt: saved && saved.dur > 0 && saved.pos / saved.dur < 0.95 ? saved.pos : 0 });
     const resolved = await resolveTorrent(target, my);
     if (!resolved) return false;
     if (resolved !== target) set({ stream: resolved });
@@ -102,6 +106,15 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
 
   return {
     channel: null, stream: null, status: 'idle', errorMessage: null, startedAt: null, tried: [], detail: null, resumeAt: 0,
+    forcedPlayer: null,
+    fallbackToVlc: async (reason) => {
+      const { stream, channel } = get();
+      if (!stream || !channel || Capacitor.isNativePlatform()) return;
+      const { backendConfig, playback } = useSettingsStore.getState();
+      const r = await openInPlayer(stream, backendConfig, 'vlc', playback, { title: channel.name });
+      if (r.ok) set({ forcedPlayer: 'vlc', status: 'playing', detail: reason, errorMessage: null });
+      else void get().reportFailure(`${reason} Y tampoco se pudo abrir VLC (${r.error ?? 'no está instalado'}).`, stream.aceId);
+    },
     play: async (channel, stream) => {
       useHealthStore.getState().touchPlay();
       // sin enlace elegido a mano: el que se sabe que funciona va primero y los caídos, al final
@@ -136,9 +149,9 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       openId++;
       // Si VLC ya está reproduciendo el torrent, el vídeo es suyo: cerrar el aviso de TOPOTV no lo para
       // (antes se apagaba el motor a los 5 s y VLC se cortaba). El motor lo cierra solo cuando VLC deja de pedir datos.
-      const vlcOwnsIt = get().status === 'playing' && useSettingsStore.getState().preferredPlayer === 'vlc';
+      const vlcOwnsIt = get().status === 'playing' && (get().forcedPlayer === 'vlc' || useSettingsStore.getState().preferredPlayer === 'vlc');
       if (get().stream?.torrent && !vlcOwnsIt) void stopTorrents();
-      set({ channel: null, stream: null, status: 'idle', errorMessage: null, startedAt: null, tried: [], detail: null, resumeAt: 0 });
+      set({ channel: null, stream: null, status: 'idle', errorMessage: null, startedAt: null, tried: [], detail: null, resumeAt: 0, forcedPlayer: null });
     },
     setStream: stream => set({ stream }),
     setStatus: (status, errorMessage = null) => set({ status, errorMessage }),

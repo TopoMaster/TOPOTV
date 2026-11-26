@@ -11,10 +11,15 @@ import { orderStreams, streamHealth, useHealthStore } from '@/store/useHealthSto
 import { useMultiStore } from '@/store/useMultiStore';
 import { getNowPlaying, getUpNext, getProgressPercent, formatTime, formatDuration } from '@/lib/epg';
 import { ErrorState } from '@/components/shared/States';
+import { Translated } from '@/components/shared/Translated';
+import { langFromChannel } from '@/lib/translate';
 import type { EPGSchedule, Stream } from '@/types';
 
+/** Sinopsis de una descripción de la guía (en la de dobleM va en la primera línea que empieza por «·») */
+const synopsis = (d: string) => (d.split(/\n/).find(l => l.trim().startsWith('·'))?.replace(/^\s*·\s*/, '') ?? d).trim();
+
 // ─── Full-day EPG panel ───────────────────────────────────────────────────────
-function EPGDayPanel({ schedule }: { schedule: EPGSchedule }) {
+function EPGDayPanel({ schedule, lang }: { schedule: EPGSchedule; lang?: string }) {
   const now = Date.now();
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
@@ -50,7 +55,7 @@ function EPGDayPanel({ schedule }: { schedule: EPGSchedule }) {
                 {isNext && <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>Siguiente</span>}
               </div>
               <p style={{ fontSize: '0.76rem', fontWeight: isNow ? 600 : 400, color: isNow ? 'var(--text-primary)' : 'var(--text-secondary)', lineHeight: 1.3, marginBottom: event.category ? '2px' : 0 }}>
-                {event.title}
+                {isPast ? event.title : <Translated text={event.title} from={lang} />}
               </p>
               {event.category && <p style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{event.category} · {formatDuration(event.startTime, event.endTime)}</p>}
               {isNow && (
@@ -152,7 +157,8 @@ export function ChannelPage() {
                 <div style={{ fontSize: '0.6rem', color: 'var(--accent)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '2px' }}>
                   Ahora · {formatTime(nowPlaying.startTime)} – {formatTime(nowPlaying.endTime)}
                 </div>
-                <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>{nowPlaying.title}</p>
+                <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}><Translated text={nowPlaying.title} from={langFromChannel(channel.name)} showIcon /></p>
+                {nowPlaying.description && <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 3, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}><Translated text={synopsis(nowPlaying.description)} from={langFromChannel(channel.name)} /></p>}
               </div>
             )}
             {noGuide && !nowPlaying && !upNext && (
@@ -161,7 +167,7 @@ export function ChannelPage() {
             {upNext && !nowPlaying && (
               <div style={{ padding: '7px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', marginBottom: '10px' }}>
                 <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '2px' }}>A continuación · {formatTime(upNext.startTime)}</div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{upNext.title}</p>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}><Translated text={upNext.title} from={langFromChannel(channel.name)} showIcon /></p>
               </div>
             )}
 
@@ -232,7 +238,7 @@ export function ChannelPage() {
       </div>
 
       {/* Right EPG panel */}
-      {schedule && <EPGDayPanel schedule={schedule} />}
+      {schedule && <EPGDayPanel schedule={schedule} lang={langFromChannel(channel.name)} />}
     </div>
   );
 }

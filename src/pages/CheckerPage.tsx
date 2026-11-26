@@ -57,7 +57,7 @@ export function CheckerPage() {
   const timeout=results.filter(r=>r.status==='timeout').length;
   if(!allChannels.length) return <div className="flex flex-col items-center justify-center fade-in" style={{minHeight:'60vh',gap:'16px'}}><Shield size={48} strokeWidth={1} style={{color:'var(--text-muted)',opacity:0.4}} /><p style={{color:'var(--text-secondary)'}}>Carga una lista M3U primero</p><button onClick={()=>navigate('/settings?s=canales')} style={{padding:'9px 20px',background:'var(--accent)',color:'#080a0e',border:'none',borderRadius:'var(--radius-md)',fontSize:'0.82rem',fontWeight:700,cursor:'pointer'}}>Ir a Ajustes</button></div>;
   return (
-    <div className="fade-in" style={{padding:'24px',paddingBottom:'48px',maxWidth:'900px'}}>
+    <div className="page-center fade-in" style={{padding:'24px',paddingBottom:'48px',maxWidth:'900px'}}>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3"><Shield size={22} strokeWidth={1.8} style={{color:'var(--accent)'}} /><h1 className="font-display" style={{fontSize:'clamp(1.8rem,4vw,2.8rem)',lineHeight:1}}>Channel Checker</h1></div>
         {results.length>0&&<div className="flex items-center gap-3"><span style={{fontSize:'0.7rem',color:'var(--online-green)'}}>✓ {online}</span><span style={{fontSize:'0.7rem',color:'var(--offline-red)'}}>✗ {offline}</span>{timeout>0&&<span style={{fontSize:'0.7rem',color:'#f59e0b'}}>⏱ {timeout}</span>}</div>}

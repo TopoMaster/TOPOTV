@@ -1,16 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Play, Loader2, ExternalLink, Magnet, X, Film, Subtitles } from 'lucide-react';
+import { ArrowLeft, Play, Loader2, ExternalLink, Magnet, X, Film, Subtitles, Volume2 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useAddonsStore } from '@/store/useAddonsStore';
 import { usePlayerStore } from '@/store/usePlayerStore';
 import { useProgressStore, progressKey } from '@/store/useProgressStore';
-import { fetchMeta, fetchStreamsDetailed, type Addon, type Meta, type MetaPreview, type MetaVideo, type StreamOption } from '@/lib/stremio';
+import { fetchMeta, fetchStreamsDetailed, fetchSubtitles, type Addon, type Meta, type MetaPreview, type MetaVideo, type StreamOption } from '@/lib/stremio';
 import { torrentAvailable } from '@/lib/torrent';
 import type { Channel } from '@/types';
+import { detectLanguages, isUserLang, langName } from '@/lib/streamLang';
+import { Translated } from '@/components/shared/Translated';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 /** Ficha de una película o serie de un addon, con selector de episodios y de enlaces. */
+/** Chips de idioma de un enlace: altavoz (audio) o bocadillo (subtítulos); el de tu idioma resaltado */
+function LangChip({ icon, items, userLang, empty }: { icon: 'audio' | 'subs'; items: string[]; userLang: string; empty?: string }) {
+  if (!items.length && !empty) return null;
+  const Icon = icon === 'audio' ? Volume2 : Subtitles;
+  const mine = items.some(n => isUserLang(n, userLang));
+  return (
+    <span className="flex items-center gap-1" title={icon === 'audio' ? 'Idioma del audio' : 'Subtítulos'}
+      style={{ padding: '2px 8px', borderRadius: 100, fontSize: '0.64rem', fontWeight: 600, background: mine ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${mine ? 'var(--accent)' : 'var(--border-subtle)'}`, color: mine ? 'var(--accent)' : items.length ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+      <Icon size={11} />{items.length ? items.slice(0, 4).join(' · ') + (items.length > 4 ? ` +${items.length - 4}` : '') : empty}
+    </span>
+  );
+}
+
 export function MetaPage() {
   const { type = '', id = '' } = useParams();
   const [qs] = useSearchParams();
@@ -25,6 +41,9 @@ export function MetaPage() {
   const [options, setOptions] = useState<StreamOption[] | null>(null);
   const [streamInfo, setStreamInfo] = useState<{ failed: string[]; asked: number }>({ failed: [], asked: 0 });
   const [torrents, setTorrents] = useState(false);
+  const [addonSubs, setAddonSubs] = useState<{ url: string; lang: string; addon: string }[]>([]);
+  const [onlyMine, setOnlyMine] = useState(false);
+  const userLang = useSettingsStore(s => s.translateTo);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,8 +67,9 @@ export function MetaPage() {
   const resumeId = qs.get('resume');
 
   function openPicker(videoId: string, title: string) {
-    setPicker({ videoId, title }); setOptions(null);
+    setPicker({ videoId, title }); setOptions(null); setAddonSubs([]); setOnlyMine(false);
     void fetchStreamsDetailed(addons, type, videoId).then(r => { setOptions(r.options); setStreamInfo({ failed: r.failed, asked: r.asked }); });
+    void fetchSubtitles(addons, type, videoId).then(setAddonSubs);
   }
   // «Seguir viendo» → abre directamente el selector del episodio que dejaste
   useEffect(() => { if (resumeId && meta && !picker) { const v = videos.find(x => x.id === resumeId); openPicker(resumeId, v ? epTitle(v) : meta.name); } }, [resumeId, meta]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -62,7 +82,7 @@ export function MetaPage() {
     const ordered = [chosen, ...playable.filter(o => o !== chosen)].map(o => o.stream!);
     const channel: Channel = {
       id: `vod-${type}-${picker.videoId}`, tvgId: '', name: picker.title, rawName: picker.title, logo: meta.poster ?? '', group: 'Cine y series', streams: ordered,
-      vod: { type, id, videoId: picker.videoId, addon: data.addon.base, poster: meta.poster, title: picker.title, subtitles: chosen.subtitles },
+      vod: { type, id, videoId: picker.videoId, addon: data.addon.base, poster: meta.poster, title: picker.title, subtitles: [...chosen.subtitles, ...addonSubs.map(({ url, lang }) => ({ url, lang }))].sort((a, b) => Number(isUserLang(langName(b.lang), userLang)) - Number(isUserLang(langName(a.lang), userLang))).slice(0, 12) },
     };
     setPicker(null);
     void usePlayerStore.getState().play(channel, ordered[0]);
@@ -77,6 +97,13 @@ export function MetaPage() {
   );
 
   const year = meta.releaseInfo ?? meta.year;
+  // enlaces con su idioma; primero los que tienen audio en tu idioma, luego los que traen subtítulos en tu idioma
+  const sortedOptions = (options ?? []).map(o => {
+    const langs = detectLanguages(`${o.label} ${o.detail}`);
+    const audioMine = langs.audio.some(n => isUserLang(n, userLang));
+    const subsMine = [...langs.subs, ...o.subtitles.map(t => langName(t.lang))].some(n => isUserLang(n, userLang));
+    return { o, langs, mine: audioMine || subsMine, rank: audioMine ? 0 : subsMine ? 1 : 2 };
+  }).sort((a, b) => a.rank - b.rank);
   const pr = (vid: string) => progress[progressKey(type, vid)];
   return (
     <div className="fade-in" style={{ paddingBottom: 48 }}>
@@ -103,7 +130,7 @@ export function MetaPage() {
       </div>
 
       <div className="page-pad">
-        {meta.description && <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', lineHeight: 1.65, maxWidth: 760, marginBottom: 14 }}>{meta.description}</p>}
+        {meta.description && <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', lineHeight: 1.65, maxWidth: 760, marginBottom: 14 }}><Translated text={meta.description} from={data?.addon.manifest.id === 'org.cinemeta' || /cinemeta/i.test(data?.addon.base ?? '') ? 'en' : undefined} showIcon /></p>}
         {(meta.cast?.length || meta.director?.length) ? <p style={{ color: 'var(--text-muted)', fontSize: '0.74rem', marginBottom: 18 }}>{meta.director?.length ? `Dirección: ${meta.director.join(', ')}. ` : ''}{meta.cast?.length ? `Reparto: ${meta.cast.slice(0, 8).join(', ')}.` : ''}</p> : null}
 
         {isSeries && videos.length > 0 && (
@@ -118,7 +145,7 @@ export function MetaPage() {
                   <button key={v.id} onClick={() => openPicker(v.id, epTitle(v))} className="surface-card flex items-center gap-3 text-left" style={{ padding: '10px 14px', cursor: 'pointer', color: 'var(--text-primary)' }}>
                     {v.thumbnail ? <img src={v.thumbnail} alt="" loading="lazy" style={{ width: 96, aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} /> : <span className="font-display" style={{ width: 40, fontSize: '1.3rem', color: 'var(--text-muted)' }}>{v.episode ?? '·'}</span>}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: '0.84rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.episode ? `${v.episode}. ` : ''}{v.title ?? v.name ?? v.id}</p>
+                      <p style={{ fontSize: '0.84rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.episode ? `${v.episode}. ` : ''}<Translated text={v.title ?? v.name ?? v.id} from={data?.addon.manifest.id === 'org.cinemeta' || /cinemeta/i.test(data?.addon.base ?? '') ? 'en' : undefined} /></p>
                       {v.released && <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{new Date(v.released).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}{p && p.dur > 0 ? ` · visto ${Math.round(100 * p.pos / p.dur)} %` : ''}</p>}
                     </div>
                     <Play size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
@@ -146,15 +173,25 @@ export function MetaPage() {
                     : <>Los addons de enlaces no han dado ningún enlace para este título.</>}
                 </div>
               )}
+              {options && options.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap" style={{ padding: '0 2px 10px' }}>
+                  <button onClick={() => setOnlyMine(v => !v)} style={{ padding: '5px 12px', borderRadius: 100, fontSize: '0.72rem', cursor: 'pointer', background: onlyMine ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${onlyMine ? 'var(--accent)' : 'var(--border-mid)'}`, color: onlyMine ? 'var(--accent)' : 'var(--text-secondary)' }}>Solo en {langName(userLang).toLowerCase()}</button>
+                  {addonSubs.length > 0 && <span className="flex items-center gap-1" style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}><Subtitles size={12} />Subtítulos de tus addons: {[...new Set(addonSubs.map(t => langName(t.lang)))].slice(0, 6).join(', ')}{new Set(addonSubs.map(t => t.lang)).size > 6 ? '…' : ''}</span>}
+                </div>
+              )}
               <div className="flex flex-col gap-2">
-                {options?.map(o => {
+                {sortedOptions.filter(x => !onlyMine || x.mine).map(({ o, langs }) => {
                   const blocked = o.kind === 'torrent' && !torrents;
                   return (
                     <div key={o.key} className="flex items-center gap-3" style={{ padding: '10px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', opacity: blocked ? 0.55 : 1 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.label}</p>
                         {o.detail && <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.detail}</p>}
-                        <p style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: 2 }}>{o.addon}{o.kind === 'torrent' ? ' · torrent' : ''}{o.subtitles.length ? ` · ${o.subtitles.length} subtítulos` : ''}{blocked ? (Capacitor.isNativePlatform() ? ' · solo en Windows' : ' · motor de torrents no disponible') : ''}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap" style={{ marginTop: 5 }}>
+                          <LangChip icon="audio" items={langs.audio.length ? langs.audio : langs.multi ? ['Varios idiomas'] : []} userLang={userLang} empty="Audio sin indicar" />
+                          {(langs.subs.length > 0 || o.subtitles.length > 0) && <LangChip icon="subs" items={[...new Set([...langs.subs, ...o.subtitles.map(t => langName(t.lang))])]} userLang={userLang} />}
+                          <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{o.addon}{o.kind === 'torrent' ? ' · torrent' : ''}{blocked ? (Capacitor.isNativePlatform() ? ' · solo en Windows' : ' · motor de torrents no disponible') : ''}</span>
+                        </div>
                       </div>
                       {o.kind === 'external'
                         ? <a href={o.externalUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1" style={{ minHeight: 36, padding: '0 14px', border: '1px solid var(--border-mid)', borderRadius: 100, color: 'var(--text-secondary)', fontSize: '0.74rem', textDecoration: 'none' }}>Abrir <ExternalLink size={12} /></a>
