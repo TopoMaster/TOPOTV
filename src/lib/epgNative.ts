@@ -3,10 +3,20 @@ import { CapacitorHttp } from '@capacitor/core';
 import type { EPGEvent } from '@/types';
 import type { EPGServerStatus } from '@/lib/epg';
 
-const norm = (s: string) => s.toLowerCase().replace(/[\s._-]+/g, '').replace(/[^a-z0-9]/g, '');
+/** Clave de comparación: minúsculas, sin tildes y solo letras y números de cualquier alfabeto (también cirílico). */
+const norm = (s: string) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}]+/gu, '');
 /** Igual que norm() pero sin la calidad del nombre: «DAZN_Baloncesto_720p_», «DAZN Baloncesto HD» → «daznbaloncesto». */
 const loose = (s: string) => norm(String(s || '').replace(/[_.*-]+/g, ' ').replace(/\b(?:4k|uhd|fhd|hd|sd|hevc|h265|backup|multiaudio)\b|\b\d{3,4}p\b/gi, ' '));
-const programmes = new Map<string, EPGEvent[]>(); // clave normalizada -> eventos
+/* Cada canal de cada guía guarda SU programación («n|id»); al buscar se elige uno solo, primero por identificador
+   exacto y si no por nombre (antes se mezclaban los canales que se llaman igual en guías distintas). */
+const programmes = new Map<string, EPGEvent[]>(); // «n|id» -> eventos
+const idOwners = new Map<string, string[]>();
+const nameOwners = new Map<string, string[]>();
+const claim = (map: Map<string, string[]>, k: string, uid: string) => { if (!k) return; const a = map.get(k); if (!a) map.set(k, [uid]); else if (!a.includes(uid)) a.push(uid); };
+function lookup(id: string): EPGEvent[] | null {
+  for (const owners of [idOwners, nameOwners]) for (const k of [norm(id), loose(id)]) for (const uid of owners.get(k) ?? []) { const list = programmes.get(uid); if (list?.length) return list; }
+  return null;
+}
 let status: EPGServerStatus = { status: 'idle', progress: 0, channels: 0, error: null, lastUpdated: null };
 let running = false;
 
@@ -25,10 +35,15 @@ const decode = (v: string | undefined) => (v ?? '')
   .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&amp;/g, '&').trim();
 
 /** Recorre el XMLTV con expresiones regulares (sin DOM) y guarda solo lo que cae en la ventana y en los canales pedidos. */
-function parseXmltv(xml: string, wanted: Set<string>, from: number, to: number) {
+function parseXmltv(xml: string, wanted: Set<string>, from: number, to: number, gi: number) {
   const names = new Map<string, string[]>();
   for (const m of xml.matchAll(/<channel\s+id="([^"]*)"[^>]*>([\s\S]*?)<\/channel>/g)) {
-    names.set(decode(m[1]), [...m[2].matchAll(/<display-name[^>]*>([\s\S]*?)<\/display-name>/g)].map(x => decode(x[1])));
+    const id = decode(m[1]);
+    const list = [...m[2].matchAll(/<display-name[^>]*>([\s\S]*?)<\/display-name>/g)].map(x => decode(x[1]));
+    names.set(id, list);
+    const uid = `${gi}|${id}`;
+    claim(idOwners, norm(id), uid); claim(idOwners, loose(id), uid);
+    for (const n of list) { claim(nameOwners, norm(n), uid); claim(nameOwners, loose(n), uid); }
   }
   for (const m of xml.matchAll(/<programme\s+([^>]*)>([\s\S]*?)<\/programme>/g)) {
     const id = decode(m[1].match(/channel="([^"]*)"/)?.[1]);
@@ -40,7 +55,9 @@ function parseXmltv(xml: string, wanted: Set<string>, from: number, to: number) 
     const pick = (tag: string) => decode(m[2].match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`))?.[1]);
     const icon = m[2].match(/<icon\s+src="([^"]*)"/)?.[1];
     const ev: EPGEvent = { channelId: id, title: pick('title'), description: pick('desc'), startTime: start, endTime: end, category: pick('category') || undefined, poster: icon ? decode(icon) : undefined };
-    for (const k of keys) { const list = programmes.get(k) ?? []; list.push(ev); programmes.set(k, list); }
+    const uid = `${gi}|${id}`;
+    if (!names.has(id)) claim(idOwners, norm(id), uid);   // programa de un canal sin ficha <channel>
+    const list = programmes.get(uid) ?? []; list.push(ev); programmes.set(uid, list);
   }
 }
 
@@ -63,15 +80,15 @@ export async function nativeEPGLoad(urls: string[], knownIds: string[]): Promise
   status = { status: 'loading', progress: 20, channels: 0, error: null, lastUpdated: null };
   void (async () => {
     try {
-      programmes.clear();
+      programmes.clear(); idOwners.clear(); nameOwners.clear();
       const wanted = new Set(knownIds.flatMap(k => [norm(k), loose(k)]).filter(Boolean));
       const from = Date.now() - 6 * 3600e3, to = Date.now() + 36 * 3600e3;
       let ok = 0, lastErr = '';
-      for (const url of urls) {
+      for (const [gi, url] of urls.entries()) {
         try {
           const xml = await download(url);
           status = { ...status, status: 'parsing', progress: 70 };
-          parseXmltv(xml, wanted, from, to);
+          parseXmltv(xml, wanted, from, to, gi);
           ok++;
         } catch (e) { lastErr = e instanceof Error ? e.message : String(e); }
       }
@@ -86,7 +103,7 @@ export async function nativeEPGLoad(urls: string[], knownIds: string[]): Promise
 }
 
 export function nativeEPGToday(channelId: string) {
-  const list = programmes.get(norm(channelId)) ?? programmes.get(loose(channelId));
+  const list = lookup(channelId);
   if (!list?.length) return null;
   const now = Date.now();
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
@@ -94,8 +111,7 @@ export function nativeEPGToday(channelId: string) {
   return { events, now: events.find(e => e.startTime.getTime() <= now && e.endTime.getTime() > now) ?? null, next: events.find(e => e.startTime.getTime() > now) ?? null };
 }
 export function nativeEPGAll(channelId: string) {
-  const list = programmes.get(norm(channelId)) ?? programmes.get(loose(channelId));
-  return list?.length ? list : null;
+  return lookup(channelId);
 }
 export const nativeEPGCoverage = (ids: string[]) => ids.filter(id => !!nativeEPGAll(id));
-export function nativeEPGClear() { programmes.clear(); status = { status: 'idle', progress: 0, channels: 0, error: null, lastUpdated: null }; }
+export function nativeEPGClear() { programmes.clear(); idOwners.clear(); nameOwners.clear(); status = { status: 'idle', progress: 0, channels: 0, error: null, lastUpdated: null }; }

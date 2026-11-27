@@ -19,7 +19,7 @@ export function ContinueWatching() {
     <section className="slide-up px-6" style={{ marginTop: 20 }}>
       <div className="surface-card flex items-center gap-4 flex-wrap" style={{ padding: '14px 18px' }}>
         <div className="flex items-center justify-center" style={{ width: 52, height: 52, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', overflow: 'hidden', flexShrink: 0 }}>
-          {channel.logo ? <img src={channel.logo} alt="" style={{ width: '80%', height: '80%', objectFit: 'contain' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : <Tv size={22} style={{ color: 'var(--text-muted)' }} />}
+          {channel.logo ? <img referrerPolicy="no-referrer" src={channel.logo} alt="" style={{ width: '80%', height: '80%', objectFit: 'contain' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : <Tv size={22} style={{ color: 'var(--text-muted)' }} />}
         </div>
         <div style={{ flex: '1 1 200px', minWidth: 0 }}>
           <p style={{ fontSize: '0.64rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Seguir viendo · {label}</p>

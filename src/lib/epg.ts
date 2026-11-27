@@ -62,13 +62,16 @@ export function clearEPGCache() { nativeEPGClear(); }
 
 /** Guías de TV de España que se cargan siempre (además de las que anuncien tus listas en su cabecera url-tvg). */
 const ELCANO_EPG_URLS = [
-  'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/refs/heads/master/guiatv.xml',
-  'https://epgshare01.online/epgshare01/epg_ripper_NL1.xml.gz',
+  'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml.gz',
 ];
 /** Guías a cargar: la manual, las de las listas y las de siempre (sin repetir). */
 export function epgSourceUrls(m3uEpgUrls: string[] = [], manual = ''): string[] {
-  // «…/refs/heads/master/…» y «…/master/…» son el mismo archivo de GitHub: se descarga una vez
-  return [...new Set([manual.trim(), ...m3uEpgUrls, ...ELCANO_EPG_URLS].filter(Boolean).map(u => u.replace('/refs/heads/master/', '/master/')))];
+  // «…/refs/heads/master/…» y «…/master/…» son el mismo archivo de GitHub. La guía de davidmuma existe comprimida
+  // (8 MB de descarga, con pósters, pero 92 MB al abrirla) y normal (34 MB): Windows usa la comprimida y el móvil
+  // la normal, que le cuesta mucho menos leer. Así además no se descarga dos veces.
+  const DM = /(davidmuma\/EPG_dobleM\/master\/guiatv\.xml)(\.gz)?$/;
+  const same = (u: string) => u.replace('/refs/heads/master/', '/master/').replace(DM, Capacitor.isNativePlatform() ? '$1' : '$1.gz');
+  return [...new Set([manual.trim(), ...m3uEpgUrls, ...ELCANO_EPG_URLS].filter(Boolean).map(same))];
 }
 /** Ids por los que se buscan canales en la guía: tvg-id y nombre. */
 export function epgKnownIds(channels: Channel[]): string[] {

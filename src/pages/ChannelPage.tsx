@@ -136,7 +136,7 @@ export function ChannelPage() {
         <div className="channel-hero flex items-center gap-5 p-5 mb-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
           <div style={{ width: '80px', height: '80px', borderRadius: 'var(--radius-lg)', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
             {channel.logo && !imgError
-              ? <img src={channel.logo} alt={channel.name} style={{ width: '75%', height: '75%', objectFit: 'contain' }} onError={() => setImgError(true)} />
+              ? <img referrerPolicy="no-referrer" src={channel.logo} alt={channel.name} style={{ width: '75%', height: '75%', objectFit: 'contain' }} onError={() => setImgError(true)} />
               : <Tv size={32} strokeWidth={1} style={{ color: 'var(--text-muted)' }} />}
           </div>
           <div className="flex-1 min-w-0">

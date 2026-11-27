@@ -24,7 +24,7 @@ export function FeaturedBanner({ groups }: { groups: Group[] }) {
           <div className="flex items-center gap-2 shrink-0">
             {active.channels.slice(0,5).map(ch=>(
               <div key={ch.id} title={ch.name} style={{width:'44px',height:'44px',borderRadius:'var(--radius-md)',background:'var(--bg-elevated)',border:'1px solid var(--border-mid)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                {ch.logo?<img src={ch.logo} alt={ch.name} style={{width:'80%',height:'80%',objectFit:'contain'}} onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />:<Layers size={18} style={{color:'var(--text-muted)'}} />}
+                {ch.logo?<img referrerPolicy="no-referrer" src={ch.logo} alt={ch.name} style={{width:'80%',height:'80%',objectFit:'contain'}} onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />:<Layers size={18} style={{color:'var(--text-muted)'}} />}
               </div>
             ))}
           </div>

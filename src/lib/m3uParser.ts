@@ -17,7 +17,12 @@ function cleanName(raw: string) {
   return raw.replace(/\s*-->.*$/,'').replace(/\s*\((?:opci[oó]n|option|alt)\s*\d+\)\s*$/i,'').replace(/[\s*·|-]+$/,'')
     .replace(/\s+(4K|2160p|1080p|720p|576p|480p|FHD|HD|SD)\s*$/i,'').replace(/[\s*·|-]+$/,'').trim() || raw.trim();
 }
-function buildId(tvgId: string, group: string, name: string) { return tvgId?.trim() ? slugify(tvgId) : slugify(group+'-'+name); }
+/** «SPORT1+» / «SPORT1+.de» acaban en «+» (otro canal que «SPORT1»); «M+ LaLiga» no (y su id no cambia) */
+const endsInPlus = (s: string) => /\S\+(?=$|\.|\s*\[)/.test(s) && !/movistar[\s.]*plus[\s.]*\+/i.test(s);
+function buildId(tvgId: string, group: string, name: string) {
+  const src = tvgId?.trim() ? tvgId : name;
+  return (tvgId?.trim() ? slugify(tvgId) : slugify(group+'-'+name)) + (endsInPlus(src) || endsInPlus(name) ? '-plus' : '');
+}
 function parseHeader(line: string): Partial<M3UMeta> {
   const epgMatch = line.match(/url-tvg="([^"]+)"/);
   return { epgUrls: epgMatch ? epgMatch[1].split(',').map(s=>s.trim()) : [], refreshInterval: 3600 };
@@ -86,6 +91,15 @@ export async function loadM3UFromUrl(url: string): Promise<ParsedM3U> {
 
 const canonical = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
+/** «SPORT1+», «BCU Cinema+» y «ТНТ (+7)» (7 horas después) son canales distintos de «SPORT1», «BCU Cinema» y «ТНТ».
+ *  Al comparar nombres se perdía el «+»; Movistar Plus+ sí es el mismo con o sin «+». */
+function plusMark(name: string) {
+  const t = name.replace(/\s*\[[A-Z]{2}\]/g, '').trim();
+  const shift = t.match(/\(\s*\+\s*(\d+)\s*\)/)?.[1];
+  if (shift) return ` plus${shift}`;
+  return /\S\+$/.test(t) && !/movistar[\s.]*plus[\s.]*\+$/i.test(t) ? ' plus' : '';
+}
+
 /** Grupo donde la agenda de Ciriaco deja sus canales; se fusionan con los de las demás listas por nombre. */
 const FUSE_GROUP = 'topotv';
 
@@ -145,7 +159,7 @@ export function mergeM3ULists(sources: ParsedM3U[]): ParsedM3U {
     for (const sourceChannel of sourceGroup.channels) {
       // el país del nombre («[DE]») cuenta: «Eurosport 1 [DE]» no es el Eurosport 1 de España
       const cc = sourceChannel.name.match(/\[([A-Z]{2})\]/)?.[1];
-      const nameKey = (canon(sourceChannel.name) || canonical(sourceChannel.name)) + (cc && cc !== 'ES' ? ` ${cc.toLowerCase()}` : '');
+      const nameKey = (canon(sourceChannel.name) || canonical(sourceChannel.name)) + plusMark(sourceChannel.name) + (cc && cc !== 'ES' ? ` ${cc.toLowerCase()}` : '');
       let target: { group: Group; key: string };
       if (fuse) {
         // Canal de Ciriaco: si ya existe en alguna categoría se le añaden los enlaces; si no, se guarda en la categoría que le corresponde.
@@ -163,7 +177,7 @@ export function mergeM3ULists(sources: ParsedM3U[]): ParsedM3U {
       // mismo nombre dentro de la misma categoría (aunque venga de otra lista o con otro tvg-id): se fusionan
       const sameGroup = (byName.get(nameKey) ?? []).find(c => c.group === target.group.title);
       if (sameGroup) { addStreams(sameGroup, sourceChannel, !fuse); continue; }
-      const channelKey = target.key + ':' + (canonical(sourceChannel.tvgId) || canonical(sourceChannel.name));
+      const channelKey = target.key + ':' + (canonical(sourceChannel.tvgId) || canonical(sourceChannel.name)) + (endsInPlus(sourceChannel.tvgId) || endsInPlus(sourceChannel.name) ? ' plus' : '');
       let channel = channels.get(channelKey);
       if (!channel) {
         channel = { ...sourceChannel, group: target.group.title, streams: [] };

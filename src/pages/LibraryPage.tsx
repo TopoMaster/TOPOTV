@@ -17,7 +17,7 @@ export function PosterCard({ meta, addon, width = 130 }: { meta: MetaPreview; ad
     <button onClick={() => navigate(`/library/${encodeURIComponent(meta.type)}/${encodeURIComponent(meta.id)}?a=${encodeURIComponent(addon.base)}`, { state: { preview: meta } })}
       className="shrink-0 text-left" style={{ width, alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-primary)' }} title={meta.name}>
       <div style={{ width, aspectRatio: meta.posterShape === 'landscape' ? '16 / 9' : '2 / 3', borderRadius: 'var(--radius-md)', overflow: 'hidden', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {meta.poster && !bad ? <img src={meta.poster} alt="" loading="lazy" onError={() => setBad(true)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Film size={28} strokeWidth={1.2} style={{ color: 'var(--text-muted)' }} />}
+        {meta.poster && !bad ? <img referrerPolicy="no-referrer" src={meta.poster} alt="" loading="lazy" onError={() => setBad(true)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Film size={28} strokeWidth={1.2} style={{ color: 'var(--text-muted)' }} />}
       </div>
       <p style={{ fontSize: '0.74rem', fontWeight: 600, marginTop: 6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.25 }}>{meta.name}</p>
       {year && <p style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>{String(year)}</p>}
@@ -116,7 +116,7 @@ export function LibraryPage() {
                 {resume.map(p => (
                   <button key={p.key} onClick={() => navigate(`/library/${encodeURIComponent(p.type)}/${encodeURIComponent(p.id)}?a=${encodeURIComponent(p.addon)}&resume=${encodeURIComponent(p.videoId)}`)} className="shrink-0 text-left" style={{ width: 200, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-primary)' }}>
                     <div style={{ position: 'relative', width: 200, aspectRatio: '16 / 9', borderRadius: 'var(--radius-md)', overflow: 'hidden', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)' }}>
-                      {p.poster && <img src={p.poster} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8 }} />}
+                      {p.poster && <img referrerPolicy="no-referrer" src={p.poster} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8 }} />}
                       <span style={{ position: 'absolute', left: 0, bottom: 0, height: 3, width: `${Math.min(100, 100 * p.pos / p.dur)}%`, background: 'var(--accent)' }} />
                     </div>
                     <p style={{ fontSize: '0.74rem', fontWeight: 600, marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</p>

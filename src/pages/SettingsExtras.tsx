@@ -322,7 +322,7 @@ export function AddonsSection() {
         <div className="flex flex-col gap-2">
           {addons.map(a => (
             <div key={a.base} className="flex items-center gap-3" style={{ padding: '10px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', opacity: a.enabled ? 1 : 0.55 }}>
-              {a.manifest.logo ? <img src={a.manifest.logo} alt="" width={32} height={32} style={{ borderRadius: 6, objectFit: 'contain', flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : null}
+              {a.manifest.logo ? <img referrerPolicy="no-referrer" src={a.manifest.logo} alt="" width={32} height={32} style={{ borderRadius: 6, objectFit: 'contain', flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : null}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: '0.82rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.manifest.name} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{a.manifest.version ? `v${a.manifest.version}` : ''}</span>{a.builtin && <span style={{ marginLeft: 8, fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent)' }}>Incluido</span>}</p>
                 <p style={{ fontSize: '0.66rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{kinds(a)} · {(a.manifest.types ?? []).join(', ')}</p>

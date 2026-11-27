@@ -189,7 +189,7 @@ export function EventRow({ ev, date, channels, listChannels = [] }: { ev: Ciriac
         <span style={{ fontSize: '1.2rem' }}>{emoji(ev.sport)}</span>
         {ev.logos.length === 2 && (
           <div className="flex items-center" style={{ gap: 2, flexShrink: 0 }}>
-            {ev.logos.map((src, i) => <img key={i} src={src} alt="" width={24} height={24} loading="lazy" style={{ objectFit: 'contain' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />)}
+            {ev.logos.map((src, i) => <img referrerPolicy="no-referrer" key={i} src={src} alt="" width={24} height={24} loading="lazy" style={{ objectFit: 'contain' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />)}
           </div>
         )}
         <div className="ev-info">

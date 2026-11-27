@@ -47,7 +47,7 @@ function Row({ channel, start, now, onPick }: { channel: Channel; start: number;
       <button onClick={() => onPick(channel)} title={channel.name} className="flex items-center gap-2"
         style={{ position: 'sticky', left: 0, zIndex: 3, width: LABEL_W, minWidth: LABEL_W, padding: '0 10px', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)', cursor: 'pointer', textAlign: 'left', color: 'var(--text-secondary)' }}>
         <span style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-          {channel.logo && !imgErr ? <img src={channel.logo} alt="" loading="lazy" onError={() => setImgErr(true)} style={{ width: '80%', height: '80%', objectFit: 'contain' }} /> : <Tv size={14} style={{ color: 'var(--text-muted)' }} />}
+          {channel.logo && !imgErr ? <img referrerPolicy="no-referrer" src={channel.logo} alt="" loading="lazy" onError={() => setImgErr(true)} style={{ width: '80%', height: '80%', objectFit: 'contain' }} /> : <Tv size={14} style={{ color: 'var(--text-muted)' }} />}
         </span>
         <span style={{ fontSize: '0.68rem', fontWeight: 600, lineHeight: 1.25, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{channel.name}</span>
       </button>

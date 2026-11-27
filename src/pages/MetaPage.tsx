@@ -108,13 +108,13 @@ export function MetaPage() {
   return (
     <div className="fade-in" style={{ paddingBottom: 48 }}>
       <div style={{ position: 'relative', minHeight: 240, background: 'var(--bg-card)' }}>
-        {meta.background && <img src={meta.background} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.35 }} />}
+        {meta.background && <img referrerPolicy="no-referrer" src={meta.background} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.35 }} />}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 20%, var(--bg-void))' }} />
         <div className="page-pad" style={{ position: 'relative', paddingTop: 16 }}>
           <button onClick={() => navigate(-1)} className="flex items-center gap-2 mb-4" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.82rem', padding: 0 }}><ArrowLeft size={16} /> Volver</button>
           <div className="flex gap-4 flex-wrap items-end">
             <div style={{ width: 130, aspectRatio: '2 / 3', borderRadius: 'var(--radius-md)', overflow: 'hidden', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {meta.poster ? <img src={meta.poster} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Film size={32} style={{ color: 'var(--text-muted)' }} />}
+              {meta.poster ? <img referrerPolicy="no-referrer" src={meta.poster} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Film size={32} style={{ color: 'var(--text-muted)' }} />}
             </div>
             <div style={{ flex: '1 1 260px', minWidth: 0 }}>
               <h1 className="font-display" style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', lineHeight: 1.05 }}>{meta.name}</h1>
@@ -143,7 +143,7 @@ export function MetaPage() {
                 const p = pr(v.id);
                 return (
                   <button key={v.id} onClick={() => openPicker(v.id, epTitle(v))} className="surface-card flex items-center gap-3 text-left" style={{ padding: '10px 14px', cursor: 'pointer', color: 'var(--text-primary)' }}>
-                    {v.thumbnail ? <img src={v.thumbnail} alt="" loading="lazy" style={{ width: 96, aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} /> : <span className="font-display" style={{ width: 40, fontSize: '1.3rem', color: 'var(--text-muted)' }}>{v.episode ?? '·'}</span>}
+                    {v.thumbnail ? <img referrerPolicy="no-referrer" src={v.thumbnail} alt="" loading="lazy" style={{ width: 96, aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} /> : <span className="font-display" style={{ width: 40, fontSize: '1.3rem', color: 'var(--text-muted)' }}>{v.episode ?? '·'}</span>}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: '0.84rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.episode ? `${v.episode}. ` : ''}<Translated text={v.title ?? v.name ?? v.id} from={data?.addon.manifest.id === 'org.cinemeta' || /cinemeta/i.test(data?.addon.base ?? '') ? 'en' : undefined} /></p>
                       {v.released && <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{new Date(v.released).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}{p && p.dur > 0 ? ` · visto ${Math.round(100 * p.pos / p.dur)} %` : ''}</p>}

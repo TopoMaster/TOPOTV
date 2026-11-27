@@ -20,7 +20,7 @@ export function ChannelsPage() {
           <button key={g.id} onClick={() => navigate(`/category/${g.id}`)} className="surface-card"
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 124, padding: 12, cursor: 'pointer', color: 'var(--text-primary)', textAlign: 'center' }}>
             {g.logo
-              ? <img src={g.logo} alt="" loading="lazy" style={{ width: 48, height: 48, objectFit: 'contain' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              ? <img referrerPolicy="no-referrer" src={g.logo} alt="" loading="lazy" style={{ width: 48, height: 48, objectFit: 'contain' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
               : <Tv size={32} strokeWidth={1.5} style={{ color: 'var(--accent)' }} />}
             <span style={{ fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', lineHeight: 1.2 }}>{g.title}</span>
             <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{g.channels.length} {g.channels.length === 1 ? 'canal' : 'canales'}</span>

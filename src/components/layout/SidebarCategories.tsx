@@ -69,7 +69,7 @@ export function SidebarCategories({ groups }: { groups: Group[] }) {
     return (
       <button key={g.id} onClick={() => navigate(`/category/${g.id}`)} className={`nav-item w-full text-left ${active ? 'active' : ''}`} title={`${g.title} · ${g.channels.length} canales`}
         style={{ padding: indent ? '6px 10px 6px 34px' : '7px 12px', gap: 10 }}>
-        {g.logo ? <img src={g.logo} alt="" className="shrink-0 object-contain" style={{ width: 14, height: 14 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : <span className="cat-dot" />}
+        {g.logo ? <img referrerPolicy="no-referrer" src={g.logo} alt="" className="shrink-0 object-contain" style={{ width: 14, height: 14 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : <span className="cat-dot" />}
         <span className="truncate flex-1" style={{ fontSize: '0.78rem' }}>{nice(label)}</span>
         <span className="cat-count">{g.channels.length}</span>
       </button>
@@ -95,7 +95,7 @@ export function SidebarCategories({ groups }: { groups: Group[] }) {
               <div key={f.name}>
                 <button onClick={() => toggle(f.name)} className="nav-item w-full text-left" aria-expanded={o} style={{ padding: '7px 10px', gap: 8 }}>
                   {o ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                  {FLAGS[f.name] ? <img className="folder-flag" src={FLAGS[f.name]} alt="" aria-hidden /> : o ? <FolderOpen size={15} strokeWidth={1.8} style={{ color: 'var(--accent)' }} /> : <Folder size={15} strokeWidth={1.8} />}
+                  {FLAGS[f.name] ? <img referrerPolicy="no-referrer" className="folder-flag" src={FLAGS[f.name]} alt="" aria-hidden /> : o ? <FolderOpen size={15} strokeWidth={1.8} style={{ color: 'var(--accent)' }} /> : <Folder size={15} strokeWidth={1.8} />}
                   <span className="truncate flex-1" style={{ fontSize: '0.8rem', fontWeight: 600 }}>{f.name}</span>
                   <span className="cat-count">{f.count}</span>
                 </button>

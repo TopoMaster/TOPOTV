@@ -17,12 +17,23 @@ const https = require('https');
 const zlib = require('zlib');
 
 const PORT = Number(process.env.EPG_PORT || 3003);
-const norm = s => String(s || '').toLowerCase().replace(/[\s._-]+/g, '').replace(/[^a-z0-9]/g, '');
+/** Clave de comparación: minúsculas, sin tildes y solo letras y números de cualquier alfabeto (también cirílico). */
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}]+/gu, '');
 /** Igual que norm() pero sin la calidad del nombre: «DAZN_Baloncesto_720p_», «DAZN Baloncesto HD» → «daznbaloncesto». */
 const loose = s => norm(String(s || '').replace(/[_.*-]+/g, ' ').replace(/\b(?:4k|uhd|fhd|hd|sd|hevc|h265|backup|multiaudio)\b|\b\d{3,4}p\b/gi, ' '));
 
 let state = { status: 'idle', progress: 0, channels: 0, error: null, lastUpdated: null };
-let store = new Map();          // clave normalizada -> eventos ordenados
+/* Cada canal de cada guía guarda SU programación («n|id», n = guía). Dos guías pueden tener canales con el mismo
+   nombre («Eurosport 1» en la española y en la polaca): antes se mezclaban; ahora cada búsqueda elige uno solo,
+   primero por identificador exacto (el tvg-id de la lista) y si no, por nombre. */
+let chan = new Map();           // «n|id» -> eventos ordenados
+let idOwners = new Map();       // clave del id -> [«n|id», …] (en el orden de las guías)
+let nameOwners = new Map();     // clave de un nombre -> [«n|id», …]
+const claim = (map, k, uid) => { if (!k) return; const a = map.get(k); if (!a) map.set(k, [uid]); else if (!a.includes(uid)) a.push(uid); };
+function lookup(id) {
+  for (const owners of [idOwners, nameOwners]) for (const k of [norm(id), loose(id)]) for (const uid of owners.get(k) || []) { const arr = chan.get(uid); if (arr && arr.length) return arr; }
+  return null;
+}
 let running = false;
 let log = console.log;
 
@@ -64,11 +75,15 @@ function download(url, hops = 0) {
   });
 }
 
-function parseInto(xml, wanted, from, to) {
+function parseInto(xml, wanted, from, to, gi = 0) {
   const names = new Map();   // id -> nombres
   for (const m of xml.matchAll(/<channel\s+id="([^"]*)"[^>]*>([\s\S]*?)<\/channel>/g)) {
+    const id = decode(m[1]);
     const list = [...m[2].matchAll(/<display-name[^>]*>([\s\S]*?)<\/display-name>/g)].map(x => decode(x[1]));
-    names.set(decode(m[1]), list);
+    names.set(id, list);
+    const uid = `${gi}|${id}`;
+    claim(idOwners, norm(id), uid); claim(idOwners, loose(id), uid);
+    for (const n of list) { claim(nameOwners, norm(n), uid); claim(nameOwners, loose(n), uid); }
   }
   let kept = 0;
   for (const m of xml.matchAll(/<programme\s+([^>]*)>([\s\S]*?)<\/programme>/g)) {
@@ -84,7 +99,9 @@ function parseInto(xml, wanted, from, to) {
     const pick = tag => { const x = body.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`)); return x ? decode(x[1]) : ''; };
     const icon = (body.match(/<icon\s+src="([^"]*)"/) || [])[1];
     const ev = { channelId: id, title: pick('title'), description: pick('desc'), startTime: new Date(start).toISOString(), endTime: new Date(end).toISOString(), category: pick('category') || undefined, poster: icon ? decode(icon) : undefined };
-    for (const k of keys) { const arr = store.get(k) || []; arr.push(ev); store.set(k, arr); }
+    const uid = `${gi}|${id}`;
+    if (!names.has(id)) claim(idOwners, norm(id), uid);   // programa de un canal sin ficha <channel>
+    const arr = chan.get(uid) || []; arr.push(ev); chan.set(uid, arr);
     kept++;
   }
   return kept;
@@ -95,7 +112,7 @@ async function load(urls, knownIds) {
   running = true;
   state = { status: 'loading', progress: 10, channels: 0, error: null, lastUpdated: null };
   try {
-    store = new Map();
+    chan = new Map(); idOwners = new Map(); nameOwners = new Map();
     const wanted = new Set((knownIds || []).flatMap(k => [norm(k), loose(k)]).filter(Boolean));
     const from = Date.now() - 6 * 3600e3, to = Date.now() + 36 * 3600e3;
     let ok = 0, lastErr = '';
@@ -105,21 +122,21 @@ async function load(urls, knownIds) {
         state.progress = 10 + Math.round(60 * i / list.length);
         const xml = await download(list[i]);
         state = { ...state, status: 'parsing', progress: 75 };
-        const n = parseInto(xml, wanted, from, to);
+        const n = parseInto(xml, wanted, from, to, i);
         log(`[epg] ${list[i].slice(0, 70)} -> ${n} programas`);
         ok++;
       } catch (e) { lastErr = e.message; log('[epg] error', lastErr); }
     }
-    for (const arr of store.values()) arr.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    for (const arr of chan.values()) arr.sort((a, b) => a.startTime.localeCompare(b.startTime));
     if (!ok) throw new Error(lastErr || 'No se pudo cargar ninguna guía EPG');
-    state = { status: 'ready', progress: 100, channels: store.size, error: null, lastUpdated: new Date().toISOString() };
+    state = { status: 'ready', progress: 100, channels: chan.size, error: null, lastUpdated: new Date().toISOString() };
   } catch (e) {
     state = { status: 'error', progress: 0, channels: 0, error: e.message, lastUpdated: null };
   } finally { running = false; }
 }
 
 function today(id) {
-  const arr = store.get(norm(id)) || store.get(loose(id));
+  const arr = lookup(id);
   if (!arr || !arr.length) return null;
   const now = Date.now();
   const d0 = new Date(); d0.setHours(0, 0, 0, 0);
@@ -132,7 +149,7 @@ function today(id) {
 
 /** Toda la programación guardada de un canal (de 6 h antes a 36 h después de cargar la guía). */
 function all(id) {
-  const arr = store.get(norm(id)) || store.get(loose(id));
+  const arr = lookup(id);
   return arr && arr.length ? arr : null;
 }
 /** De una lista de ids, cuáles tienen programación. */
@@ -148,7 +165,7 @@ function start(opts = {}) {
     try {
       if (u.pathname === '/health') return json(200, { ok: true });
       if (u.pathname === '/status') return json(200, state);
-      if (u.pathname === '/clear-cache') { store = new Map(); state = { status: 'idle', progress: 0, channels: 0, error: null, lastUpdated: null }; return json(200, { ok: true }); }
+      if (u.pathname === '/clear-cache') { chan = new Map(); idOwners = new Map(); nameOwners = new Map(); state = { status: 'idle', progress: 0, channels: 0, error: null, lastUpdated: null }; return json(200, { ok: true }); }
       if (u.pathname === '/load' && req.method === 'POST') {
         let body = ''; for await (const c of req) { body += c; if (body.length > 2e6) break; }
         const d = JSON.parse(body || '{}');
