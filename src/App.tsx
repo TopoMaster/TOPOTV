@@ -133,7 +133,7 @@ function BackgroundPreloader() {
       const { meta: m, allChannels: chs } = useM3UStore.getState();
       if (!m || !chs.length) return;
       useEPGStore.getState().reset();
-      setTimeout(() => void useEPGStore.getState().load(epgSourceUrls(m.epgUrls ?? [], useSettingsStore.getState().manualEpgUrl), epgKnownIds(chs)), 300);
+      setTimeout(() => void useEPGStore.getState().load(epgSourceUrls(m.epgUrls ?? [], useSettingsStore.getState().manualEpgUrl, chs), epgKnownIds(chs)), 300);
     }, 6 * 3600e3);
     return () => clearInterval(interval);
   }, []);
@@ -175,7 +175,7 @@ function BackgroundPreloader() {
     // load() decide: si la guía ya está cargada con estos canales no hace nada; si hay canales nuevos, recarga
     // (y si está cargando, lo deja pendiente para cuando termine)
 
-    const urls = epgSourceUrls(meta.epgUrls ?? [], manualEpgUrl);
+    const urls = epgSourceUrls(meta.epgUrls ?? [], manualEpgUrl, useM3UStore.getState().allChannels);
     const knownIds = epgKnownIds(allChannels);
 
     // Small delay so initial render finishes first
@@ -200,7 +200,7 @@ function BackgroundPreloader() {
   // Re-trigger when manual URL changes
   useEffect(() => {
     if (!manualEpgUrl.trim() || !meta) return;
-    loadEPG(epgSourceUrls(meta.epgUrls ?? [], manualEpgUrl), epgKnownIds(allChannels));
+    loadEPG(epgSourceUrls(meta.epgUrls ?? [], manualEpgUrl, allChannels), epgKnownIds(allChannels));
   }, [manualEpgUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;

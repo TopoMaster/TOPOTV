@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, Copy, ExternalLink, Tv, Check, Radio, Heart, Clock, Columns2 } from 'lucide-react';
+import { ArrowLeft, Play, Copy, ExternalLink, Tv, Check, Radio, Heart, Clock, Columns2, ShieldCheck, Loader2 } from 'lucide-react';
 import { useM3UStore } from '@/store/useM3UStore';
 import { usePlayerStore } from '@/store/usePlayerStore';
 import { useEPGStore } from '@/store/useEPGStore';
@@ -8,6 +8,7 @@ import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { copyStreamUrl, streamPlayUrl } from '@/lib/aceApi';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { orderStreams, streamHealth, useHealthStore } from '@/store/useHealthStore';
+import { useCheckerStore } from '@/store/useCheckerStore';
 import { useMultiStore } from '@/store/useMultiStore';
 import { getNowPlaying, getUpNext, getProgressPercent, formatTime, formatDuration } from '@/lib/epg';
 import { ErrorState } from '@/components/shared/States';
@@ -81,6 +82,8 @@ export function ChannelPage() {
   const backendConfig = useSettingsStore(s => s.backendConfig);
   const { toggle: toggleFav, isFavorite } = useFavoritesStore();
   const healthMap = useHealthStore(s => s.streams);
+  const checking = useCheckerStore(s => s.checking);
+  const checkStreams = useCheckerStore(s => s.checkStreams);
   const epgStatus = useEPGStore(s => s.status);
   const coverage = useEPGStore(s => s.coverage);
   const getScheduleForChannel = useEPGStore(s => s.getScheduleForChannel);
@@ -193,7 +196,13 @@ export function ChannelPage() {
         </div>
 
         {/* Streams */}
-        <h2 className="font-display mb-3" style={{ fontSize: '1.3rem', letterSpacing: '0.05em' }}>Streams disponibles</h2>
+        <div className="flex items-center gap-3 mb-3">
+          <h2 className="font-display" style={{ fontSize: '1.3rem', letterSpacing: '0.05em', flex: 1 }}>Streams disponibles</h2>
+          <button onClick={() => void checkStreams(streamsOrdered)} disabled={streamsOrdered.some(st => checking[st.aceId])} title="Comprobar todas las opciones de este canal"
+            className="flex items-center gap-2" style={{ minHeight: 32, padding: '0 14px', borderRadius: 100, border: '1px solid var(--border-mid)', background: 'var(--bg-elevated)', color: 'var(--text-secondary)', fontSize: '0.74rem', cursor: 'pointer' }}>
+            {streamsOrdered.some(st => checking[st.aceId]) ? <Loader2 size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> : <ShieldCheck size={13} />}Comprobar enlaces
+          </button>
+        </div>
         <div className="flex flex-col gap-2 mb-6">
           {streamsOrdered.map((stream, i) => {
             const isSelected = stream.aceId === (activeStream?.aceId ?? streamsOrdered[0]?.aceId);
@@ -206,13 +215,19 @@ export function ChannelPage() {
                 onMouseLeave={e => { if (!isSelected) { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border-subtle)'; (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-card)'; } }}>
                 <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: isSelected ? 'var(--accent)' : 'var(--border-mid)', flexShrink: 0, boxShadow: isSelected ? '0 0 5px var(--accent)' : 'none' }} />
                 <div className="flex-1 min-w-0">
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'DM Mono, monospace' }}>{stream.label}{health !== 'unknown' && !stream.direct && <span style={{ marginLeft: 8, fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: health === 'ok' ? 'var(--online-green)' : 'var(--offline-red)' }}>{health === 'ok' ? '● funciona' : '● caído'}</span>}</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'DM Mono, monospace' }}>{stream.label}{checking[stream.aceId] ? <span style={{ marginLeft: 8, fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent)' }}>● comprobando…</span> : health !== 'unknown' && !stream.direct && <span style={{ marginLeft: 8, fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: health === 'ok' ? 'var(--online-green)' : 'var(--offline-red)' }}>{health === 'ok' ? '● funciona' : '● caído'}</span>}</p>
                   <p style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{streamPlayUrl(stream, backendConfig)}</p>
                 </div>
                 <span style={{ display: stream.provider === 'DEFAULT' ? 'none' : 'inline-block', fontSize: '0.58rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 7px', borderRadius: '100px', border: '1px solid var(--border-subtle)', flexShrink: 0 }}>
                   {stream.provider}
                 </span>
                 <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => void checkStreams([stream])} disabled={!!checking[stream.aceId]} title="Comprobar este enlace" aria-label="Comprobar este enlace"
+                    style={{ width: '28px', height: '28px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: checking[stream.aceId] ? 'var(--accent)' : 'var(--text-muted)' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+                    onMouseLeave={e => { if (!checking[stream.aceId]) e.currentTarget.style.color = 'var(--text-muted)'; }}>
+                    {checking[stream.aceId] ? <Loader2 size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> : <ShieldCheck size={13} strokeWidth={1.8} />}
+                  </button>
                   <button onClick={() => handleCopy(stream)} title="Copiar URL"
                     style={{ width: '28px', height: '28px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isCopied ? 'var(--online-green)' : 'var(--text-muted)' }}
                     onMouseEnter={e => { if (!isCopied) e.currentTarget.style.color = 'var(--text-secondary)'; }}

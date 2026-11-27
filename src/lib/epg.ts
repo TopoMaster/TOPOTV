@@ -1,5 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import type { Channel, EPGEvent, EPGSchedule } from '@/types';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { nativeEPGAll, nativeEPGClear, nativeEPGCoverage, nativeEPGLoad, nativeEPGStatus, nativeEPGToday } from '@/lib/epgNative';
 export interface EPGData { schedules: Map<string, EPGSchedule>; fetchedAt: Date; }
 const EPG = 'http://localhost:3003';
@@ -65,13 +67,20 @@ const ELCANO_EPG_URLS = [
   'https://raw.githubusercontent.com/davidmuma/EPG_dobleM/master/guiatv.xml.gz',
 ];
 /** Guías a cargar: la manual, las de las listas y las de siempre (sin repetir). */
-export function epgSourceUrls(m3uEpgUrls: string[] = [], manual = ''): string[] {
+/** Móvil con guía ligera: la de España, las de los países de tus canales favoritos y las que hayas puesto a mano */
+function lightGuides(urls: string[], channels: Channel[] = []): string[] {
+  const fav = useFavoritesStore.getState().ids;
+  const ccs = new Set(channels.filter(c => fav.has(c.id)).map(c => (c.tvgId.match(/\.([a-z]{2})\d?$/i)?.[1] ?? '').toUpperCase()).filter(Boolean));
+  return urls.filter(u => /davidmuma|dobleM|epg_ripper_ES\d/i.test(u) || [...ccs].some(cc => new RegExp(`epg_ripper_${cc}\\d`, 'i').test(u)) || !/epgshare01/i.test(u));
+}
+export function epgSourceUrls(m3uEpgUrls: string[] = [], manual = '', channels?: Channel[]): string[] {
   // «…/refs/heads/master/…» y «…/master/…» son el mismo archivo de GitHub. La guía de davidmuma existe comprimida
   // (8 MB de descarga, con pósters, pero 92 MB al abrirla) y normal (34 MB): Windows usa la comprimida y el móvil
   // la normal, que le cuesta mucho menos leer. Así además no se descarga dos veces.
   const DM = /(davidmuma\/EPG_dobleM\/master\/guiatv\.xml)(\.gz)?$/;
   const same = (u: string) => u.replace('/refs/heads/master/', '/master/').replace(DM, Capacitor.isNativePlatform() ? '$1' : '$1.gz');
-  return [...new Set([manual.trim(), ...m3uEpgUrls, ...ELCANO_EPG_URLS].filter(Boolean).map(same))];
+  const urls = [...new Set([manual.trim(), ...m3uEpgUrls, ...ELCANO_EPG_URLS].filter(Boolean).map(same))];
+  return Capacitor.isNativePlatform() && useSettingsStore.getState().mobileGuide === 'light' ? lightGuides(urls, channels) : urls;
 }
 /** Ids por los que se buscan canales en la guía: tvg-id y nombre. */
 export function epgKnownIds(channels: Channel[]): string[] {

@@ -55,6 +55,7 @@ export function FeedsPage() {
     return count;
   }, [feeds]);
   const hrefOf = (i: (typeof items)[number]) => {
+    if (!/^https?:\/\//i.test(i.link)) return undefined;   // javascript: u otros esquemas: no se enlazan
     if ((shared.get(`${i.feed} ${i.link}`) ?? 0) < 2 || i.link.includes('#')) return i.link;
     const t = i.title.replace(/\s*\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\s*$/, '').trim();   // sin la fecha del final
     const enc = (s: string) => encodeURIComponent(s).replace(/-/g, '%2D').replace(/,/g, '%2C');
@@ -109,7 +110,7 @@ export function FeedsPage() {
             <span style={{ flex: 1, minWidth: 0 }}>
               <strong style={{ display: 'block', fontSize: '0.86rem', lineHeight: 1.35 }}><Translated text={i.title} /></strong>
               {i.summary && i.summary !== i.title && <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: 3 }}>{i.summary}</span>}
-              <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 4 }}>{i.feedTitle} · {ago(i.date)}</span>
+              <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 4 }}>{i.feedTitle} · {i.dateOnly ? new Date(i.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : ago(i.date)}</span>
             </span>
             <ExternalLink size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
           </a>

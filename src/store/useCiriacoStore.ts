@@ -81,7 +81,7 @@ export const useCiriacoStore = create<CiriacoState>((set, get) => ({
       if (meta && allChannels.length) {
         useEPGStore.getState().reset();
         await new Promise(r => setTimeout(r, 300));
-        void useEPGStore.getState().load(epgSourceUrls(meta.epgUrls ?? [], useSettingsStore.getState().manualEpgUrl), epgKnownIds(allChannels));
+        void useEPGStore.getState().load(epgSourceUrls(meta.epgUrls ?? [], useSettingsStore.getState().manualEpgUrl, allChannels), epgKnownIds(allChannels));
         // con WARP puesto, se espera a que la guía termine de descargarse (máx. 3 min)
         if (warpByUs) {
           for (let i = 0; i < 90; i++) {

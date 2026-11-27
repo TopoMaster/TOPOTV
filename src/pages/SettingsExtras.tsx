@@ -213,7 +213,10 @@ export function SystemSection() {
         if (p.phase === 'error') throw new Error(p.error);
         setBusy(p.percent);
         if (p.phase === 'ready') {
-          if (Capacitor.isNativePlatform()) { setBusy(null); setMsg('Confirma la instalación en el diálogo de Android.'); }
+          if (Capacitor.isNativePlatform()) { setBusy(null); setMsg('Confirma la instalación en el diálogo de Android.'); return; }
+          // Windows: se espera a que se abra el instalador (TOPOTV se cierra sola entonces) o a que avise de que no se abrió
+          setMsg('Acepta el aviso de Windows («¿Quieres permitir que esta aplicación haga cambios?») y sigue el asistente. TOPOTV se cerrará sola al empezar la instalación.');
+          for (let j = 0; j < 200; j++) { await new Promise(r => setTimeout(r, 1000)); const q = await updateProgress(); if (q.phase === 'error') throw new Error(q.error); }
           return;
         }
       }

@@ -17,17 +17,29 @@ import java.util.function.BooleanSupplier;
 final class LinkProbe {
     private LinkProbe() { }
 
-    /** ¿Da datos este enlace antes de {@code timeoutMs}? */
+    /** Vídeo de verdad: al menos 16 KB (el motor a veces contesta al instante con un mensaje de error de pocos bytes) */
+    private static final int MIN_BYTES = 16384;
+
+    /** ¿Da vídeo este enlace antes de {@code timeoutMs}? */
     static boolean probe(String host, int port, String hash, int timeoutMs) {
         HttpURLConnection c = null;
+        long deadline = System.currentTimeMillis() + timeoutMs;
         try {
             c = (HttpURLConnection) new URL("http://" + host + ":" + port + "/ace/getstream?id=" + hash).openConnection();
             c.setConnectTimeout(8000);
             c.setReadTimeout(timeoutMs);
             if (c.getResponseCode() != 200) return false;
+            String type = c.getContentType();
+            if (type != null && (type.contains("json") || type.contains("text"))) return false;
             try (InputStream in = c.getInputStream()) {
-                byte[] b = new byte[1024];
-                return in.read(b) > 0;
+                byte[] b = new byte[8192];
+                int total = 0;
+                while (total < MIN_BYTES && System.currentTimeMillis() < deadline) {
+                    int n = in.read(b);
+                    if (n < 0) return false;   // se cortó antes de dar vídeo
+                    total += n;
+                }
+                return total >= MIN_BYTES;
             }
         } catch (Exception e) {
             return false;

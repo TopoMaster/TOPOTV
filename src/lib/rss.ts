@@ -6,7 +6,7 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core';
  * página; en Android los descarga el propio móvil. Cada noticia se abre en el navegador.
  */
 const SYS = 'http://localhost:3008';
-export interface FeedItem { id: string; feed: string; feedTitle: string; title: string; link: string; date: number; order: number; summary: string; image?: string }
+export interface FeedItem { id: string; feed: string; feedTitle: string; title: string; link: string; date: number; order: number; summary: string; image?: string; /** la fecha salió del título: solo se sabe el día */ dateOnly?: boolean }
 export interface Feed { url: string; title: string; items: FeedItem[]; error?: string }
 
 async function download(url: string): Promise<string> {
@@ -50,7 +50,7 @@ export async function fetchFeed(url: string): Promise<Feed> {
       // sin fecha en el feed: la del título («… 26.11.2026»), si la lleva
       const dm = Number.isNaN(when) ? title.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/) : null;
       const date = dm ? new Date(Number(dm[3]), Number(dm[2]) - 1, Number(dm[1]), 12).getTime() : (Number.isNaN(when) ? 0 : when);
-      return { id: `${url}#${text(get('guid')) || text(get('id')) || link || i}`, feed: url, feedTitle, title, link, date, order: i,
+      return { id: `${url}#${text(get('guid')) || text(get('id')) || link || i}`, feed: url, feedTitle, title, link, date, dateOnly: !!dm, order: i,
         summary: strip(rawDesc).slice(0, 280), image: media && /^https?:\/\//.test(media) ? media.replace(/^http:\/\//, 'https://') : undefined };
     });
     return { url, title: feedTitle, items };

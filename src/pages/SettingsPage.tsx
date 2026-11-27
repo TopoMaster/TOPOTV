@@ -199,7 +199,7 @@ function EPGCoverage() {
 }
 
 function EPGSection() {
-  const {manualEpgUrl,setManualEpgUrl} = useSettingsStore();
+  const {manualEpgUrl,setManualEpgUrl,mobileGuide,setMobileGuide} = useSettingsStore();
   const meta = useM3UStore(s=>s.meta);
   const {status:epgStatus,progress,load:loadEPG,reset:resetEPG,syncStatus} = useEPGStore();
   const allChannels = useM3UStore(s=>s.allChannels);
@@ -211,7 +211,7 @@ function EPGSection() {
   function handleSave() {
     setManualEpgUrl(inputUrl.trim());
     setSaved(true); setTimeout(()=>setSaved(false),2000);
-    const urls=epgSourceUrls(m3uEpgUrls,inputUrl);
+    const urls=epgSourceUrls(m3uEpgUrls,inputUrl,allChannels);
     const knownIds=epgKnownIds(allChannels);
     resetEPG();setTimeout(()=>loadEPG(urls,knownIds),100);
   }
@@ -220,6 +220,13 @@ function EPGSection() {
       <SLabel icon={Tv2} label="Guía de Programación (EPG)" />
       <Card>
         <EPGCoverage />
+        {Capacitor.isNativePlatform()&&<div style={{marginBottom:16}}>
+          <p style={{fontSize:'0.72rem',color:'var(--text-muted)',marginBottom:8,textTransform:'uppercase',letterSpacing:'0.04em'}}>Guía en este móvil</p>
+          <div className="flex gap-2 flex-wrap">
+            {([['light','Ligera (recomendada)'],['full','Completa']] as const).map(([k,t])=><button key={k} onClick={()=>{setMobileGuide(k);const urls=epgSourceUrls(m3uEpgUrls,manualEpgUrl,allChannels);resetEPG();setTimeout(()=>loadEPG(urls,epgKnownIds(allChannels)),100);}} style={{flex:'1 1 140px',minHeight:40,padding:'8px 12px',cursor:'pointer',background:mobileGuide===k?'var(--accent-dim)':'var(--bg-elevated)',border:`1px solid ${mobileGuide===k?'var(--accent)':'var(--border-mid)'}`,borderRadius:'var(--radius-md)',color:mobileGuide===k?'var(--accent)':'var(--text-secondary)',fontSize:'0.78rem',fontWeight:mobileGuide===k?700:500}}>{t}</button>)}
+          </div>
+          <p style={{fontSize:'0.68rem',color:'var(--text-muted)',lineHeight:1.5,marginTop:6}}>{mobileGuide==='light'?'Solo la guía de España y la de los países de tus canales favoritos: se descarga y se lee mucho más rápido y gasta menos batería y datos.':'Todas las guías de tus listas (varios cientos de MB que leer): más lenta y puede fallar en móviles modestos.'}</p>
+        </div>}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             {(epgStatus==='loading'||epgStatus==='parsing')&&<div style={{width:'8px',height:'8px',borderRadius:'50%',border:'2px solid var(--accent)',borderTopColor:'transparent',animation:'spin 0.8s linear infinite'}} />}
@@ -230,7 +237,7 @@ function EPGSection() {
           </div>
           <div className="flex items-center gap-2">
             <button onClick={()=>syncStatus()} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)',color:'var(--text-secondary)',fontSize:'0.7rem',padding:'5px 10px',cursor:'pointer',display:'flex',alignItems:'center',gap:'5px'}}><RefreshCw size={11} strokeWidth={2} />Sync</button>
-            {(epgStatus==='ready'||epgStatus==='error')&&<button onClick={()=>{const urls=epgSourceUrls(m3uEpgUrls,manualEpgUrl);const ids=epgKnownIds(allChannels);resetEPG();setTimeout(()=>loadEPG(urls,ids),100);}} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)',color:'var(--text-secondary)',fontSize:'0.75rem',padding:'6px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:'6px'}}><RefreshCw size={12} strokeWidth={2} />Recargar</button>}
+            {(epgStatus==='ready'||epgStatus==='error')&&<button onClick={()=>{const urls=epgSourceUrls(m3uEpgUrls,manualEpgUrl,allChannels);const ids=epgKnownIds(allChannels);resetEPG();setTimeout(()=>loadEPG(urls,ids),100);}} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)',color:'var(--text-secondary)',fontSize:'0.75rem',padding:'6px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:'6px'}}><RefreshCw size={12} strokeWidth={2} />Recargar</button>}
           </div>
         </div>
         {(epgStatus==='loading'||epgStatus==='parsing')&&<div style={{height:'3px',background:'var(--bg-elevated)',borderRadius:'2px',overflow:'hidden',marginBottom:'16px'}}><div style={{height:'100%',width:`${epgStatus==='parsing'?95:progress}%`,background:'var(--accent)',borderRadius:'2px',transition:'width 0.5s ease'}} /></div>}

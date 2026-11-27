@@ -88,7 +88,10 @@ async function install() {
     if (!info.asset.size) throw new Error('GitHub no indicó el tamaño del instalador');
     up.phase = 'ready'; up.percent = 100; up.file = file;
     log('[sys] instalador descargado', file);
-    opts.runInstaller && opts.runInstaller(file);
+    if (opts.runInstaller) {
+      const ok = await opts.runInstaller(file);
+      if (!ok) { up.phase = 'error'; up.error = `No se abrió el instalador. Acepta el aviso de Windows (si no lo ves, puede estar parpadeando en la barra de tareas) o ábrelo tú: ${file}`; }
+    }
   } catch (e) { up.phase = 'error'; up.error = e.message; log('[sys] actualización falló:', e.message); }
 }
 
@@ -144,14 +147,22 @@ async function diagnostic() {
 }
 
 /** Descarga un feed RSS para la app: solo http/https públicos (nada de equipos de la red local), 3 MB y 15 s como mucho. */
-const PRIVATE = /^(localhost|.*\.local|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[?::1\]?$|\[?f[cd][0-9a-f]{2}:)/i;
+/** ¿Es una dirección de este equipo o de la red local? (IPv4, IPv6 y IPv4 escrita como IPv6) */
+function isPrivate(addr) {
+  const a = String(addr || '').toLowerCase().replace(/^\[|\]$/g, '').replace(/^::ffff:/, '');
+  if (/^(localhost|.*\.local|.*\.localhost|.*\.internal)$/.test(a)) return true;
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(a)) return /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/.test(a);
+  if (a.includes(':')) return a === '::1' || a === '::' || /^(f[cd]|fe[89ab])[0-9a-f]{0,2}:/.test(a);
+  return false;
+}
 async function fetchFeedText(url, redirects = 3) {
   const u = new URL(url);
-  if (!/^https?:$/.test(u.protocol) || PRIVATE.test(u.hostname)) throw new Error('dirección no permitida');
-  const { address } = await require('dns').promises.lookup(u.hostname);
-  if (PRIVATE.test(address)) throw new Error('dirección no permitida');
+  if (!/^https?:$/.test(u.protocol) || isPrivate(u.hostname)) throw new Error('dirección no permitida');
+  const { address, family } = await require('dns').promises.lookup(u.hostname);
+  if (isPrivate(address)) throw new Error('dirección no permitida');
   return new Promise((resolve, reject) => {
-    const req = (u.protocol === 'https:' ? https : http).get(u, { headers: { 'User-Agent': 'Mozilla/5.0 TOPOTV', Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*' }, timeout: 15000 }, r => {
+    // lookup fijo: la conexión va a la IP ya comprobada (si el DNS cambiara entre medias, no se podría colar una dirección local)
+    const req = (u.protocol === 'https:' ? https : http).get(u, { headers: { 'User-Agent': 'Mozilla/5.0 TOPOTV', Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*' }, timeout: 15000, lookup: (_h, opts, cb) => (opts && opts.all ? cb(null, [{ address, family }]) : cb(null, address, family)) }, r => {
       if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location && redirects > 0) { r.resume(); return resolve(fetchFeedText(new URL(r.headers.location, u).href, redirects - 1)); }
       if (r.statusCode !== 200) { r.resume(); return reject(new Error(`HTTP ${r.statusCode}`)); }
       let size = 0; const chunks = [];

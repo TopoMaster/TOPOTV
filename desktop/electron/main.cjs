@@ -79,7 +79,7 @@ function torrentToMagnet(file) {
   let i = 0, info = null;
   const parse = depth => {
     const c = buf[i];
-    if (c === 0x69) { const e = buf.indexOf(0x65, i); const n = Number(buf.slice(i + 1, e).toString()); i = e + 1; return n; }   // i…e
+    if (c === 0x69) { const e = buf.indexOf(0x65, i); if (e < 0) throw new Error('torrent roto'); const n = Number(buf.slice(i + 1, e).toString()); i = e + 1; return n; }   // i…e
     if (c === 0x6c) { i++; const a = []; while (buf[i] !== 0x65) { if (i >= buf.length) throw new Error('torrent roto'); a.push(parse(depth + 1)); } i++; return a; }
     if (c === 0x64) { i++; const o = {}; while (buf[i] !== 0x65) { if (i >= buf.length) throw new Error('torrent roto'); const k = parse(depth + 1).toString('latin1'); const start = i; o[k] = parse(depth + 1); if (depth === 0 && k === 'info') info = [start, i]; } i++; return o; }
     if (c >= 0x30 && c <= 0x39) { const colon = buf.indexOf(0x3a, i); const len = Number(buf.slice(i, colon).toString()); const v = buf.slice(colon + 1, colon + 1 + len); i = colon + 1 + len; return v; }
@@ -275,19 +275,27 @@ if (gotLock) app.whenReady().then(async () => {
       // El instalador pide permisos de administrador: se abre con Start-Process (ShellExecute, que muestra el aviso
       // de Windows) y desde su carpeta temporal, no desde la de instalación (si no, esa carpeta queda en uso y el
       // instalador no puede quitar la versión anterior). La app se cierra para no bloquear sus archivos.
-      runInstaller: file => {
-        const dir = path.dirname(file);
-        const ps = `Start-Process -FilePath '${file.replace(/'/g, "''")}' -WorkingDirectory '${dir.replace(/'/g, "''")}'`;
-        let opened = false;
-        try {
-          const p = require('child_process').spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', ps], { cwd: dir, detached: true, stdio: 'ignore', windowsHide: true });
-          p.on('error', e => { log('no se pudo abrir el instalador con PowerShell:', e.message); shell.openPath(file).catch(() => {}); });
-          p.unref();
-          opened = true;
-        } catch (e) { log('no se pudo abrir el instalador:', e.message); }
-        if (!opened) shell.openPath(file).then(err => { if (err) log('no se pudo abrir el instalador:', err); }).catch(() => {});
-        setTimeout(() => app.quit(), 2500);
-      },
+      /* El instalador pide permiso de administrador. Antes se abría desde un proceso oculto y TOPOTV se cerraba a los
+         2,5 s: el aviso de Windows salía escondido, parpadeando en la barra de tareas, y la actualización no se hacía.
+         Ahora se abre desde la ventana de TOPOTV en primer plano (el aviso sale delante) y TOPOTV solo se cierra cuando el
+         instalador ya está abierto. Si se cancela el aviso, TOPOTV sigue abierta y lo dice. */
+      runInstaller: file => new Promise(resolve => {
+        if (mainWin) { if (mainWin.isMinimized()) mainWin.restore(); mainWin.show(); mainWin.focus(); }
+        shell.openPath(file).then(err => { if (err) log('no se pudo abrir el instalador:', err); }).catch(() => {});
+        const name = path.basename(file).toLowerCase();
+        let tries = 0;
+        const timer = setInterval(() => {
+          tries++;
+          require('child_process').execFile('tasklist', ['/FI', `IMAGENAME eq ${path.basename(file)}`, '/NH'], { windowsHide: true }, (e, out) => {
+            if (!e && String(out).toLowerCase().includes(name)) {
+              clearInterval(timer);
+              log('instalador abierto: TOPOTV se cierra para que pueda actualizar');
+              resolve(true);
+              setTimeout(() => app.quit(), 1500);
+            } else if (tries >= 180) { clearInterval(timer); log('el instalador no llegó a abrirse'); resolve(false); }
+          });
+        }, 1000);
+      }),
       listsDir: path.join(app.getPath('documents'), 'TOPOTV', 'Listas'),
       openFolder: dir => { try { fs.mkdirSync(dir, { recursive: true }); } catch { /* ya existe */ } shell.openPath(dir).catch(() => {}); },
     });

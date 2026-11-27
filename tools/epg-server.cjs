@@ -75,16 +75,14 @@ function download(url, hops = 0) {
   });
 }
 
-function parseInto(xml, wanted, from, to, gi = 0) {
+/** Lee una guía XMLTV: fichas de canal (id y nombres) y los programas de los canales pedidos que caen en la ventana. */
+function parseGuide(xml, wantedList, from, to) {
+  const wanted = new Set(wantedList);
   const names = new Map();   // id -> nombres
   for (const m of xml.matchAll(/<channel\s+id="([^"]*)"[^>]*>([\s\S]*?)<\/channel>/g)) {
-    const id = decode(m[1]);
-    const list = [...m[2].matchAll(/<display-name[^>]*>([\s\S]*?)<\/display-name>/g)].map(x => decode(x[1]));
-    names.set(id, list);
-    const uid = `${gi}|${id}`;
-    claim(idOwners, norm(id), uid); claim(idOwners, loose(id), uid);
-    for (const n of list) { claim(nameOwners, norm(n), uid); claim(nameOwners, loose(n), uid); }
+    names.set(decode(m[1]), [...m[2].matchAll(/<display-name[^>]*>([\s\S]*?)<\/display-name>/g)].map(x => decode(x[1])));
   }
+  const events = new Map();  // id -> programas
   let kept = 0;
   for (const m of xml.matchAll(/<programme\s+([^>]*)>([\s\S]*?)<\/programme>/g)) {
     const attrs = m[1];
@@ -99,12 +97,50 @@ function parseInto(xml, wanted, from, to, gi = 0) {
     const pick = tag => { const x = body.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`)); return x ? decode(x[1]) : ''; };
     const icon = (body.match(/<icon\s+src="([^"]*)"/) || [])[1];
     const ev = { channelId: id, title: pick('title'), description: pick('desc'), startTime: new Date(start).toISOString(), endTime: new Date(end).toISOString(), category: pick('category') || undefined, poster: icon ? decode(icon) : undefined };
-    const uid = `${gi}|${id}`;
-    if (!names.has(id)) claim(idOwners, norm(id), uid);   // programa de un canal sin ficha <channel>
-    const arr = chan.get(uid) || []; arr.push(ev); chan.set(uid, arr);
+    const arr = events.get(id) || []; arr.push(ev); events.set(id, arr);
     kept++;
   }
-  return kept;
+  return { channels: [...names.entries()], events: [...events.entries()], kept };
+}
+
+/** Junta lo leído de la guía n.º gi en los mapas del servidor */
+function mergeGuide(gi, r) {
+  const known = new Set();
+  for (const [id, list] of r.channels) {
+    known.add(id);
+    const uid = `${gi}|${id}`;
+    claim(idOwners, norm(id), uid); claim(idOwners, loose(id), uid);
+    for (const n of list) { claim(nameOwners, norm(n), uid); claim(nameOwners, loose(n), uid); }
+  }
+  for (const [id, evs] of r.events) {
+    const uid = `${gi}|${id}`;
+    if (!known.has(id)) claim(idOwners, norm(id), uid);   // programas de un canal sin ficha <channel>
+    chan.set(uid, (chan.get(uid) || []).concat(evs));
+  }
+  return r.kept;
+}
+
+/* Descargar y leer una guía grande (decenas de MB) bloqueaba la app de Windows unos segundos: se hace en un hilo
+   aparte. Su código va aquí mismo (no en otro archivo) porque dentro del instalador los archivos van empaquetados. */
+const WORKER_SRC = `
+const https = require('https'), http = require('http'), zlib = require('zlib');
+const { parentPort, workerData } = require('worker_threads');
+const norm = ${norm.toString()};
+const loose = ${loose.toString()};
+const decode = ${decode.toString()};
+${xmltvTime.toString()}
+${download.toString()}
+${parseGuide.toString()}
+download(workerData.url).then(xml => parentPort.postMessage({ ok: true, r: parseGuide(xml, workerData.wanted, workerData.from, workerData.to) }), e => parentPort.postMessage({ ok: false, error: e.message }));
+`;
+function guideInWorker(url, wanted, from, to) {
+  return new Promise((resolve, reject) => {
+    let w;
+    try { w = new (require('worker_threads').Worker)(WORKER_SRC, { eval: true, workerData: { url, wanted, from, to } }); }
+    catch (e) { return download(url).then(xml => resolve(parseGuide(xml, wanted, from, to)), reject); }   // sin hilos: como antes
+    w.once('message', m => { void w.terminate(); if (m.ok) resolve(m.r); else reject(new Error(m.error)); });
+    w.once('error', e => { void w.terminate(); reject(e); });
+  });
 }
 
 async function load(urls, knownIds) {
@@ -120,9 +156,7 @@ async function load(urls, knownIds) {
     for (let i = 0; i < list.length; i++) {
       try {
         state.progress = 10 + Math.round(60 * i / list.length);
-        const xml = await download(list[i]);
-        state = { ...state, status: 'parsing', progress: 75 };
-        const n = parseInto(xml, wanted, from, to, i);
+        const n = mergeGuide(i, await guideInWorker(list[i], [...wanted], from, to));
         log(`[epg] ${list[i].slice(0, 70)} -> ${n} programas`);
         ok++;
       } catch (e) { lastErr = e.message; log('[epg] error', lastErr); }
@@ -192,5 +226,5 @@ function start(opts = {}) {
   return server;
 }
 
-module.exports = { start, parseInto, norm, loose };
+module.exports = { start, parseGuide, norm, loose };
 if (require.main === module) start();

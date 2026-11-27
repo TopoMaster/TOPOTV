@@ -22,6 +22,8 @@ interface SettingsState {
   rewindEnabled: boolean; rewindMinutes: number; rewindCacheGB: number; rewindKeep: boolean;
   /** Feeds RSS que sigue el usuario (página RSS) */
   rssFeeds: string[]; setRssFeeds: (urls: string[]) => void;
+  /** Guía en el móvil: «light» = solo la de España y las de los países de tus favoritos (mucho menos que descargar y leer) */
+  mobileGuide: 'light' | 'full'; setMobileGuide: (v: 'light' | 'full') => void;
   setRewind: (p: Partial<{ rewindEnabled: boolean; rewindMinutes: number; rewindCacheGB: number; rewindKeep: boolean }>) => void;
   /** Traducir solo la guía, las fichas y las descripciones que estén en otro idioma */
   translateAuto: boolean;
@@ -81,7 +83,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       backendConfig: { host: '127.0.0.1', port: 6878 },
-      backendStatus: 'unknown', theme: 'gold', amoled: false, fontFamily: 'topotv', translateAuto: true, translateTo: 'es', rewindEnabled: true, rewindMinutes: 120, rewindCacheGB: 5, rewindKeep: true, rssFeeds: [], manualEpgUrl: '',
+      backendStatus: 'unknown', theme: 'gold', amoled: false, fontFamily: 'topotv', translateAuto: true, translateTo: 'es', rewindEnabled: true, rewindMinutes: 120, rewindCacheGB: 5, rewindKeep: true, rssFeeds: [], mobileGuide: 'light', manualEpgUrl: '',
       preferredPlayer: Capacitor.isNativePlatform() ? 'native' : 'browser',   // Android: el integrado; Windows: dentro de la app (VLC si el formato no es compatible)
       
       m3uSourceUrls: [],
@@ -103,6 +105,7 @@ export const useSettingsStore = create<SettingsState>()(
       setTranslate: (translateAuto, to) => set(s => ({ translateAuto, translateTo: to ?? s.translateTo })),
       setRewind: p => set(p),
       setRssFeeds: rssFeeds => set({ rssFeeds }),
+      setMobileGuide: mobileGuide => set({ mobileGuide }),
       setManualEpgUrl: (url) => set({ manualEpgUrl: url }),
       setPreferredPlayer: (preferredPlayer) => set({ preferredPlayer }),
       setM3uSourceUrls: (m3uSourceUrls) => set({ m3uSourceUrls }),
