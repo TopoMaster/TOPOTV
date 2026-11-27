@@ -12,7 +12,7 @@ import { allSources } from '@/lib/ciriaco';
 import { folderInfo, openListsFolder, type FolderInfo } from '@/lib/folderLists';
 import { getLocalLists, removeLocalList } from '@/lib/localLists';
 import { useEPGStore } from '@/store/useEPGStore';
-import { AddonsSection, AppearanceSection, BackupSection, LanguageSection, ProfilesSection, ChecksSection, SystemSection, TeamsSection } from '@/pages/SettingsExtras';
+import { AddonsSection, AppearanceSection, BackupSection, LanguageSection, ProfilesSection, ChecksSection, SystemSection, TeamsSection, RewindSection, TorrentLinksSection } from '@/pages/SettingsExtras';
 import { shareStatus, tunnelStart, tunnelStop, shareRevoke, type ShareStatus } from '@/lib/share';
 
 const inp: React.CSSProperties = { padding:'9px 12px',background:'var(--bg-elevated)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)',color:'var(--text-primary)',fontSize:'0.85rem',fontFamily:'DM Mono,monospace',outline:'none',width:'100%' };
@@ -495,15 +495,15 @@ function WarpAndroidSection() {
 interface Cat { id: string; icon: React.ElementType; title: string; desc: string; color: string; body: () => React.ReactNode }
 function categories(isNativeApp: boolean): Cat[] {
   const all: (Cat | false)[] = [
-    { id: 'motor', icon: Zap, title: 'Motor y reproducción', desc: isNativeApp ? 'Motor AceStream, reproductor y buffers' : 'Programas necesarios, reproductor y motor', color: '#f5b84a',
-      body: () => <>{isNativeApp ? <EngineAndroidSection /> : <DepsSection />}<PlayerSection /><BackendSection /></> },
+    { id: 'motor', icon: Zap, title: 'Motor y reproducción', desc: isNativeApp ? 'Motor AceStream, reproductor y buffers' : 'Programas necesarios, reproductor, rebobinado y motor', color: '#f5b84a',
+      body: () => <>{isNativeApp ? <EngineAndroidSection /> : <DepsSection />}<PlayerSection />{!isNativeApp && <RewindSection />}<BackendSection /></> },
     { id: 'apariencia', icon: Palette, title: 'Apariencia', desc: 'Color, tamaño y tipo de letra, modo TV', color: '#c792ff', body: () => <AppearanceSection /> },
     { id: 'idioma', icon: Languages, title: 'Idioma y traducción', desc: 'Traducir la guía y las sinopsis a tu idioma', color: '#6ee7d8', body: () => <LanguageSection /> },
     { id: 'canales', icon: ListVideo, title: 'Canales y listas', desc: 'Tus listas, TDT, enlaces caídos y guía', color: '#5fb8ff',
       body: () => <><M3USection /><TdtSection /><ChecksSection /><EPGSection /></> },
     { id: 'eventos', icon: Bell, title: 'Eventos y avisos', desc: isNativeApp ? 'Tus equipos, avisos y WARP' : 'Tus equipos y avisos', color: '#ff7a7a',
       body: () => <><TeamsSection />{isNativeApp && <WarpAndroidSection />}</> },
-    { id: 'cine', icon: Film, title: 'Cine y series', desc: 'Addons de Stremio', color: '#5fd897', body: () => <AddonsSection /> },
+    { id: 'cine', icon: Film, title: 'Cine y series', desc: 'Addons de Stremio y enlaces de torrent', color: '#5fd897', body: () => <><AddonsSection /><TorrentLinksSection /></> },
     { id: 'perfiles', icon: Users, title: 'Perfiles', desc: 'Uno por persona, con PIN opcional', color: '#ffa45c', body: () => <ProfilesSection /> },
     !isNativeApp && { id: 'compartir', icon: Share2, title: 'Compartir y otros equipos', desc: 'Enlaces para ver fuera de casa, móvil y TV', color: '#6ee7d8',
       body: () => <><ShareSection /><DevicesSection /></> },

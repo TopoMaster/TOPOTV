@@ -38,6 +38,10 @@ export interface StreamOption {
 
 /** Catálogo oficial de Stremio (Cinemeta): da listas y fichas de películas y series, pero ningún enlace de vídeo. */
 export const DEFAULT_ADDON_URL = 'https://v3-cinemeta.strem.io/manifest.json';
+/** Streaming Catalogs: listas de lo que hay en Netflix, Disney+, Prime Video, Apple TV+ y HBO Max en España (solo catálogos, sin enlaces). */
+export const STREAMING_CATALOGS_URL = 'https://7a82163c306e-stremio-netflix-catalog-addon.baby-beamup.club/bmZ4LGRucCxhbXAsYXRwLGhibTo6RVM6MTc3MTM3MTg5MDk3OTowOjA6RlI=/manifest.json';
+/** Addons que vienen de serie en todas las versiones (solo catálogos y fichas: ninguno da enlaces de vídeo) */
+export const DEFAULT_ADDON_URLS = [{ url: DEFAULT_ADDON_URL, id: 'com.linvo.cinemeta' }, { url: STREAMING_CATALOGS_URL, id: 'pw.ers.netflix-catalog' }];
 const DEFAULT_ADDON_BASE = 'https://v3-cinemeta.strem.io';
 const TIMEOUT_MS = 12000;
 const STREAM_TIMEOUT_MS = 25000;   // los addons de enlaces a veces tardan (buscan en muchos sitios)

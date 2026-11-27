@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Play, Loader2, ExternalLink, Magnet, X, Film, Subtitles, Volume2 } from 'lucide-react';
-import { Capacitor } from '@capacitor/core';
 import { useAddonsStore } from '@/store/useAddonsStore';
 import { usePlayerStore } from '@/store/usePlayerStore';
 import { useProgressStore, progressKey } from '@/store/useProgressStore';
@@ -190,7 +189,7 @@ export function MetaPage() {
                         <div className="flex items-center gap-1.5 flex-wrap" style={{ marginTop: 5 }}>
                           <LangChip icon="audio" items={langs.audio.length ? langs.audio : langs.multi ? ['Varios idiomas'] : []} userLang={userLang} empty="Audio sin indicar" />
                           {(langs.subs.length > 0 || o.subtitles.length > 0) && <LangChip icon="subs" items={[...new Set([...langs.subs, ...o.subtitles.map(t => langName(t.lang))])]} userLang={userLang} />}
-                          <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{o.addon}{o.kind === 'torrent' ? ' · torrent' : ''}{blocked ? (Capacitor.isNativePlatform() ? ' · solo en Windows' : ' · motor de torrents no disponible') : ''}</span>
+                          <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{o.addon}{o.kind === 'torrent' ? ' · torrent' : ''}{blocked ? ' · motor de torrents no disponible' : ''}</span>
                         </div>
                       </div>
                       {o.kind === 'external'

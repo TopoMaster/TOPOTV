@@ -15,7 +15,7 @@ const choice = (active: boolean) => ({
 
 /** Versión de la guía: al cambiarla, la guía se enseña otra vez (una sola) a quien ya vio la anterior. */
 const GUIDE_KEY = 'topotv-guide-version';
-const GUIDE_VERSION = '2';
+const GUIDE_VERSION = '3';
 
 /** Guía interactiva del primer arranque (se puede repetir desde Ajustes). */
 export function Onboarding() {
@@ -101,8 +101,9 @@ export function Onboarding() {
       title: 'Cine y series',
       body: (
         <>
-          <p>Con tus addons de Stremio verás películas y series. Al pulsar <strong>Ver</strong>, cada enlace indica el <strong>idioma del audio</strong> 🔊 y los <strong>subtítulos</strong> 💬; los que están en tu idioma salen primero.</p>
-          <p style={{ color: 'var(--text-muted)' }}>{isNative ? 'Los enlaces de torrent solo se pueden ver en la app de Windows.' : 'Los torrents se ven con el motor de torrents de TOPOTV, dentro de la app o en VLC.'}</p>
+          <p>TOPOTV trae de serie los catálogos de <strong>Cinemeta</strong> y de <strong>Netflix, Disney+, Prime Video, Apple TV+ y HBO Max</strong>. Para tener enlaces, añade tus addons de Stremio: en <strong>Ajustes → Cine y series</strong>, pega la dirección del addon (la que acaba en <em>manifest.json</em>). Hay un catálogo de addons de la comunidad en <strong>stremio-addons.net</strong>.</p>
+          <p>Al pulsar <strong>Ver</strong>, cada enlace indica el <strong>idioma del audio</strong> 🔊 y los <strong>subtítulos</strong> 💬; los que están en tu idioma salen primero.</p>
+          <p style={{ color: 'var(--text-muted)' }}>{isNative ? '¿Ya los tienes en Windows? Allí, en Ajustes → Copia de seguridad, pulsa «Guardar copia» y aquí «Restaurar desde archivo»: se pasan tus addons y tus listas. Los torrents se ven con el motor AceStream, como los canales.' : 'Los torrents se ven con el motor de torrents de TOPOTV, dentro de la app o en VLC. Para pasar tus addons y tus listas al móvil o a la tele, usa Ajustes → Copia de seguridad.'}</p>
         </>
       ),
     },

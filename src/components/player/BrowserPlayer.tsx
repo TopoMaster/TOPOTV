@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type Hls from 'hls.js';
 import {
   X, Loader2, AlertCircle, Maximize, Minimize, Maximize2, Minimize2, Play, Pause, Volume2, Volume1, VolumeX,
-  Settings2, PictureInPicture2, SkipBack, SkipForward, ExternalLink, RotateCcw, Radio,
+  Settings2, PictureInPicture2, SkipBack, SkipForward, ExternalLink, RotateCcw, Radio, Rewind,
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { usePlayerStore } from '@/store/usePlayerStore';
@@ -12,6 +12,7 @@ import { useEPGStore } from '@/store/useEPGStore';
 import { useHealthStore } from '@/store/useHealthStore';
 import { useProgressStore } from '@/store/useProgressStore';
 import { streamHlsUrl } from '@/lib/aceApi';
+import { startTimeshift, stopTimeshift } from '@/lib/timeshift';
 import { getNowPlaying, getProgressPercent, getUpNext } from '@/lib/epg';
 import { langName } from '@/lib/streamLang';
 import { langFromChannel } from '@/lib/translate';
@@ -62,7 +63,9 @@ export function BrowserPlayer() {
   const [waiting, setWaiting] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [vol, setVol] = useState(() => remembered('topotv-volume', { v: 1, muted: false }));
-  const [time, setTime] = useState({ cur: 0, dur: 0, behind: 0 });
+  const [time, setTime] = useState({ cur: 0, dur: 0, behind: 0, start: 0, end: 0 });
+  /** Rebobinado activo (Windows): hora real a la que empieza lo guardado */
+  const [shift, setShift] = useState<{ startedAt: number } | null>(null);
   const [audio, setAudio] = useState<{ tracks: string[]; sel: number }>({ tracks: [], sel: 0 });
   const [texts, setTexts] = useState<{ label: string }[]>([]);
   const [textSel, setTextSel] = useState(-1);
@@ -79,6 +82,7 @@ export function BrowserPlayer() {
 
   const isVod = !!channel?.vod;
   const seekable = time.dur > 0 && (isVod || hlsLive === false || (hlsLive === null && !!stream?.direct));
+  const dvr = !!shift && !seekable && time.end - time.start > 30;
   const theater = mode === 'theater' && !native;
 
   /* ── Mostrar los controles al mover el ratón o tocar; se ocultan a los 3 s ── */
@@ -95,9 +99,11 @@ export function BrowserPlayer() {
     const video = videoRef.current;
     if (!stream || !video || usePlayerStore.getState().status === 'error' || (stream.torrent && !stream.url)) return;
     let hls: Hls | null = null;
-    setAudio({ tracks: [], sel: 0 }); setTexts([]); setTextSel(-1); setLevels([]); setLevel(-1); setHlsLive(null); setReconnecting(false); setWaiting(false);
+    setAudio({ tracks: [], sel: 0 }); setTexts([]); setTextSel(-1); setLevels([]); setLevel(-1); setHlsLive(null); setReconnecting(false); setWaiting(false); setShift(null);
     let cancelled = false;
-    const src = streamHlsUrl(stream, backendConfig);
+    let shiftId: string | null = null;
+    const engineSrc = streamHlsUrl(stream, backendConfig);
+    let src = engineSrc;
     const onPlaying = () => { setStatus('playing'); useHealthStore.getState().mark(stream.aceId, true); };
     video.addEventListener('playing', onPlaying);
     // vídeo directo que no es HLS (mp4, webm, torrents…): lo reproduce el propio navegador
@@ -112,6 +118,13 @@ export function BrowserPlayer() {
     (async () => {
       if (plain) return;
       try {
+        // Windows, canal en directo: pasa por el servicio de rebobinado (si no responde, se ve directamente del motor)
+        const st = useSettingsStore.getState();
+        if (desktop && !stream.direct && st.rewindEnabled) {
+          const ts = await startTimeshift(engineSrc, { channelId: channel?.id ?? stream.aceId, name: channel?.name ?? stream.label, minutes: st.rewindMinutes, gb: st.rewindCacheGB, keep: st.rewindKeep });
+          if (cancelled) { if (ts) stopTimeshift(ts.id); return; }
+          if (ts) { shiftId = ts.id; src = ts.playlist; setShift({ startedAt: ts.startedAt }); }
+        }
         const { default: HlsJs } = await import('hls.js');
         if (cancelled) return;
         if (HlsJs.isSupported()) {
@@ -153,14 +166,14 @@ export function BrowserPlayer() {
         } else setStatus('error', 'Este navegador no soporta HLS.');
       } catch (e) { setStatus('error', e instanceof Error ? e.message : 'Error de reproducción'); }
     })();
-    return () => { cancelled = true; video.removeEventListener('playing', onPlaying); hls?.destroy(); if (hlsRef.current === hls) hlsRef.current = null; if (plain) { video.removeEventListener('error', onVideoError); video.removeAttribute('src'); video.load(); } };
+    return () => { cancelled = true; if (shiftId) stopTimeshift(shiftId); video.removeEventListener('playing', onPlaying); hls?.destroy(); if (hlsRef.current === hls) hlsRef.current = null; if (plain) { video.removeEventListener('error', onVideoError); video.removeAttribute('src'); video.load(); } };
   }, [stream?.aceId, stream?.url, backendConfig.host, backendConfig.port]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Estado del vídeo: pausa, carga, tiempo y distancia al directo ── */
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !stream) return;
-    setTime({ cur: 0, dur: 0, behind: 0 });
+    setTime({ cur: 0, dur: 0, behind: 0, start: 0, end: 0 });
     let stallTimer: number | undefined, failTimer: number | undefined;
     const clearStall = () => { window.clearTimeout(stallTimer); window.clearTimeout(failTimer); };
     const onWaiting = () => {
@@ -186,7 +199,8 @@ export function BrowserPlayer() {
       if (sec === lastSec) return;
       lastSec = sec;
       const edge = hlsRef.current?.liveSyncPosition ?? (v.seekable.length ? v.seekable.end(v.seekable.length - 1) : v.currentTime);
-      setTime({ cur: v.currentTime, dur: isFinite(v.duration) ? v.duration : 0, behind: Math.max(0, edge - v.currentTime) });
+      const start = v.seekable.length ? v.seekable.start(0) : 0, end = v.seekable.length ? v.seekable.end(v.seekable.length - 1) : 0;
+      setTime({ cur: v.currentTime, dur: isFinite(v.duration) ? v.duration : 0, behind: Math.max(0, edge - v.currentTime), start, end });
     };
     v.addEventListener('waiting', onWaiting); v.addEventListener('playing', onPlaying);
     v.addEventListener('pause', onPause); v.addEventListener('play', onPlay);
@@ -334,8 +348,8 @@ export function BrowserPlayer() {
       else if (k === 'pagedown') zap(1);
       else if (big && k === 'arrowup') setVolume((vol.muted ? 0 : vol.v) + 0.1);
       else if (big && k === 'arrowdown') setVolume((vol.muted ? 0 : vol.v) - 0.1);
-      else if ((big || seekable) && k === 'arrowleft') seekBy(-10);
-      else if ((big || seekable) && k === 'arrowright') seekBy(10);
+      else if ((big || seekable || dvr) && k === 'arrowleft') seekBy(-10);
+      else if ((big || seekable || dvr) && k === 'arrowright') seekBy(10);
       else if (k === 'escape' && mode === 'theater' && !document.fullscreenElement) changeMode('mini');   // sin cerrar el reproductor
       else handled = false;
       if (handled) { e.preventDefault(); e.stopPropagation(); poke(); }
@@ -347,6 +361,12 @@ export function BrowserPlayer() {
   if (!channel || !stream) return null;
 
   const remaining = channel.streams.length > 1 && tried.length < channel.streams.length;
+  const frags = () => { const h = hlsRef.current; return (h?.levels?.[Math.max(0, h.currentLevel)]?.details?.fragments ?? []).filter(f => f.programDateTime); };
+  const atClock = (t: number) => { const f = frags().find(x => t >= x.start && t < x.start + x.duration) ?? frags().at(-1); return f?.programDateTime ? new Date(f.programDateTime + (t - f.start) * 1000) : null; };
+  const timeAt = (ms: number) => { const f = [...frags()].reverse().find(x => x.programDateTime! <= ms); return f ? Math.min(f.start + (ms - f.programDateTime!) / 1000, f.start + f.duration) : null; };
+  const progStartRaw = dvr && now ? timeAt(now.startTime.getTime()) : null;
+  const progStart = progStartRaw !== null && now && frags()[0]?.programDateTime! <= now.startTime.getTime() ? progStartRaw : null;
+  const fromStart = () => { const v = videoRef.current; if (v && progStart !== null) { v.currentTime = Math.max(time.start, progStart); void v.play().catch(() => {}); poke(); } };
   const live = !isVod && !seekable;
   const behind = live && time.behind > 20;
   const VolIcon = vol.muted || vol.v === 0 ? VolumeX : vol.v < 0.5 ? Volume1 : Volume2;
@@ -408,6 +428,15 @@ export function BrowserPlayer() {
             <span>{clock(time.dur)}</span>
           </div>
         )}
+        {dvr && (
+          <div className="pl-seek">
+            <span>{atClock(time.cur) ? hhmm(atClock(time.cur)!) : ''}</span>
+            <input type="range" min={time.start} max={time.end} step={1} value={Math.min(Math.max(time.cur, time.start), time.end)} aria-label="Rebobinar"
+              style={{ ['--p' as string]: `${((time.cur - time.start) / Math.max(1, time.end - time.start)) * 100}%` }}
+              onChange={e => { const v = videoRef.current; if (v) v.currentTime = Number(e.target.value); setTime(t => ({ ...t, cur: Number(e.target.value) })); poke(); }} />
+            <span>{behind ? `-${clock(time.behind)}` : 'ahora'}</span>
+          </div>
+        )}
         <div className="pl-row">
           <button className={iconBtn} onClick={togglePlay} title={paused ? 'Reproducir (espacio)' : 'Pausa (espacio)'} aria-label={paused ? 'Reproducir' : 'Pausa'}>{paused ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}</button>
           {siblings.length > 1 && <>
@@ -420,6 +449,7 @@ export function BrowserPlayer() {
               style={{ ['--p' as string]: `${(vol.muted ? 0 : vol.v) * 100}%` }}
               onChange={e => setVolume(Number(e.target.value))} />
           </div>
+          {progStart !== null && <button className={iconBtn} onClick={fromStart} title="Ver el programa desde el principio" aria-label="Desde el principio"><Rewind size={17} /></button>}
           {live && (behind
             ? <button className="pl-live behind" onClick={goLive} title="Volver al directo"><Radio size={12} />Ir al directo</button>
             : <span className="pl-live"><span className="dot" />EN DIRECTO</span>)}

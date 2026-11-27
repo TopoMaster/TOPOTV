@@ -8,19 +8,20 @@ export async function checkBackendStatus(cfg=DEFAULT): Promise<BackendStatus> {
   try { const r=await fetch(`${baseUrl(cfg)}/webui/api/service?method=get_version`,{signal:AbortSignal.timeout(3000)}); return r.ok?'online':'offline'; } catch { return 'offline'; }
 }
 export function buildStreamUrl(aceId: string, cfg=DEFAULT) { return `${baseUrl(cfg)}/ace/getstream?id=${aceId}`; }
+/** Qué se le pide al motor: el canal por su id o, si no es un canal, su consulta propia (torrent por magnet) */
+const engineQuery = (stream: Stream) => stream.engine ?? `id=${stream.aceId}`;
 /** URL para reproducir un stream: la propia si es directo, la del motor AceStream si no. */
-export function streamPlayUrl(stream: Stream, cfg=DEFAULT) { return stream.direct ? stream.url : buildStreamUrl(stream.aceId,cfg); }
+export function streamPlayUrl(stream: Stream, cfg=DEFAULT) { return stream.direct ? stream.url : `${baseUrl(cfg)}/ace/getstream?${engineQuery(stream)}`; }
 export interface PlayResult { ok: boolean; url: string; error?: string; }
 /** Solo comprueba que el motor responde. NO abre el stream: getstream bloquea hasta encontrar peers y rompía la reproducción. */
 export async function requestPlay(stream: Stream, cfg=DEFAULT): Promise<PlayResult> {
   if(stream.direct) return {ok:true,url:stream.url};   // no necesita el motor
-  const url=buildStreamUrl(stream.aceId,cfg);
+  const url=streamPlayUrl(stream,cfg);
   const st=await checkBackendStatus(cfg);
   if(st==='online') return {ok:true,url};
   return {ok:false,url,error:`El motor AceStream no responde en ${cfg.host}:${cfg.port}. Arranca AceStream (Docker/APK) y revisa Ajustes.`};
 }
-function buildHlsUrl(aceId: string, cfg=DEFAULT) { return `${baseUrl(cfg)}/ace/manifest.m3u8?id=${aceId}`; }
-export function streamHlsUrl(stream: Stream, cfg=DEFAULT) { return stream.direct ? stream.url : buildHlsUrl(stream.aceId,cfg); }
+export function streamHlsUrl(stream: Stream, cfg=DEFAULT) { return stream.direct ? stream.url : `${baseUrl(cfg)}/ace/manifest.m3u8?${engineQuery(stream)}`; }
 export type PlayerApp='vlc'|'browser'|'native';
 /** Datos para el reproductor integrado de Android: título, desde dónde reanudar y subtítulos del addon */
 export interface OpenExtra { title?: string; resumeMs?: number; subtitles?: { url: string; lang: string }[] }
@@ -29,7 +30,7 @@ export async function openInPlayer(stream: Stream, cfg=DEFAULT, player: PlayerAp
   if(player==='native') {
     if(Capacitor.isNativePlatform()) {
       // reproductor propio de Android: el directo se pide como HLS al motor; la promesa `done` termina al cerrarlo
-      const url=stream.direct?stream.url:buildHlsUrl(stream.aceId,cfg);
+      const url=streamHlsUrl(stream,cfg);
       return {ok:true,method:'native',done:startNativePlayback({url,title:extra?.title??stream.label,resumeMs:extra?.resumeMs,subtitles:extra?.subtitles})};
     }
     player='vlc';   // fuera de Android no existe: se usa VLC

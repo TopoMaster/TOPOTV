@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Heart, CircleDot, CalendarRange, Columns2, Trophy, Shield, Search, Settings, Users, Palette, X } from 'lucide-react';
+import { Heart, CircleDot, CalendarRange, Columns2, Trophy, Shield, Search, Settings, Users, Palette, X, Rss } from 'lucide-react';
 import { useUIStore } from '@/store/useUIStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 
@@ -12,6 +12,7 @@ export const MORE_ITEMS: { to: string; icon: React.ElementType; title: string; d
   { to: '/guide', icon: CalendarRange, title: 'Parrilla', desc: 'Qué echan ahora y luego', color: '#5fb8ff' },
   { to: '/multi', icon: Columns2, title: 'Multivista', desc: 'Varios canales a la vez', color: '#c792ff' },
   { to: '/flashscore', icon: Trophy, title: 'Resultados', desc: 'Marcadores en directo', color: '#f5b84a' },
+  { to: '/feeds', icon: Rss, title: 'RSS', desc: 'Tus feeds de noticias y vídeos', color: '#ff9a5c' },
   { to: '/checker', icon: Shield, title: 'Comprobar enlaces', desc: 'Qué canales funcionan', color: '#5fd897' },
   { to: '/search', icon: Search, title: 'Buscar', desc: 'Canales y eventos', color: '#6ee7d8' },
   { to: '/settings?s=apariencia', icon: Palette, title: 'Apariencia', desc: 'Color y tamaño de letra', color: '#b39dff' },

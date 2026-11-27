@@ -16,13 +16,13 @@ TOPOTV te ayuda a organizar tus canales, encontrar programas y consultar eventos
 
 | Plataforma | Descarga |
 | --- | --- |
-| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.4.3.exe) |
-| Android (móvil y tableta) | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.4.3.apk) |
-| Android TV y Google TV | [TOPOTV para Android TV (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-TV-v1.4.3.apk) |
+| Windows 10/11, 64 bits | [TOPOTV para Windows (.exe)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-Setup-1.4.4.exe) |
+| Android (móvil y tableta) | [TOPOTV para Android (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-v1.4.4.apk) |
+| Android TV y Google TV | [TOPOTV para Android TV (.apk)](https://github.com/TopoMaster/TOPOTV/releases/latest/download/TOPOTV-TV-v1.4.4.apk) |
 
 La versión de Android TV es la misma app preparada para la tele: arranca en modo TV y se maneja con el mando. Si en una tele tenías la de Android, al actualizar se pasa sola a la de TV.
 
-**Versión actual: v1.4.3.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
+**Versión actual: v1.4.4.** Consulta las notas y el historial en [Versiones de TOPOTV](https://github.com/TopoMaster/TOPOTV/releases).
 
 ## Qué incluye
 

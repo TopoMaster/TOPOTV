@@ -36,10 +36,17 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
   let failing = false;   // evita que dos errores seguidos del mismo enlace salten dos veces
   let openId = 0;        // descarta respuestas tardías si el usuario ya eligió otra cosa
 
-  /** Los torrents se abren con el motor de Windows: devuelve el enlace local ya listo para reproducir. */
+  /** Torrents: en Windows los abre su motor de torrents (devuelve el enlace local ya listo); en Android, el motor
+   *  AceStream (Ace Serve), que también reproduce torrents normales: se le pasa el magnet con sus trackers y el archivo. */
   async function resolveTorrent(target: Stream, my: number): Promise<Stream | null> {
     if (!target.torrent) return target;
-    if (Capacitor.isNativePlatform()) { set({ status: 'error', errorMessage: 'Los torrents solo se pueden reproducir en la app de Windows (necesitan su motor de torrents).' }); return null; }
+    if (Capacitor.isNativePlatform()) {
+      const t = target.torrent;
+      const magnet = `magnet:?xt=urn:btih:${t.infoHash}${(t.trackers ?? []).slice(0, 20).map(tr => `&tr=${encodeURIComponent(tr)}`).join('')}`;
+      const engine = `magnet=${encodeURIComponent(magnet)}${t.fileIdx !== undefined ? `&file_indexes=${t.fileIdx}` : ''}`;   // sin archivo: el motor elige el vídeo
+      const { backendConfig } = useSettingsStore.getState();
+      return { ...target, engine, url: `http://${backendConfig.host}:${backendConfig.port}/ace/manifest.m3u8?${engine}` };
+    }
     try {
       const url = await startTorrent(target.torrent, st => { if (my === openId) set({ detail: st.peers > 0 || st.downloaded > 0 ? `Torrent: ${st.peers} pares · ${mb(st.downloaded)}` : 'Buscando fuentes del torrent…' }); });
       if (my !== openId) return null;
@@ -75,7 +82,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     const resolved = await resolveTorrent(target, my);
     if (!resolved) return false;
     if (resolved !== target) set({ stream: resolved });
-    if (target.torrent) watchTorrent(target, my);
+    if (target.torrent && !resolved.engine) watchTorrent(target, my);   // el motor de Windows informa de pares y descarga
     const { backendConfig, preferredPlayer, playback } = useSettingsStore.getState();
     let result = await requestPlay(resolved, backendConfig);
     if (!result.ok && Capacitor.isNativePlatform() && !resolved.direct) {
@@ -90,7 +97,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     if (!result.ok) { set({ status: 'error', errorMessage: result.error ?? 'Error de conexión' }); return false; }
     const opened = await openInPlayer(resolved, backendConfig, preferredPlayer, playback, { title: channel.name, resumeMs: get().resumeAt * 1000, subtitles: channel.vod?.subtitles });
     if (!opened.ok) { set({ status: 'error', errorMessage: opened.error ?? 'No se pudo abrir el reproductor' }); return false; }
-    if (!target.torrent) set({ detail: null });
+    if (!target.torrent || resolved.engine) set({ detail: null });
     // reproductor integrado de Android: al cerrarse devuelve dónde se quedó y si falló (entonces se salta al siguiente enlace)
     if (opened.done) void opened.done.then(r => {
       if (my !== openId) return;

@@ -143,6 +143,27 @@ async function diagnostic() {
   ].join('\n');
 }
 
+/** Descarga un feed RSS para la app: solo http/https públicos (nada de equipos de la red local), 3 MB y 15 s como mucho. */
+const PRIVATE = /^(localhost|.*\.local|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[?::1\]?$|\[?f[cd][0-9a-f]{2}:)/i;
+async function fetchFeedText(url, redirects = 3) {
+  const u = new URL(url);
+  if (!/^https?:$/.test(u.protocol) || PRIVATE.test(u.hostname)) throw new Error('dirección no permitida');
+  const { address } = await require('dns').promises.lookup(u.hostname);
+  if (PRIVATE.test(address)) throw new Error('dirección no permitida');
+  return new Promise((resolve, reject) => {
+    const req = (u.protocol === 'https:' ? https : http).get(u, { headers: { 'User-Agent': 'Mozilla/5.0 TOPOTV', Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*' }, timeout: 15000 }, r => {
+      if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location && redirects > 0) { r.resume(); return resolve(fetchFeedText(new URL(r.headers.location, u).href, redirects - 1)); }
+      if (r.statusCode !== 200) { r.resume(); return reject(new Error(`HTTP ${r.statusCode}`)); }
+      let size = 0; const chunks = [];
+      r.on('data', c => { size += c.length; if (size > 3 * 1024 * 1024) { req.destroy(new Error('el feed es demasiado grande')); return; } chunks.push(c); });
+      r.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      r.on('error', reject);
+    });
+    req.on('timeout', () => req.destroy(new Error('no responde')));
+    req.on('error', reject);
+  });
+}
+
 function start(o = {}) {
   opts = o; log = o.log || console.log;
   const server = http.createServer(async (req, res) => {
@@ -175,6 +196,14 @@ function start(o = {}) {
         return text(200, fs.readFileSync(file, 'utf8'));
       }
       if (u.pathname === '/lists/open' && req.method === 'POST') { opts.openFolder && opts.openFolder(listsDir()); return json(200, { ok: true }); }
+      if (u.pathname === '/handlers' && opts.handlers) {
+        if (req.method === 'POST') { let d = ''; for await (const c of req) { d += c; if (d.length > 2000) break; } let b = {}; try { b = JSON.parse(d || '{}'); } catch { /* vacío */ } return json(200, opts.handlers.set({ magnet: b.magnet, torrent: b.torrent })); }
+        return json(200, opts.handlers.get());
+      }
+      if (u.pathname === '/rss') {
+        try { const body = await fetchFeedText(u.searchParams.get('url') || ''); res.setHeader('Content-Type', 'application/xml; charset=utf-8'); res.writeHead(200); return res.end(body); }
+        catch (e) { return text(502, e.message); }
+      }
       json(404, { error: 'not found' });
     } catch (e) { json(500, { error: e.message }); }
   });

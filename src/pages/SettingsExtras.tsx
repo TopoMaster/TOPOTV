@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Palette, Star, Activity, Cpu, X, Archive, Puzzle, Users, Lock, Check, Languages } from 'lucide-react';
+import { Palette, Star, Activity, Cpu, X, Archive, Puzzle, Users, Lock, Check, Languages, History, Magnet } from 'lucide-react';
 import { useAddonsStore } from '@/store/useAddonsStore';
 import { useProfileStore } from '@/store/useProfileStore';
 import { Capacitor } from '@capacitor/core';
 import { buildBackup, downloadBackup, restoreBackup } from '@/lib/backup';
+import { clearTimeshiftCache, openTimeshiftCache, timeshiftCache, type CacheInfo } from '@/lib/timeshift';
 import { useSettingsStore, type FontFamily, type FontScale, type ThemeId } from '@/store/useSettingsStore';
 import { useHealthStore } from '@/store/useHealthStore';
 import { availableLanguages } from '@/lib/translate';
@@ -249,6 +250,80 @@ export function SystemSection() {
   );
 }
 
+/** Rebobinar el directo (solo Windows): todo configurable */
+export function RewindSection() {
+  const { rewindEnabled, rewindMinutes, rewindCacheGB, rewindKeep, setRewind } = useSettingsStore();
+  const [cache, setCache] = useState<CacheInfo | null>(null);
+  const refresh = () => void timeshiftCache().then(setCache);
+  useEffect(() => { refresh(); const t = setInterval(refresh, 5000); return () => clearInterval(t); }, []);
+  const gb = (b: number) => `${(b / 1024 ** 3).toLocaleString('es-ES', { maximumFractionDigits: 1 })} GB`;
+  const mins = (sec: number) => (sec >= 3600 ? `${Math.floor(sec / 3600)} h ${Math.round((sec % 3600) / 60)} min` : `${Math.round(sec / 60)} min`);
+  return (
+    <section className="mb-8">
+      <SLabel icon={History} label="Rebobinar el directo" />
+      <Card>
+        <p style={help}>Mientras ves un canal en el reproductor de TOPOTV, se va guardando en una carpeta caché: puedes pausar, volver atrás (con la barra o con ← →), ver el programa desde el principio si abriste el canal antes de que empezara, y volver al directo. Solo se guarda el canal que estás viendo.</p>
+        <div className="flex gap-2 flex-wrap mb-3">
+          <button style={opt(rewindEnabled)} onClick={() => setRewind({ rewindEnabled: true })}>Activado</button>
+          <button style={opt(!rewindEnabled)} onClick={() => setRewind({ rewindEnabled: false })}>Desactivado</button>
+        </div>
+        {rewindEnabled && <>
+          <p style={{ ...help, marginBottom: 6, fontWeight: 600, color: 'var(--text-secondary)' }}>Cuánto se puede rebobinar en cada canal</p>
+          <div className="flex gap-2 flex-wrap mb-3">{[30, 60, 120, 240].map(m => <button key={m} style={opt(rewindMinutes === m)} onClick={() => setRewind({ rewindMinutes: m })}>{m < 60 ? `${m} min` : `${m / 60} h`}</button>)}</div>
+          <p style={{ ...help, marginBottom: 6, fontWeight: 600, color: 'var(--text-secondary)' }}>Espacio máximo de la caché</p>
+          <div className="flex gap-2 flex-wrap mb-3">{[2, 5, 10, 20].map(g => <button key={g} style={opt(rewindCacheGB === g)} onClick={() => setRewind({ rewindCacheGB: g })}>{g} GB</button>)}</div>
+          <p style={{ ...help, marginBottom: 6, fontWeight: 600, color: 'var(--text-secondary)' }}>Al cambiar de canal</p>
+          <div className="flex gap-2 flex-wrap mb-2">
+            <button style={opt(rewindKeep)} onClick={() => setRewind({ rewindKeep: true })}>Conservar lo visto</button>
+            <button style={opt(!rewindKeep)} onClick={() => setRewind({ rewindKeep: false })}>Borrarlo</button>
+          </div>
+          <p style={help}>{rewindKeep ? 'Si vuelves a un canal que ya viste, puedes rebobinar hasta lo que viste antes (mientras quepa en la caché; lo más antiguo se borra primero).' : 'Al cambiar de canal o cerrar el reproductor se borra lo guardado.'} En HD cada hora ocupa unos 2–4 GB. La caché se vacía al cerrar TOPOTV.</p>
+        </>}
+        <div className="flex gap-2 flex-wrap items-center" style={{ marginTop: 6 }}>
+          <button style={opt(false)} onClick={() => void clearTimeshiftCache().then(refresh)} disabled={!cache?.bytes}>Vaciar caché</button>
+          <button style={opt(false)} onClick={() => void openTimeshiftCache()}>Abrir la carpeta</button>
+        </div>
+        <p role="status" style={{ ...help, marginTop: 10, marginBottom: 0 }}>{cache ? `Ocupa ${gb(cache.bytes)}${cache.channels.length ? ` · ${cache.channels.map(c => `${c.name} (${mins(c.seconds)}${c.recording ? ', grabando' : ''})`).join(' · ')}` : ''}` : 'El servicio de rebobinado no responde.'}</p>
+      </Card>
+    </section>
+  );
+}
+
+/** Abrir enlaces magnet (y en Windows archivos .torrent) con TOPOTV */
+export function TorrentLinksSection() {
+  const native = Capacitor.isNativePlatform();
+  const [st, setSt] = useState<{ magnet: boolean; torrent: boolean } | null>(null);
+  const [msg, setMsg] = useState('');
+  const SYS = 'http://localhost:3008';
+  useEffect(() => { if (!native) void fetch(`${SYS}/handlers`, { signal: AbortSignal.timeout(3000) }).then(r => r.ok ? r.json() : null).then(setSt).catch(() => setSt(null)); }, [native]);
+  const set = async (p: { magnet?: boolean; torrent?: boolean }) => {
+    try { const r = await fetch(`${SYS}/handlers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p), signal: AbortSignal.timeout(5000) }); setSt(await r.json()); setMsg('Hecho.'); }
+    catch { setMsg('No se pudo cambiar (reinicia TOPOTV y vuelve a probar).'); }
+  };
+  return (
+    <section className="mb-8">
+      <SLabel icon={Magnet} label="Enlaces de torrent" />
+      <Card>
+        {native ? (
+          <p style={{ ...help, marginBottom: 0 }}>Al tocar un enlace magnet en el navegador o en otra app, elige <strong>TOPOTV</strong>: se reproduce con el motor AceStream (Ace Serve), como los canales.</p>
+        ) : <>
+          <p style={help}>Si lo activas, al pulsar un enlace magnet en el navegador o al abrir un archivo .torrent, se abre TOPOTV y lo reproduce con su motor de torrents (elige solo el vídeo). Si usas otro programa de torrents, déjalo desactivado: Windows puede preguntarte cuál usar.</p>
+          {st ? <div className="flex flex-col gap-2">
+            {([['magnet', 'Enlaces magnet'], ['torrent', 'Archivos .torrent']] as const).map(([k, label]) => (
+              <div key={k} className="flex items-center gap-3">
+                <span style={{ flex: 1, fontSize: '0.82rem' }}>{label}</span>
+                <button style={{ ...opt(st[k]), flex: '0 0 auto' }} onClick={() => void set({ [k]: true })}>Con TOPOTV</button>
+                <button style={{ ...opt(!st[k]), flex: '0 0 auto' }} onClick={() => void set({ [k]: false })}>No</button>
+              </div>
+            ))}
+          </div> : <p style={help}>El servicio del sistema no responde.</p>}
+          {msg && <p role="status" style={{ ...help, marginTop: 8, marginBottom: 0 }}>{msg}</p>}
+        </>}
+      </Card>
+    </section>
+  );
+}
+
 export function BackupSection() {
   const native = Capacitor.isNativePlatform();
   const [msg, setMsg] = useState('');
@@ -270,19 +345,22 @@ export function BackupSection() {
     <section className="mb-8">
       <SLabel icon={Archive} label="Copia de seguridad" />
       <Card>
-        <p style={help}>Guarda en un archivo tus favoritos, historial, ajustes, equipos y avisos, para no perderlos al reinstalar o cambiar de equipo. Las grabaciones programadas y los vídeos grabados no van en la copia. Ojo: incluye las direcciones de tus addons, que pueden llevar claves personales; guárdala en un sitio privado y no la compartas.</p>
+        <p style={help}>Guarda en un archivo tus favoritos, historial, ajustes, equipos, avisos, addons y listas (en Windows, también las de la carpeta de listas), para no perderlos al reinstalar o pasarlo todo al móvil o a la tele de una vez. Las grabaciones programadas y los vídeos grabados no van en la copia. Ojo: incluye las direcciones de tus addons, que pueden llevar claves personales; guárdala en un sitio privado y no la compartas.</p>
         {native ? (
           <>
-            <p style={help}>En el móvil la copia se pasa por el portapapeles: pulsa «Copiar copia» y pégala en una nota o en un mensaje a ti mismo. Para restaurar, pega el texto aquí debajo.</p>
+            <p style={help}>Para traer lo de Windows: allí pulsa «Guardar copia», pásate el archivo al móvil (por ejemplo, por WhatsApp o Drive) y aquí pulsa «Restaurar desde archivo». También puedes copiarla y pegarla como texto.</p>
             <div className="flex gap-2 flex-wrap mb-3">
-              <button style={opt(false)} onClick={async () => { try { await navigator.clipboard.writeText(buildBackup()); setMsg('Copia en el portapapeles. Pégala en un sitio seguro.'); } catch { setMsg('No se pudo copiar al portapapeles.'); } }}>Copiar copia</button>
+              <label style={{ ...opt(false), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Restaurar desde archivo
+                <input type="file" accept="application/json,.json" onChange={onFile} style={{ display: 'none' }} />
+              </label>
+              <button style={opt(false)} onClick={async () => { try { await navigator.clipboard.writeText(await buildBackup()); setMsg('Copia en el portapapeles. Pégala en un sitio seguro.'); } catch { setMsg('No se pudo copiar al portapapeles.'); } }}>Copiar copia</button>
             </div>
             <textarea value={pasted} onChange={e => setPasted(e.target.value)} placeholder="Pega aquí la copia para restaurarla" rows={3} style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '0.78rem', fontFamily: 'DM Mono, monospace', marginBottom: 8 }} />
             <button style={opt(false)} onClick={() => doRestore(pasted)} disabled={!pasted.trim()}>Restaurar copia pegada</button>
           </>
         ) : (
         <div className="flex gap-2 flex-wrap">
-          <button style={opt(false)} onClick={() => { downloadBackup(); setMsg('Copia guardada en tu carpeta de Descargas.'); }}>Guardar copia</button>
+          <button style={opt(false)} onClick={() => { void downloadBackup().then(() => setMsg('Copia guardada en tu carpeta de Descargas (incluye tus addons y tus listas).')); }}>Guardar copia</button>
           <label style={{ ...opt(false), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Restaurar copia
             <input type="file" accept="application/json,.json" onChange={onFile} style={{ display: 'none' }} />
           </label>
@@ -311,7 +389,7 @@ export function AddonsSection() {
     <section className="mb-8">
       <SLabel icon={Puzzle} label="Addons de Stremio" />
       <Card>
-        <p style={help}>Los addons añaden catálogos de películas, series y canales (pestaña «Cine y series») y enlaces para verlos. TOPOTV solo lleva de serie el catálogo oficial (Cinemeta: listas y fichas, sin ningún enlace); los addons de enlaces los pones tú, y no recomienda ninguno: pega la dirección del que quieras usar (acaba en <code>manifest.json</code>, o empieza por <code>stremio://</code>). Usa solo fuentes propias o autorizadas. Los enlaces directos funcionan en Windows y Android; los torrents solo en Windows, con el motor de torrents integrado.</p>
+        <p style={help}>Los addons añaden catálogos de películas, series y canales (pestaña «Cine y series») y enlaces para verlos. TOPOTV solo lleva de serie el catálogo oficial (Cinemeta: listas y fichas, sin ningún enlace); los addons de enlaces los pones tú, y no recomienda ninguno: pega la dirección del que quieras usar (acaba en <code>manifest.json</code>, o empieza por <code>stremio://</code>). Usa solo fuentes propias o autorizadas. Los enlaces directos funcionan en Windows y Android. Los torrents, en Windows con el motor de torrents integrado y en Android con el motor AceStream (Ace Serve).</p>
         <div className="flex gap-2 mb-3">
           <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && void add()} placeholder="https://…/manifest.json" aria-label="Dirección del addon"
             style={{ flex: 1, minWidth: 0, padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '0.82rem', outline: 'none' }} />

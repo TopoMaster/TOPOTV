@@ -25,6 +25,8 @@ import { FavoritesPage } from '@/pages/FavoritesPage';
 import { TVGuidePage } from '@/pages/TVGuidePage';
 import { EventsPage } from '@/pages/EventsPage';
 import { FlashscorePage } from '@/pages/FlashscorePage';
+import { FeedsPage } from '@/pages/FeedsPage';
+import { LinkHandler, OpenLinkPage } from '@/pages/OpenLinkPage';
 import { CheckerPage } from '@/pages/CheckerPage';
 import { useM3UStore } from '@/store/useM3UStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -212,6 +214,7 @@ export default function App() {
       <BackgroundChecker />
       <Reminders />
       <InputControls />
+      <LinkHandler />
       <Onboarding />
       <AppShell>
         <Routes>
@@ -225,6 +228,8 @@ export default function App() {
           <Route path="/recordings" element={<RecordingsPage />} />
           <Route path="/scores" element={<EventsPage />} />
           <Route path="/flashscore" element={<FlashscorePage />} />
+          <Route path="/feeds" element={<FeedsPage />} />
+          <Route path="/abrir" element={<OpenLinkPage />} />
           <Route path="/checker"        element={<CheckerPage />} />
           <Route path="/category/:slug" element={<CategoryPage />} />
           <Route path="/channel/:id"    element={<ChannelPage />} />

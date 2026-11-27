@@ -46,6 +46,14 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
 
+            <!-- enlaces magnet: TOPOTV aparece entre las apps para abrirlos (los reproduce con el motor AceStream) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="magnet" />
+            </intent-filter>
+
         </activity>
 
         <!-- TOPOTV como reproductor de vídeos http(s) en «Abrir con». Recoge el vídeo que Ace Serve pasa a un

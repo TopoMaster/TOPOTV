@@ -18,6 +18,11 @@ interface SettingsState {
   /** Fondo negro puro (pantallas OLED: más contraste y menos batería) */
   amoled: boolean;
   fontFamily: FontFamily;
+  /** Rebobinar el directo (Windows): activado, minutos que se guardan por canal, GB que puede ocupar la caché y si se conserva lo visto al cambiar de canal */
+  rewindEnabled: boolean; rewindMinutes: number; rewindCacheGB: number; rewindKeep: boolean;
+  /** Feeds RSS que sigue el usuario (página RSS) */
+  rssFeeds: string[]; setRssFeeds: (urls: string[]) => void;
+  setRewind: (p: Partial<{ rewindEnabled: boolean; rewindMinutes: number; rewindCacheGB: number; rewindKeep: boolean }>) => void;
   /** Traducir solo la guía, las fichas y las descripciones que estén en otro idioma */
   translateAuto: boolean;
   /** Idioma al que se traduce (y preferido para audio y subtítulos en Cine y series) */
@@ -76,7 +81,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       backendConfig: { host: '127.0.0.1', port: 6878 },
-      backendStatus: 'unknown', theme: 'gold', amoled: false, fontFamily: 'topotv', translateAuto: true, translateTo: 'es', manualEpgUrl: '',
+      backendStatus: 'unknown', theme: 'gold', amoled: false, fontFamily: 'topotv', translateAuto: true, translateTo: 'es', rewindEnabled: true, rewindMinutes: 120, rewindCacheGB: 5, rewindKeep: true, rssFeeds: [], manualEpgUrl: '',
       preferredPlayer: Capacitor.isNativePlatform() ? 'native' : 'browser',   // Android: el integrado; Windows: dentro de la app (VLC si el formato no es compatible)
       
       m3uSourceUrls: [],
@@ -96,6 +101,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAmoled: (amoled) => set({ amoled }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
       setTranslate: (translateAuto, to) => set(s => ({ translateAuto, translateTo: to ?? s.translateTo })),
+      setRewind: p => set(p),
+      setRssFeeds: rssFeeds => set({ rssFeeds }),
       setManualEpgUrl: (url) => set({ manualEpgUrl: url }),
       setPreferredPlayer: (preferredPlayer) => set({ preferredPlayer }),
       setM3uSourceUrls: (m3uSourceUrls) => set({ m3uSourceUrls }),

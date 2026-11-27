@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home,Settings,Zap,Tv,LayoutGrid,CircleDot,ChevronLeft,ChevronRight,Heart,Activity,Shield,Trophy,Film,Columns2,CalendarRange,Menu } from 'lucide-react';
+import { Home,Settings,Zap,Tv,LayoutGrid,CircleDot,ChevronLeft,ChevronRight,Heart,Activity,Shield,Trophy,Film,Columns2,CalendarRange,Menu, Rss } from 'lucide-react';
 import { MoreSheet } from './MoreSheet';
 import { SidebarCategories } from './SidebarCategories';
 import { LogoMark, LogoWord } from '@/components/brand/Logo';
@@ -22,6 +22,7 @@ const TOP_NAV: {to:string;icon:React.ElementType;label:string;short?:string;badg
   {to:'/guide',icon:CalendarRange,label:'Parrilla',badge:false,cls:'nav-desktop-only',sec:'Herramientas'},
   {to:'/multi',icon:Columns2,label:'Multivista',badge:false,cls:'nav-desktop-only'},
   {to:'/flashscore',icon:Trophy,label:'Resultados',badge:false,cls:'nav-desktop-only'},
+  {to:'/feeds',icon:Rss,label:'RSS',badge:false,cls:'nav-desktop-only'},
   {to:'/checker',icon:Shield,label:'Comprobar enlaces',badge:false,cls:'nav-desktop-only'},
 ];
 const BOTTOM_NAV = [{to:'/settings',icon:Settings,label:'Ajustes'}];

@@ -5,6 +5,7 @@
  */
 const { app, BrowserWindow, shell, session, Menu, dialog, powerSaveBlocker } = require('electron');
 const http = require('http');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -69,6 +70,78 @@ async function serveModel(rel, res) {
   }
 }
 
+/* ── Enlaces magnet y archivos .torrent (opcional: el usuario lo activa en Ajustes) ── */
+const OWN = `http://127.0.0.1:${WEB_PORT}`;
+/** .torrent → magnet (identificador = SHA-1 del diccionario «info» tal cual está en el archivo) */
+function torrentToMagnet(file) {
+  const buf = fs.readFileSync(file);
+  if (buf.length > 20 * 1024 * 1024) throw new Error('archivo demasiado grande');
+  let i = 0, info = null;
+  const parse = depth => {
+    const c = buf[i];
+    if (c === 0x69) { const e = buf.indexOf(0x65, i); const n = Number(buf.slice(i + 1, e).toString()); i = e + 1; return n; }   // i…e
+    if (c === 0x6c) { i++; const a = []; while (buf[i] !== 0x65) { if (i >= buf.length) throw new Error('torrent roto'); a.push(parse(depth + 1)); } i++; return a; }
+    if (c === 0x64) { i++; const o = {}; while (buf[i] !== 0x65) { if (i >= buf.length) throw new Error('torrent roto'); const k = parse(depth + 1).toString('latin1'); const start = i; o[k] = parse(depth + 1); if (depth === 0 && k === 'info') info = [start, i]; } i++; return o; }
+    if (c >= 0x30 && c <= 0x39) { const colon = buf.indexOf(0x3a, i); const len = Number(buf.slice(i, colon).toString()); const v = buf.slice(colon + 1, colon + 1 + len); i = colon + 1 + len; return v; }
+    throw new Error('no es un archivo .torrent');
+  };
+  const root = parse(0);
+  if (!info) throw new Error('no es un archivo .torrent');
+  const hash = crypto.createHash('sha1').update(buf.slice(info[0], info[1])).digest('hex');
+  const str = b => (Buffer.isBuffer(b) ? b.toString('utf8') : '');
+  const name = root.info && str(root.info.name);
+  const trackers = [...new Set([str(root.announce), ...(Array.isArray(root['announce-list']) ? root['announce-list'].flat().map(str) : [])].filter(t => /^(udp|https?|wss?):\/\//i.test(t)))].slice(0, 20);
+  return `magnet:?xt=urn:btih:${hash}${name ? `&dn=${encodeURIComponent(name)}` : ''}${trackers.map(t => `&tr=${encodeURIComponent(t)}`).join('')}`;
+}
+/** ¿Trae la línea de órdenes un magnet o un .torrent? → la página de la app que lo reproduce */
+function linkPage(argv) {
+  for (const a of argv.slice(1)) {
+    try {
+      if (/^magnet:\?/i.test(a)) return `${OWN}/abrir?magnet=${encodeURIComponent(a)}`;
+      if (/\.torrent$/i.test(a) && fs.existsSync(a)) return `${OWN}/abrir?magnet=${encodeURIComponent(torrentToMagnet(a))}`;
+    } catch (e) { log('enlace no válido:', e.message); }
+  }
+  return null;
+}
+const launchArgs = app.isPackaged ? [] : [path.resolve(__dirname, '..')];   // en desarrollo: electron.exe + carpeta de la app
+const exeCmd = () => [process.execPath, ...launchArgs].map(x => `"${x}"`).join(' ');
+const reg = args => require('child_process').execFileSync('reg', args, { windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+const handlers = {
+  get() {
+    let torrent = false;
+    try { torrent = /TOPOTV\.torrent/.test(reg(['query', 'HKCU\\Software\\Classes\\.torrent', '/ve'])); } catch { /* no hay asociación */ }
+    return { magnet: app.isDefaultProtocolClient('magnet', process.execPath, launchArgs), torrent };
+  },
+  set({ magnet, torrent }) {
+    if (typeof magnet === 'boolean') {
+      if (magnet) app.setAsDefaultProtocolClient('magnet', process.execPath, launchArgs);
+      else app.removeAsDefaultProtocolClient('magnet', process.execPath, launchArgs);
+    }
+    if (typeof torrent === 'boolean') {
+      // lo que tuviera antes .torrent (p. ej. «AceStream.engine») se guarda y se devuelve al desactivarlo
+      const saved = path.join(app.getPath('userData'), 'asociacion-torrent.json');
+      if (torrent) {
+        if (!handlers.get().torrent) {
+          let prev = '';
+          try { prev = (reg(['query', 'HKCU\\Software\\Classes\\.torrent', '/ve']).match(/REG_SZ\s+(.+)/) || [])[1]?.trim() ?? ''; } catch { /* no había */ }
+          fs.writeFileSync(saved, JSON.stringify({ prev }));
+        }
+        reg(['add', 'HKCU\\Software\\Classes\\TOPOTV.torrent', '/ve', '/d', 'Torrent (TOPOTV)', '/f']);
+        reg(['add', 'HKCU\\Software\\Classes\\TOPOTV.torrent\\shell\\open\\command', '/ve', '/d', `${exeCmd()} "%1"`, '/f']);
+        reg(['add', 'HKCU\\Software\\Classes\\.torrent', '/ve', '/d', 'TOPOTV.torrent', '/f']);
+      } else if (handlers.get().torrent) {
+        let prev = '';
+        try { prev = JSON.parse(fs.readFileSync(saved, 'utf8')).prev || ''; } catch { /* sin copia */ }
+        if (prev) reg(['add', 'HKCU\\Software\\Classes\\.torrent', '/ve', '/d', prev, '/f']);
+        else try { reg(['delete', 'HKCU\\Software\\Classes\\.torrent', '/ve', '/f']); } catch { /* ya no estaba */ }
+        try { reg(['delete', 'HKCU\\Software\\Classes\\TOPOTV.torrent', '/f']); } catch { /* ya no estaba */ }
+        try { fs.unlinkSync(saved); } catch { /* ya no estaba */ }
+      }
+    }
+    return handlers.get();
+  },
+};
+
 /* ── Servidor de la web (SPA) ───────────────────────────────── */
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ico': 'image/x-icon' };
 function startWeb() {
@@ -128,14 +201,21 @@ function createWindow() {
   mainWin.webContents.setWindowOpenHandler(({ url }) => { openSafe(url); return { action: 'deny' }; });
   // La ventana principal no debe cargar páginas ajenas (tendrían a mano los servicios locales): se abren en el navegador
   const ownOrigin = `http://127.0.0.1:${WEB_PORT}`;
-  const keepInside = (e, url) => { if (!url.startsWith(ownOrigin + '/') && url !== ownOrigin) { e.preventDefault(); openSafe(url); } };
+  // (los archivos que genera la propia app, como la copia de seguridad, son «blob:» de su mismo origen: se descargan)
+  const keepInside = (e, url) => { if (!url.startsWith(ownOrigin + '/') && url !== ownOrigin && !url.startsWith(`blob:${ownOrigin}/`)) { e.preventDefault(); openSafe(url); } };
   mainWin.webContents.on('will-navigate', keepInside);
   mainWin.webContents.on('will-redirect', keepInside);
-  mainWin.loadURL(`http://127.0.0.1:${WEB_PORT}/`);
+  mainWin.loadURL(linkPage(process.argv) ?? `http://127.0.0.1:${WEB_PORT}/`);   // abierto con un magnet o un .torrent: directo a reproducirlo
   mainWin.on('closed', () => { mainWin = null; });
 }
 
-app.on('second-instance', () => { if (mainWin) { if (mainWin.isMinimized()) mainWin.restore(); mainWin.focus(); } });
+app.on('second-instance', (_e, argv) => {
+  if (!mainWin) return;
+  if (mainWin.isMinimized()) mainWin.restore();
+  mainWin.focus();
+  const page = linkPage(argv);   // otro magnet o .torrent con la app ya abierta
+  if (page) void mainWin.loadURL(page);
+});
 app.on('window-all-closed', () => app.quit());
 
 if (gotLock) app.whenReady().then(async () => {
@@ -152,6 +232,15 @@ if (gotLock) app.whenReady().then(async () => {
   const GRANTED = new Set(['notifications', 'fullscreen', 'clipboard-sanitized-write']);
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(GRANTED.has(permission)));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => GRANTED.has(permission));
+  // lo que descarga la propia app (la copia de seguridad) va directo a Descargas, sin ventana de «Guardar como»
+  session.defaultSession.on('will-download', (_e, item) => {
+    const dir = app.getPath('downloads');
+    const name = path.basename(item.getFilename()).replace(/[<>:"/\\|?*]/g, '_') || 'topotv-descarga';
+    const ext = path.extname(name), stem = name.slice(0, name.length - ext.length);
+    let target = path.join(dir, name);
+    for (let i = 2; fs.existsSync(target) && i < 100; i++) target = path.join(dir, `${stem} (${i})${ext}`);
+    item.setSavePath(target);
+  });
   app.on('web-contents-created', (_e, wc) => wc.on('will-attach-webview', e => e.preventDefault()));
   try {
     await startWeb();
@@ -178,8 +267,10 @@ if (gotLock) app.whenReady().then(async () => {
     // Sistema: actualizaciones desde GitHub, registro y diagnóstico (puerto 3008)
     // Motor de torrents para los enlaces de los addons (peerflix, puerto 3009): descarga en la carpeta de datos y la borra al parar
     try { require(path.join(TOOLS, 'torrent-server.cjs')).start({ log, dir: path.join(app.getPath('userData'), 'torrents') }); } catch (e) { log('motor de torrents no disponible:', e.message); }
+    // Pausar y rebobinar el canal que estás viendo (puerto 3010): guarda los trozos de vídeo en la carpeta de datos y los borra al cerrar
+    try { require(path.join(TOOLS, 'timeshift-server.cjs')).start({ log, dir: path.join(app.getPath('userData'), 'timeshift') }); } catch (e) { log('rebobinado no disponible:', e.message); }
     require(path.join(TOOLS, 'system-server.cjs')).start({
-      log, version: app.getVersion(), logFile: LOG(),
+      log, version: app.getVersion(), logFile: LOG(), handlers,
       openLog: () => shell.showItemInFolder(LOG()),
       // El instalador pide permisos de administrador: se abre con Start-Process (ShellExecute, que muestra el aviso
       // de Windows) y desde su carpeta temporal, no desde la de instalación (si no, esa carpeta queda en uso y el
