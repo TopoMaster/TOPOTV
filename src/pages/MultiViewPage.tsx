@@ -14,35 +14,71 @@ function Tile({ channel, muted, onFocus, onRemove }: { channel: Channel; muted: 
   const [state, setState] = useState<'loading' | 'playing' | 'error'>('loading');
   const [attempt, setAttempt] = useState(0);
   const [tried, setTried] = useState(0);
+  /** Corte con el canal ya en marcha: desde cuándo (se reconecta solo; no se cambia de enlace salvo que lo pidas) */
+  const [cutSince, setCutSince] = useState<number | null>(null);
+  const [, setTick] = useState(0);
+  const ordered = orderStreams(channel.streams, useHealthStore.getState().streams);
 
   useEffect(() => {
     const v = ref.current;
     if (!v) return;
-    const ordered = orderStreams(channel.streams, useHealthStore.getState().streams);
     const stream = ordered[tried % Math.max(1, ordered.length)];
     if (!stream) { setState('error'); return; }
-    setState('loading');
+    setState('loading'); setCutSince(null);
+    const { playback, onCut, cutWaitSec } = useSettingsStore.getState();
     const src = streamHlsUrl(stream, backend);
-    let hls: Hls | null = null, cancelled = false;
-    const onPlaying = () => setState('playing');
+    let hls: Hls | null = null, cancelled = false, started = false, cut: number | null = null, retries = 0;
+    let stall: number | undefined, giveUp: number | undefined;
+    const endCut = () => { cut = null; retries = 0; setCutSince(null); window.clearTimeout(giveUp); };
+    const onPlaying = () => { started = true; endCut(); window.clearTimeout(stall); setState('playing'); };
+    // no llegó a arrancar: enlace siguiente y, si no quedan, error
+    const fail = () => { if (cancelled) return; if (tried + 1 < ordered.length) setTried(t => t + 1); else setState('error'); };
+    // se cortó viendo el canal: se reconecta solo durante cutWaitSec (o se cambia de enlace, si así lo eliges en Ajustes)
+    const onCutNow = (fix: () => void) => {
+      if (cancelled) return;
+      if (onCut === 'switch') { fail(); return; }
+      if (cut === null) { cut = Date.now(); setCutSince(cut); giveUp = window.setTimeout(() => { if (!cancelled && cut !== null) setState('error'); }, cutWaitSec * 1000); }   // se avisa, pero sigue intentándolo: si vuelve, se ve solo
+      window.setTimeout(() => { if (!cancelled) fix(); }, Math.min(10000, 2000 * ++retries));
+    };
+    const onWaiting = () => {
+      if (!started || !hls) return;
+      window.clearTimeout(stall);
+      const again = () => { if (cancelled || !hls) return; onCutNow(() => { hls?.stopLoad(); hls?.startLoad(-1); }); stall = window.setTimeout(again, 20000); };
+      stall = window.setTimeout(again, 12000);
+    };
     v.addEventListener('playing', onPlaying);
-    const fail = () => { if (cancelled) return; if (tried + 1 < ordered.length) setTried(t => t + 1); else setState('error'); };   // enlace siguiente y, si no quedan, error
+    v.addEventListener('waiting', onWaiting);
     (async () => {
       try {
         const { default: HlsLib } = await import('hls.js');
         if (cancelled) return;
-        if (!/\.m3u8(\?|$)/i.test(src) && stream.direct) { v.src = src; v.onerror = fail; void v.play().catch(() => {}); return; }
+        if (!/\.m3u8(\?|$)/i.test(src) && stream.direct) { v.src = src; v.onerror = () => (started ? onCutNow(() => { v.load(); void v.play().catch(() => {}); }) : fail()); void v.play().catch(() => {}); return; }
         if (HlsLib.isSupported()) {
-          const h = new HlsLib({ manifestLoadingTimeOut: 45000, maxBufferLength: 20, liveSyncDurationCount: 3 });
+          const h = new HlsLib({
+            manifestLoadingTimeOut: 45000, manifestLoadingMaxRetry: playback.hlsManifestLoadingMaxRetry,
+            maxBufferLength: playback.hlsMaxBufferLengthSec, liveSyncDurationCount: playback.hlsLiveSyncDurationCount,
+            fragLoadingMaxRetry: playback.hlsFragLoadingMaxRetry, fragLoadingTimeOut: 30000, fragLoadingRetryDelay: 1000, fragLoadingMaxRetryTimeout: 16000,
+            levelLoadingTimeOut: 20000, levelLoadingMaxRetry: 10, levelLoadingRetryDelay: 2000,
+          });
           hls = h;
+          let mediaRetries = 0;
           h.on(HlsLib.Events.MANIFEST_PARSED, () => { void v.play().catch(() => {}); });
-          h.on(HlsLib.Events.ERROR, (_e, d) => { if (d.fatal) fail(); });
+          h.on(HlsLib.Events.FRAG_BUFFERED, () => { retries = 0; });
+          h.on(HlsLib.Events.ERROR, (_e, d) => {
+            if (!d.fatal) return;
+            if (d.type === HlsLib.ErrorTypes.MEDIA_ERROR && mediaRetries++ < 3) { h.recoverMediaError(); return; }
+            if (!started) { fail(); return; }
+            onCutNow(() => (d.type === HlsLib.ErrorTypes.MEDIA_ERROR ? h.recoverMediaError() : h.startLoad(-1)));
+          });
           h.loadSource(src); h.attachMedia(v);
         } else { v.src = src; void v.play().catch(() => {}); }
       } catch { fail(); }
     })();
-    return () => { cancelled = true; v.removeEventListener('playing', onPlaying); v.onerror = null; hls?.destroy(); v.removeAttribute('src'); v.load(); };
+    return () => { cancelled = true; window.clearTimeout(stall); window.clearTimeout(giveUp); v.removeEventListener('playing', onPlaying); v.removeEventListener('waiting', onWaiting); v.onerror = null; hls?.destroy(); v.removeAttribute('src'); v.load(); };
   }, [channel.id, attempt, tried, backend.host, backend.port]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (cutSince === null) return; const t = window.setInterval(() => setTick(n => n + 1), 1000); return () => window.clearInterval(t); }, [cutSince]);
+  const cutFor = cutSince !== null ? Math.floor((Date.now() - cutSince) / 1000) : 0;
+  const nextLink = () => { setTried(t => t + 1); setAttempt(a => a + 1); };
 
   return (
     <div style={{ position: 'relative', background: '#000', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: `2px solid ${muted ? 'var(--border-subtle)' : 'var(--accent)'}`, aspectRatio: '16 / 9' }}>
@@ -53,10 +89,19 @@ function Tile({ channel, muted, onFocus, onRemove }: { channel: Channel; muted: 
         <button onClick={onRemove} aria-label={`Quitar ${channel.name}`} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={16} /></button>
       </div>
       {state === 'loading' && <div className="flex items-center justify-center" style={{ position: 'absolute', inset: 0, color: 'var(--text-secondary)', fontSize: '0.72rem', pointerEvents: 'none' }}>Conectando…</div>}
+      {state === 'playing' && cutSince !== null && (
+        <div className="flex flex-col items-center justify-center gap-2" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', color: '#fff', fontSize: '0.72rem' }}>
+          Se ha cortado. Reconectando… {Math.floor(cutFor / 60)}:{String(cutFor % 60).padStart(2, '0')}
+          {ordered.length > 1 && <button onClick={nextLink} style={{ minHeight: 28, padding: '0 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 100, color: 'var(--text-secondary)', cursor: 'pointer' }}>Probar otro enlace</button>}
+        </div>
+      )}
       {state === 'error' && (
         <div className="flex flex-col items-center justify-center gap-2" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', color: 'var(--offline-red)', fontSize: '0.72rem' }}>
-          No se pudo reproducir
-          <button onClick={() => { setTried(0); setAttempt(a => a + 1); }} className="flex items-center gap-1" style={{ minHeight: 30, padding: '0 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 100, color: 'var(--text-secondary)', cursor: 'pointer' }}><RefreshCw size={12} />Reintentar</button>
+          {cutSince !== null ? 'El canal se cortó y no ha vuelto' : 'No se pudo reproducir'}
+          <div className="flex gap-2">
+          <button onClick={() => { if (cutSince === null) setTried(0); setAttempt(a => a + 1); }} className="flex items-center gap-1" style={{ minHeight: 30, padding: '0 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 100, color: 'var(--text-secondary)', cursor: 'pointer' }}><RefreshCw size={12} />Reintentar</button>
+            {ordered.length > 1 && <button onClick={nextLink} style={{ minHeight: 30, padding: '0 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 100, color: 'var(--text-secondary)', cursor: 'pointer' }}>Otro enlace</button>}
+          </div>
         </div>
       )}
     </div>

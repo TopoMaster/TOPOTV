@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Circle, CalendarDays, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, Bell, BellRing, Star, X, SlidersHorizontal, Tv } from 'lucide-react';
+import { Circle, CalendarDays, ChevronRight, RefreshCw, Play, WifiOff, ListVideo, Search, ShieldCheck, Share2, Check, Bell, BellRing, Star, X, SlidersHorizontal, Tv } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useNavigate } from 'react-router-dom';
 import { BYTES_PER_HOUR, formatBytes, scheduleRecording } from '@/lib/recorder';
@@ -20,9 +20,28 @@ import type { Channel } from '@/types';
 import { LoadingState } from '@/components/shared/States';
 import { ChannelLogo } from '@/components/shared/ChannelLogo';
 import { emoji, sportColor } from '@/lib/sports';
-import { eventDuration, eventProgress, eventStatus, eventToChannel, linkTag, sortLinks, todayIso, type CiriacoChannel, type CiriacoDay, type CiriacoEvent, type CiriacoStatus } from '@/lib/ciriaco';
+import { eventDuration, eventProgress, eventStatus, eventToChannel, sortLinks, todayIso, type CiriacoChannel, type CiriacoDay, type CiriacoEvent, type CiriacoStatus } from '@/lib/ciriaco';
+import { canon } from '@/lib/ciriacoNative';
+import { isPhoneLayout } from '@/lib/layout';
 
 const isGuide = (e: CiriacoEvent): e is GuideEvent => (e as GuideEvent).guide === true;
+/** Índices de tus canales (por enlace de AceStream y por nombre), calculados una vez por lista cargada. */
+const indexCache = new WeakMap<Channel[], { byHash: Map<string, Channel>; byName: Map<string, Channel> }>();
+function channelIndex(all: Channel[]) {
+  let ix = indexCache.get(all);
+  if (!ix) {
+    ix = { byHash: new Map(), byName: new Map() };
+    for (const c of all) {
+      for (const s of c.streams) if (s.aceId && !ix.byHash.has(s.aceId)) ix.byHash.set(s.aceId, c);
+      const k = canon(c.name);
+      if (k && !ix.byName.has(k)) ix.byName.set(k, c);
+    }
+    indexCache.set(all, ix);
+  }
+  return ix;
+}
+/** Un canal que emite el evento: su ficha en tus listas o, si no está en ellas, sus enlaces del evento para verlo. */
+interface ChanTarget { id: string; name: string; logo: string; channel?: Channel; temp?: Channel }
 /** Canales de tus listas que ofrece un canal: los que tienen algún enlace que el evento no trae ya. */
 function extraChannels(ev: CiriacoEvent, list: Channel[]): Channel[] {
   const own = new Set(ev.links.map(l => l.hash));
@@ -117,7 +136,8 @@ function dayLabel(d: { date: string; label: string }) {
 export function EventRow({ ev, date, channels, listChannels = [] }: { ev: CiriacoEvent; date: string; channels: Record<string, CiriacoChannel>; listChannels?: Channel[] }) {
   const play = usePlayerStore(s => s.play);
   const backend = useSettingsStore(s => s.backendConfig);
-  const [open, setOpen] = useState(false);
+  const allChannels = useM3UStore(s => s.allChannels);
+  const [showAll, setShowAll] = useState(false);
   const status = eventStatus(date, ev.time);
   const links = useMemo(() => sortLinks(ev.links), [ev]);
   const channel = useMemo(() => eventToChannel(ev, ev.links, backend), [ev, backend]);
@@ -129,8 +149,25 @@ export function EventRow({ ev, date, channels, listChannels = [] }: { ev: Ciriac
   const [shared, setShared] = useState<'idle' | 'busy' | 'ok' | 'err'>('idle');
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
-  // Grabación programada (solo app de Windows: el grabador local responde en el puerto 3007)
   const navigate = useNavigate();
+  // canales que lo emiten → su ficha en tus listas (por enlace o por nombre); sin ficha, se ve con los enlaces del evento
+  const targets = useMemo(() => {
+    const ix = channelIndex(allChannels);
+    const out: ChanTarget[] = [], seen = new Set<string>();
+    const push = (t: ChanTarget) => { if (!seen.has(t.id)) { seen.add(t.id); out.push(t); } };
+    for (const key of [...new Set([...ev.channelKeys, ...ev.links.map(l => l.channelKey)])].filter(Boolean)) {
+      const own = ev.links.filter(l => l.channelKey === key);
+      const name = channels[key]?.name ?? own[0]?.channel ?? key;
+      const k = canon(name);
+      const mine = sortLinks(own).map(l => ix.byHash.get(l.hash)).find(Boolean) ?? listChannels.find(c => canon(c.name) === k) ?? (k ? ix.byName.get(k) : undefined);
+      if (mine) push({ id: mine.id, name: mine.name, logo: mine.logo || channels[key]?.logo || '', channel: mine });
+      else if (own.length) push({ id: `ev-${key}`, name, logo: channels[key]?.logo ?? '', temp: { ...eventToChannel(ev, own, backend), id: `ciriaco-${ev.id}-${key}`, name, logo: channels[key]?.logo ?? '' } });
+    }
+    for (const c of listChannels) push({ id: c.id, name: c.name, logo: c.logo, channel: c });
+    return out;
+  }, [ev, channels, listChannels, allChannels, backend]);
+  const openTarget = (t: ChanTarget) => { if (t.channel) navigate(`/channel/${encodeURIComponent(t.channel.id)}`); else if (t.temp) void play(t.temp, t.temp.streams[0]); };
+  // Grabación programada (solo app de Windows: el grabador local responde en el puerto 3007)
   const recAvailable = useRecorderStore(s => s.available);
   const recordings = useRecorderStore(s => s.recordings);
   const freeBytes = useRecorderStore(s => s.freeBytes);
@@ -199,11 +236,6 @@ export function EventRow({ ev, date, channels, listChannels = [] }: { ev: Ciriac
             {ev.competition}{ev.round ? ` · ${ev.round}` : ''}
           </p>
         </div>
-        <div className="ev-chans">
-          {guide
-            ? mineChannels.slice(0, 4).map(c => <span key={c.id} title={c.name}><ChannelLogo name={c.name} src={c.logo} size={26} /></span>)
-            : ev.channelKeys.slice(0, 4).map(k => <span key={k} title={channels[k]?.name}><ChannelLogo name={channels[k]?.name ?? k} src={channels[k]?.logo} size={26} /></span>)}
-        </div>
         {canPlay ? (
           <div className="ev-actions">
             <button onClick={playMain} className="flex items-center gap-1.5"
@@ -225,23 +257,21 @@ export function EventRow({ ev, date, channels, listChannels = [] }: { ev: Ciriac
               style={{ padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', color: shared === 'ok' ? 'var(--online-green)' : shared === 'err' ? 'var(--offline-red)' : 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
               {shared === 'ok' ? <Check size={14} /> : shared === 'busy' ? <RefreshCw size={14} className="animate-spin" /> : <Share2 size={14} />}
             </button>}
-            <button onClick={() => setOpen(o => !o)} title="Opciones de enlace"
-              style={{ padding: '8px 10px', background: open ? 'var(--accent-dim)' : 'var(--bg-elevated)', border: `1px solid ${open ? 'var(--accent)' : 'var(--border-mid)'}`, borderRadius: 'var(--radius-md)', color: open ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '0.7rem', cursor: 'pointer', flexShrink: 0 }}>
-              {guide || !links.length ? `${mineChannels.length} ${mineChannels.length === 1 ? 'canal' : 'canales'}` : `${links.length} ${links.length === 1 ? 'enlace' : 'enlaces'}`}
-            </button>
           </div>
         ) : <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', flexShrink: 0 }}>Sin enlaces</span>}
       </div>
-      {!guide && mineChannels.length > 0 && (
+      {targets.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap ev-links" style={{ marginTop: 8 }}>
-          <span style={{ fontSize: '0.64rem', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>En tus canales:</span>
-          {mineChannels.slice(0, 4).map(c => (
-            <button key={c.id} onClick={() => play(c, c.streams[0])} title={`Ver en ${c.name}`} className="flex items-center gap-1.5"
-              style={{ padding: '3px 10px 3px 4px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 100, color: 'var(--text-secondary)', fontSize: '0.68rem', cursor: 'pointer' }}>
-              <ChannelLogo name={c.name} src={c.logo} size={18} />{c.name}
+          <span style={{ fontSize: '0.64rem', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>Canales:</span>
+          {(showAll ? targets : targets.slice(0, 5)).map(t => (
+            <button key={t.id} onClick={() => openTarget(t)} title={t.channel ? `Abrir la ficha de ${t.name}` : `Ver en ${t.name} (no está en tus listas)`} className="flex items-center gap-1.5"
+              style={{ padding: '3px 10px 3px 4px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: 100, color: 'var(--text-secondary)', fontSize: '0.68rem', cursor: 'pointer', maxWidth: '100%' }}>
+              <ChannelLogo name={t.name} src={t.logo} size={18} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+              {t.channel ? <ChevronRight size={12} style={{ flexShrink: 0, color: 'var(--text-muted)' }} /> : <Play size={10} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />}
             </button>
           ))}
-          {mineChannels.length > 4 && <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.68rem', cursor: 'pointer' }}>+{mineChannels.length - 4} más</button>}
+          {targets.length > 5 && !showAll && <button onClick={() => setShowAll(true)} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.68rem', cursor: 'pointer' }}>+{targets.length - 5} más</button>}
         </div>
       )}
       {(shareUrl || shareMsg) && (
@@ -273,23 +303,6 @@ export function EventRow({ ev, date, channels, listChannels = [] }: { ev: Ciriac
           {recMsg && <p role="alert" style={{ marginTop: 4, fontSize: '0.72rem', color: 'var(--offline-red)' }}>{recMsg}</p>}
         </div>
       )}
-      {open && (
-        <div className="flex flex-wrap gap-2 fade-in ev-links" style={{ marginTop: '10px' }}>
-          {mineChannels.map(c => (
-            <button key={c.id} onClick={() => play(c, c.streams[0])} className="flex items-center gap-2"
-              style={{ padding: '4px 12px 4px 5px', background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: '100px', color: 'var(--accent)', fontSize: '0.7rem', cursor: 'pointer' }}>
-              <ChannelLogo name={c.name} src={c.logo} size={20} />{c.name} · tu lista
-            </button>
-          ))}
-          {channel.streams.map((s, i) => (
-            <button key={s.aceId} onClick={() => play(channel, s)} className="flex items-center gap-2"
-              style={{ padding: '4px 12px 4px 5px', background: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', borderRadius: '100px', color: 'var(--text-secondary)', fontSize: '0.7rem', cursor: 'pointer' }}>
-              <ChannelLogo name={links[i].channel} src={channels[links[i].channelKey]?.logo} size={20} />
-              {links[i].channel} · {linkTag(links[i])}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -303,7 +316,7 @@ export function EventsPage() {
   const [onlyLinks, setOnlyLinks] = useState(false);
   const [onlyMine, setOnlyMine] = useState(false);
   // en el móvil los filtros empiezan plegados para ver antes los partidos
-  const [showFilters, setShowFilters] = useState(() => typeof window === 'undefined' || window.innerWidth > 700);
+  const [showFilters, setShowFilters] = useState(() => !isPhoneLayout());
   const favTeams = useSettingsStore(s => s.favTeams);
   const cross = useGuideEventsStore(s => s.cross);
   const listById = useGuideEventsStore(s => s.channels);

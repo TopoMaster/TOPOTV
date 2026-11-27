@@ -91,7 +91,7 @@ export function Onboarding() {
       title: 'Eventos del día',
       body: (
         <>
-          <p>En <strong>Eventos</strong> está la agenda deportiva. Pulsa <strong>Ver</strong>, y debajo verás <strong>«En tus canales»</strong>: los canales de tus listas que lo emiten. Los partidos que solo aparecen en la guía salen marcados <strong>GUÍA TV</strong>.</p>
+          <p>En <strong>Eventos</strong> está la agenda deportiva. Pulsa <strong>Ver</strong> para verlo ya, o toca uno de los <strong>canales</strong> que lo emiten para ir a su ficha y elegir enlace. Los partidos que solo aparecen en la guía salen marcados <strong>GUÍA TV</strong>.</p>
           <p>Con la <strong>campana</strong> te avisa antes de empezar y con <strong>Grabar</strong> lo guardas para verlo después.</p>
           <p style={{ color: 'var(--text-muted)' }}>{isNative ? 'Al pulsar Actualizar, TOPOTV conecta su WARP integrado (solo para la app) y lo apaga al terminar. La primera vez Android pide permiso de VPN.' : 'Al pulsar Actualizar, TOPOTV conecta Cloudflare WARP mientras actualiza la agenda, las listas y la guía, y lo desconecta al terminar.'}</p>
         </>
@@ -142,7 +142,7 @@ export function Onboarding() {
   return (
     <div role="dialog" aria-modal="true" aria-label="Guía de uso" className="fade-in"
       style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(4,6,9,0.82)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div className="slide-up" key={step} style={{ width: '100%', maxWidth: 480, background: 'var(--bg-card)', border: '1px solid var(--border-mid)', borderRadius: 18, padding: 24, boxShadow: '0 24px 70px rgba(0,0,0,0.6)' }}>
+      <div className="slide-up" key={step} style={{ width: '100%', maxWidth: 480, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', background: 'var(--bg-card)', border: '1px solid var(--border-mid)', borderRadius: 18, padding: 24, boxShadow: '0 24px 70px rgba(0,0,0,0.6)' }}>
         <div className="flex items-center gap-3 mb-4">
           <div className="mole-float"><LogoMark size={step === 0 ? 64 : 44} /></div>
           <h2 className="font-display" style={{ fontSize: '1.9rem', letterSpacing: '0.05em' }}>{cur.title}</h2>

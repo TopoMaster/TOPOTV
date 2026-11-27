@@ -24,14 +24,14 @@ export async function requestPlay(stream: Stream, cfg=DEFAULT): Promise<PlayResu
 export function streamHlsUrl(stream: Stream, cfg=DEFAULT) { return stream.direct ? stream.url : `${baseUrl(cfg)}/ace/manifest.m3u8?${engineQuery(stream)}`; }
 export type PlayerApp='vlc'|'browser'|'native';
 /** Datos para el reproductor integrado de Android: título, desde dónde reanudar y subtítulos del addon */
-export interface OpenExtra { title?: string; resumeMs?: number; subtitles?: { url: string; lang: string }[] }
+export interface OpenExtra { title?: string; resumeMs?: number; subtitles?: { url: string; lang: string }[]; reconnect?: number }
 export async function openInPlayer(stream: Stream, cfg=DEFAULT, player: PlayerApp='vlc', playback?: PlaybackConfig, extra?: OpenExtra): Promise<{ok:boolean;method:string;error?:string;done?:Promise<NativeResult>}> {
   if(player==='browser') return {ok:true,method:'browser'}; // lo reproduce <PlayerOverlay/> con hls.js
   if(player==='native') {
     if(Capacitor.isNativePlatform()) {
       // reproductor propio de Android: el directo se pide como HLS al motor; la promesa `done` termina al cerrarlo
       const url=streamHlsUrl(stream,cfg);
-      return {ok:true,method:'native',done:startNativePlayback({url,title:extra?.title??stream.label,resumeMs:extra?.resumeMs,subtitles:extra?.subtitles})};
+      return {ok:true,method:'native',done:startNativePlayback({url,title:extra?.title??stream.label,resumeMs:extra?.resumeMs,subtitles:extra?.subtitles,reconnect:extra?.reconnect})};
     }
     player='vlc';   // fuera de Android no existe: se usa VLC
   }

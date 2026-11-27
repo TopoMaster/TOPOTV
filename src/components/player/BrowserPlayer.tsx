@@ -78,6 +78,13 @@ export function BrowserPlayer() {
   const [schedule, setSchedule] = useState<EPGSchedule | null>(null);
   const [, setTick] = useState(0);
   const hideTimer = useRef<number | undefined>(undefined);
+  /* Cortes: si el canal ya se estaba viendo, se espera y se reconecta (Ajustes → «Si el canal se corta»); solo se
+     cambia de enlace solo si no llega a arrancar. cutSince = desde cuándo dura el corte. */
+  const startedRef = useRef(false);
+  const cutRef = useRef<number | null>(null);
+  const [cutSince, setCutSince] = useState<number | null>(null);
+  const startCut = () => { if (cutRef.current === null) { cutRef.current = Date.now(); setCutSince(cutRef.current); } setReconnecting(true); };
+  const endCut = () => { if (cutRef.current !== null) { cutRef.current = null; setCutSince(null); } };
   const userPickedSubs = useRef(false);
 
   const isVod = !!channel?.vod;
@@ -99,12 +106,12 @@ export function BrowserPlayer() {
     const video = videoRef.current;
     if (!stream || !video || usePlayerStore.getState().status === 'error' || (stream.torrent && !stream.url)) return;
     let hls: Hls | null = null;
-    setAudio({ tracks: [], sel: 0 }); setTexts([]); setTextSel(-1); setLevels([]); setLevel(-1); setHlsLive(null); setReconnecting(false); setWaiting(false); setShift(null);
+    setAudio({ tracks: [], sel: 0 }); setTexts([]); setTextSel(-1); setLevels([]); setLevel(-1); setHlsLive(null); setReconnecting(false); setWaiting(false); setShift(null); startedRef.current = false; endCut();
     let cancelled = false;
     let shiftId: string | null = null;
     const engineSrc = streamHlsUrl(stream, backendConfig);
     let src = engineSrc;
-    const onPlaying = () => { setStatus('playing'); useHealthStore.getState().mark(stream.aceId, true); };
+    const onPlaying = () => { startedRef.current = true; endCut(); setStatus('playing'); useHealthStore.getState().mark(stream.aceId, true); };
     video.addEventListener('playing', onPlaying);
     // vídeo directo que no es HLS (mp4, webm, torrents…): lo reproduce el propio navegador
     const plain = stream.direct && !/\.m3u8(\?|$)/i.test(src);
@@ -134,12 +141,20 @@ export function BrowserPlayer() {
             fragLoadingMaxRetry: playback.hlsFragLoadingMaxRetry,
             liveSyncDurationCount: playback.hlsLiveSyncDurationCount,
             maxBufferLength: playback.hlsMaxBufferLengthSec,
+            // paciencia con el motor AceStream: cuando pierde fuentes tarda en dar el siguiente trozo
+            fragLoadingTimeOut: 30000, fragLoadingRetryDelay: 1000, fragLoadingMaxRetryTimeout: 16000,
+            levelLoadingTimeOut: 20000, levelLoadingMaxRetry: 10, levelLoadingRetryDelay: 2000,
+            backBufferLength: 90,
             enableCEA708Captions: true,        // subtítulos que emita el canal (CC1…)
             renderTextTracksNatively: true,
           });
           hls = h; hlsRef.current = h;
           h.subtitleDisplay = false;           // los subtítulos no salen solos: se eligen en Opciones o con la C
           let mediaRetries = 0, netRetries = 0;
+          const cutRetry = (fix: () => void) => {   // corte con el canal ya en marcha: se reintenta solo, con espera creciente
+            startCut();
+            window.setTimeout(() => { if (hlsRef.current === h) fix(); }, Math.min(10000, 2000 * ++netRetries));
+          };
           h.on(HlsJs.Events.MANIFEST_PARSED, () => {
             setLevels(h.levels.length > 1 ? levelLabels(h.levels) : []);
             video.play().catch(() => {});
@@ -150,14 +165,16 @@ export function BrowserPlayer() {
           h.on(HlsJs.Events.ERROR, (_e, d) => {
             if (!d.fatal) return;
             if (desktop && /codec|incompatible/i.test(String(d.details))) { void fallbackToVlc('El audio o el vídeo de este canal no se puede reproducir dentro de la app: se ha abierto en VLC.'); return; }
-            // tropiezos que se arreglan solos: el vídeo se recompone y la red se vuelve a pedir (dos veces) antes de cambiar de enlace
-            if (d.type === HlsJs.ErrorTypes.MEDIA_ERROR && mediaRetries < 2) { mediaRetries++; h.recoverMediaError(); return; }
-            if (d.type === HlsJs.ErrorTypes.MEDIA_ERROR && desktop) { void fallbackToVlc('Este canal emite en un formato que no se puede ver dentro de la app: se ha abierto en VLC.'); return; }
-            if (d.type === HlsJs.ErrorTypes.NETWORK_ERROR && netRetries < 2 && usePlayerStore.getState().status === 'playing') {
-              netRetries++; setReconnecting(true);
-              window.setTimeout(() => { if (hlsRef.current === h) h.startLoad(-1); }, 2000);
+            // el vídeo se recompone solo (varias veces); si nunca llegó a verse, el formato no vale: a VLC
+            if (d.type === HlsJs.ErrorTypes.MEDIA_ERROR && (mediaRetries < 3 || startedRef.current)) {
+              mediaRetries++;
+              if (startedRef.current && mediaRetries > 3) cutRetry(() => h.recoverMediaError()); else h.recoverMediaError();
               return;
             }
+            if (d.type === HlsJs.ErrorTypes.MEDIA_ERROR && desktop) { void fallbackToVlc('Este canal emite en un formato que no se puede ver dentro de la app: se ha abierto en VLC.'); return; }
+            // corte con el canal ya en marcha: se espera y se reconecta (salvo que en Ajustes prefieras cambiar de enlace)
+            if (startedRef.current && useSettingsStore.getState().onCut === 'wait') { cutRetry(() => h.startLoad(-1)); return; }
+            // no llegó a arrancar: se prueba el siguiente enlace
             void usePlayerStore.getState().reportFailure(`No se pudo reproducir el stream (${d.details}). Prueba otro enlace.`, stream.aceId);
           });
           h.loadSource(src); h.attachMedia(video);
@@ -178,17 +195,18 @@ export function BrowserPlayer() {
     const clearStall = () => { window.clearTimeout(stallTimer); window.clearTimeout(failTimer); };
     const onWaiting = () => {
       setWaiting(true);
-      // canal en directo que se queda cargando: a los 12 s se vuelve a pedir el directo; a los 45 s se prueba otro enlace
+      // canal en directo que se queda cargando: a los 12 s se vuelve a pedir y después cada 20 s, mientras dure el corte
       if (stream.direct || usePlayerStore.getState().status !== 'playing') return;
       clearStall();
-      stallTimer = window.setTimeout(() => {
+      const reconnect = () => {
         const h = hlsRef.current;
         if (!h) return;
-        setReconnecting(true);
+        startCut();
         h.stopLoad(); h.startLoad(-1);
-        if (h.liveSyncPosition) v.currentTime = h.liveSyncPosition;
-      }, 12000);
-      failTimer = window.setTimeout(() => { void usePlayerStore.getState().reportFailure('El canal se ha cortado y no vuelve. Prueba otro enlace o inténtalo más tarde.', stream.aceId); }, 45000);
+        stallTimer = window.setTimeout(reconnect, 20000);
+      };
+      stallTimer = window.setTimeout(reconnect, 12000);
+      if (useSettingsStore.getState().onCut === 'switch') failTimer = window.setTimeout(() => { void usePlayerStore.getState().reportFailure('El canal se ha cortado y no vuelve. Prueba otro enlace o inténtalo más tarde.', stream.aceId); }, 45000);
     };
     const onPlaying = () => { setWaiting(false); setReconnecting(false); setPaused(false); clearStall(); };
     const onPause = () => setPaused(true);
@@ -212,6 +230,18 @@ export function BrowserPlayer() {
       v.removeEventListener('timeupdate', onTime); v.removeEventListener('durationchange', onTime);
     };
   }, [stream?.aceId, stream?.url]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (cutSince === null) return;
+    const t = window.setInterval(() => {
+      setTick(n => n + 1);
+      if (cutRef.current !== null && Date.now() - cutRef.current > useSettingsStore.getState().cutWaitSec * 1000) {
+        endCut();
+        setStatus('error', 'El canal se cortó y no ha vuelto. Prueba otro enlace o vuelve a intentarlo.');
+      }
+    }, 1000);
+    return () => window.clearInterval(t);
+  }, [cutSince]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Volumen recordado ── */
   useEffect(() => {
@@ -385,7 +415,12 @@ export function BrowserPlayer() {
 
       {/* Centro: cargando, reconectando, error o pausa */}
       {status === 'connecting' && <div className="pl-center"><Loader2 size={30} className="pl-spin" />{detail || 'Buscando fuentes… puede tardar hasta 30 s'}</div>}
-      {status === 'playing' && waiting && <div className="pl-center"><Loader2 size={28} className="pl-spin" />{reconnecting ? 'Reconectando…' : null}</div>}
+      {status === 'playing' && (waiting || cutSince !== null) && <div className="pl-center"><Loader2 size={28} className="pl-spin" />
+        {cutSince !== null ? <>
+          <span>Se ha cortado. Reconectando… {clock((Date.now() - cutSince) / 1000)}</span>
+          {channel.streams.length > 1 && <button className="pl-chip" style={{ pointerEvents: 'auto' }} onClick={() => void playNext()}><RotateCcw size={13} />Probar otro enlace</button>}
+        </> : reconnecting ? 'Reconectando…' : null}
+      </div>}
       {status === 'playing' && paused && !waiting && <button className="pl-bigplay" onClick={togglePlay} aria-label="Reproducir"><Play size={30} fill="currentColor" /></button>}
       {status === 'error' && (
         <div className="pl-center pl-error">

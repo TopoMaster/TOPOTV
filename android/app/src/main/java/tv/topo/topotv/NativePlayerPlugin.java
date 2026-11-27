@@ -24,6 +24,7 @@ public class NativePlayerPlugin extends Plugin {
         i.putExtra(PlayerActivity.EXTRA_TITLE, call.getString("title", "TOPOTV"));
         i.putExtra(PlayerActivity.EXTRA_POS, call.getLong("position", 0L));
         i.putExtra(PlayerActivity.EXTRA_MIME, call.getString("mime", ""));
+        i.putExtra(PlayerActivity.EXTRA_RECONNECT, call.getInt("reconnect", 180));
         JSArray subs = call.getArray("subtitles");
         i.putExtra(PlayerActivity.EXTRA_SUBS, subs == null ? "[]" : subs.toString());
         startActivityForResult(call, i, "playResult");
@@ -38,6 +39,8 @@ public class NativePlayerPlugin extends Plugin {
         o.put("duration", d == null ? 0L : d.getLongExtra("duration", 0L));
         o.put("ended", d != null && d.getBooleanExtra("ended", false));
         o.put("error", d == null ? "" : d.getStringExtra("error"));
+        o.put("started", d != null && d.getBooleanExtra("started", false));
+        o.put("next", d != null && d.getBooleanExtra("next", false));
         call.resolve(o);
     }
 }

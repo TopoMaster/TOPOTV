@@ -57,7 +57,7 @@ function BackendSection() {
 }
 
 function PlayerSection() {
-  const {preferredPlayer,setPreferredPlayer,playback,setPlayback} = useSettingsStore();
+  const {preferredPlayer,setPreferredPlayer,playback,setPlayback,onCut,cutWaitSec,setCut} = useSettingsStore();
   const isNativeApp = Capacitor.isNativePlatform();
   const playerOptions = (isNativeApp ? ['native','vlc','browser'] : ['browser','vlc']) as readonly ('native'|'vlc'|'browser')[];
   const range = (label: string, value: number, min: number, max: number, step: number, unit: string, help: string, onChange: (value: number) => void) => (
@@ -75,7 +75,7 @@ function PlayerSection() {
     <section className="mb-8">
       <SLabel icon={Monitor} label="Reproductor" />
       <Card>
-        <p style={{fontSize:'0.8rem',color:'var(--text-secondary)',marginBottom:'16px',lineHeight:1.6}}>{isNativeApp?'«TOPOTV» usa el reproductor integrado: pantalla completa, imagen en imagen, audio y subtítulos, reanuda donde lo dejaste y, si un enlace falla, pasa al siguiente. VLC abre el stream en la app VLC for Android; «Navegador» lo reproduce en la propia pantalla. Para los canales de AceStream el motor debe estar instalado y activo.':'«Dentro de TOPOTV» reproduce en la propia app, con subtítulos y selección de audio; si un formato no se puede ver (MKV, algunos audios), se abre solo en VLC. «VLC» lo abre siempre en una ventana aparte.'}</p>
+        <p style={{fontSize:'0.8rem',color:'var(--text-secondary)',marginBottom:'16px',lineHeight:1.6}}>{isNativeApp?'«TOPOTV» usa el reproductor integrado: pantalla completa, imagen en imagen, audio y subtítulos, reanuda donde lo dejaste; si un enlace no arranca pasa al siguiente y, si se corta mientras lo ves, reconecta solo. VLC abre el stream en la app VLC for Android; «Navegador» lo reproduce en la propia pantalla. Para los canales de AceStream el motor debe estar instalado y activo.':'«Dentro de TOPOTV» reproduce en la propia app, con subtítulos y selección de audio; si un formato no se puede ver (MKV, algunos audios), se abre solo en VLC. «VLC» lo abre siempre en una ventana aparte.'}</p>
         <div className="flex gap-3 mb-4">
           {playerOptions.map(p=>(
             <button key={p} onClick={()=>setPreferredPlayer(p)} style={{flex:1,padding:'12px',background:preferredPlayer===p?'var(--accent-dim)':'var(--bg-elevated)',border:`1px solid ${preferredPlayer===p?'var(--accent)':'var(--border-mid)'}`,borderRadius:'var(--radius-md)',color:preferredPlayer===p?'var(--accent)':'var(--text-secondary)',cursor:'pointer',textAlign:'center',transition:'all 0.15s'}}>
@@ -84,6 +84,17 @@ function PlayerSection() {
               <div style={{fontSize:'0.65rem',color:'var(--text-muted)',marginTop:'2px'}}>{p==='native'?'Recomendado':p==='vlc'?(isNativeApp?'App externa':'Ventana aparte'):isNativeApp?'En la pantalla':'Recomendado'}</div>
             </button>
           ))}
+        </div>
+        <div style={{padding:'14px',background:'var(--bg-elevated)',borderRadius:'var(--radius-md)',border:'1px solid var(--border-subtle)',marginBottom:14}}>
+          <p style={{fontSize:'0.74rem',fontWeight:600,marginBottom:4}}>Si el canal se corta mientras lo ves</p>
+          <p style={{fontSize:'0.66rem',color:'var(--text-muted)',lineHeight:1.45,marginBottom:10}}>Si un enlace no llega a arrancar, siempre se prueba el siguiente. Esto es para cuando ya lo estabas viendo y se corta (en el reproductor, en la multivista y en el móvil).</p>
+          <div className="flex flex-wrap gap-2">
+            {([[60,'Esperar 1 min'],[180,'Esperar 3 min'],[300,'Esperar 5 min'],[0,'Cambiar de enlace']] as const).map(([sec,label])=>{
+              const on = sec===0 ? onCut==='switch' : onCut==='wait'&&cutWaitSec===sec;
+              return <button key={sec} onClick={()=>setCut(sec===0?{onCut:'switch'}:{onCut:'wait',cutWaitSec:sec})} style={{flex:'1 1 110px',minHeight:38,padding:'0 10px',background:on?'var(--accent-dim)':'var(--bg-card)',border:`1px solid ${on?'var(--accent)':'var(--border-mid)'}`,borderRadius:'var(--radius-md)',color:on?'var(--accent)':'var(--text-secondary)',fontSize:'0.74rem',fontWeight:600,cursor:'pointer'}}>{label}</button>;
+            })}
+          </div>
+          <p style={{fontSize:'0.66rem',color:'var(--text-muted)',lineHeight:1.45,marginTop:8}}>{onCut==='wait'?`Se queda en el mismo enlace reconectando hasta ${Math.round(cutWaitSec/60)} min; mientras tanto puedes pulsar «Probar otro enlace». Recomendado.`:'Si se corta más de unos segundos, pasa solo al siguiente enlace.'}</p>
         </div>
         {!isNativeApp&&<div style={{padding:'14px',background:'var(--bg-elevated)',borderRadius:'var(--radius-md)',border:'1px solid var(--border-subtle)',marginBottom:14}}>
           <p style={{fontSize:'0.74rem',fontWeight:600,marginBottom:12}}>VLC · buffers de red</p>

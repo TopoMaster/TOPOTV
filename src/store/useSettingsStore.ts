@@ -24,6 +24,8 @@ interface SettingsState {
   rssFeeds: string[]; setRssFeeds: (urls: string[]) => void;
   /** Guía en el móvil: «light» = solo la de España y las de los países de tus favoritos (mucho menos que descargar y leer) */
   mobileGuide: 'light' | 'full'; setMobileGuide: (v: 'light' | 'full') => void;
+  /** Si el canal se corta mientras lo ves: «wait» = esperar y reconectar (cutWaitSec segundos); «switch» = pasar a otro enlace */
+  onCut: 'wait' | 'switch'; cutWaitSec: number; setCut: (p: Partial<{ onCut: 'wait' | 'switch'; cutWaitSec: number }>) => void;
   setRewind: (p: Partial<{ rewindEnabled: boolean; rewindMinutes: number; rewindCacheGB: number; rewindKeep: boolean }>) => void;
   /** Traducir solo la guía, las fichas y las descripciones que estén en otro idioma */
   translateAuto: boolean;
@@ -83,19 +85,20 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       backendConfig: { host: '127.0.0.1', port: 6878 },
-      backendStatus: 'unknown', theme: 'gold', amoled: false, fontFamily: 'topotv', translateAuto: true, translateTo: 'es', rewindEnabled: true, rewindMinutes: 120, rewindCacheGB: 5, rewindKeep: true, rssFeeds: [], mobileGuide: 'light', manualEpgUrl: '',
+      backendStatus: 'unknown', theme: 'gold', amoled: false, fontFamily: 'topotv', translateAuto: true, translateTo: 'es', rewindEnabled: true, rewindMinutes: 120, rewindCacheGB: 5, rewindKeep: true, rssFeeds: [], mobileGuide: 'light', onCut: 'wait', cutWaitSec: 180, manualEpgUrl: '',
       preferredPlayer: Capacitor.isNativePlatform() ? 'native' : 'browser',   // Android: el integrado; Windows: dentro de la app (VLC si el formato no es compatible)
       
       m3uSourceUrls: [],
       includeTdt: true, warpAuto: true, engineAutoStart: true, engineApkUrl: '', engineApkToken: '', tvMode: 'auto', onboardingDone: false,
       autoCheck: true, hideDead: false, autoUpdateCheck: true, reminderLead: 10, favTeams: [], fontScale: 'normal',
       playback: {
-        vlcNetworkCachingMs: 3000,
-        vlcLiveCachingMs: 3000,
-        hlsLiveSyncDurationCount: 3,
-        hlsMaxBufferLengthSec: 30,
-        hlsManifestLoadingMaxRetry: 4,
-        hlsFragLoadingMaxRetry: 6,
+        // más margen ante cortes (antes 3000/3000/3/30/4/6: con un corte breve se cambiaba de enlace)
+        vlcNetworkCachingMs: 5000,
+        vlcLiveCachingMs: 5000,
+        hlsLiveSyncDurationCount: 4,
+        hlsMaxBufferLengthSec: 60,
+        hlsManifestLoadingMaxRetry: 6,
+        hlsFragLoadingMaxRetry: 10,
       },
       setBackendConfig: (cfg) => set(s => ({ backendConfig: { ...s.backendConfig, ...cfg } })),
       checkBackend: async () => { const status = await checkBackendStatus(get().backendConfig); set({ backendStatus: status }); },
@@ -106,6 +109,7 @@ export const useSettingsStore = create<SettingsState>()(
       setRewind: p => set(p),
       setRssFeeds: rssFeeds => set({ rssFeeds }),
       setMobileGuide: mobileGuide => set({ mobileGuide }),
+      setCut: p => set(p),
       setManualEpgUrl: (url) => set({ manualEpgUrl: url }),
       setPreferredPlayer: (preferredPlayer) => set({ preferredPlayer }),
       setM3uSourceUrls: (m3uSourceUrls) => set({ m3uSourceUrls }),
@@ -126,10 +130,13 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'acestream-tv-settings',
       // v2: el reproductor por defecto de Windows pasa a ser el de la app (antes VLC); se cambia una sola vez
-      version: 2,
+      // v3: búfer más amplio. Quien tenía los valores de serie antiguos pasa a los nuevos; quien los cambió, los conserva
+      version: 3,
       migrate: (persisted, version) => {
         const p = (persisted ?? {}) as Partial<SettingsState>;
         if (version < 2 && p.preferredPlayer === 'vlc' && !Capacitor.isNativePlatform()) p.preferredPlayer = 'browser';
+        const old = { vlcNetworkCachingMs: 3000, vlcLiveCachingMs: 3000, hlsLiveSyncDurationCount: 3, hlsMaxBufferLengthSec: 30, hlsManifestLoadingMaxRetry: 4, hlsFragLoadingMaxRetry: 6 };
+        if (version < 3 && p.playback) for (const [k, v] of Object.entries(old)) if ((p.playback as unknown as Record<string, number>)[k] === v) delete (p.playback as unknown as Record<string, number>)[k];
         return p as SettingsState;
       },
       merge: (persistedState, currentState) => {

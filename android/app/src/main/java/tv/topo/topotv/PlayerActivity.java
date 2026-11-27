@@ -35,7 +35,12 @@ import androidx.mediarouter.app.MediaRouteButton;
 import com.google.android.gms.cast.framework.CastButtonFactory;
 import com.google.android.gms.cast.framework.CastContext;
 import androidx.media3.common.Player;
+import androidx.media3.common.C;
+import androidx.media3.common.Timeline;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.DefaultLoadControl;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
 import androidx.media3.ui.PlayerView;
 
 import org.json.JSONArray;
@@ -51,7 +56,7 @@ import java.util.Locale;
  * Al cerrarse devuelve {position, duration, ended, error}.
  */
 public class PlayerActivity extends AppCompatActivity {
-    static final String EXTRA_URL = "url", EXTRA_TITLE = "title", EXTRA_POS = "position", EXTRA_SUBS = "subs", EXTRA_MIME = "mime";
+    static final String EXTRA_URL = "url", EXTRA_TITLE = "title", EXTRA_POS = "position", EXTRA_SUBS = "subs", EXTRA_MIME = "mime", EXTRA_RECONNECT = "reconnect";
 
     private ExoPlayer player;
     private CastPlayer castPlayer;       // Chromecast (null si el móvil no tiene Google Play Services)
@@ -65,6 +70,18 @@ public class PlayerActivity extends AppCompatActivity {
     private int sleepIdx = 0;
     private Runnable sleepRun;
     private static final int[] SLEEP_MIN = { 0, 15, 30, 60 };
+    /* Cortes: si el canal ya se estaba viendo, se reconecta solo durante «reconnectSec» (antes se cerraba al primer
+       error y la app saltaba a otro enlace). Solo se cambia de enlace si no llega a arrancar. */
+    private boolean started = false, wantNext = false;
+    private long cutSince = 0;
+    private int retries = 0, reconnectSec = 180;
+    private LinearLayout cutBox;
+    private TextView cutText;
+    private Runnable retryRun, cutTick, watchRun;
+    private long lastAbs = 0;
+    private boolean hasLast = false;
+    private int frozenTicks = 0;
+    private final Timeline.Window tw = new Timeline.Window();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -107,6 +124,23 @@ public class PlayerActivity extends AppCompatActivity {
             topBar.addView(pip);
         }
         root.addView(topBar, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP));
+        cutBox = new LinearLayout(this);
+        cutBox.setOrientation(LinearLayout.VERTICAL);
+        cutBox.setGravity(Gravity.CENTER_HORIZONTAL);
+        cutBox.setBackgroundColor(0xCC000000);
+        cutBox.setPadding(dp(18), dp(14), dp(18), dp(14));
+        cutText = label("Se ha cortado. Reconectando…");
+        cutText.setGravity(Gravity.CENTER);
+        TextView other = label("Probar otro enlace");
+        other.setBackgroundColor(0x33FFFFFF);
+        other.setOnClickListener(v -> { wantNext = true; finish(); });
+        LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        op.setMargins(0, dp(10), 0, 0);
+        // ancho propio: si no, se ajusta al del botón y se pierde «Reconectando… 0:42»
+        cutBox.addView(cutText, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        cutBox.addView(other, op);
+        cutBox.setVisibility(View.GONE);
+        root.addView(cutBox, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
         view.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) v -> topBar.setVisibility(v == View.VISIBLE ? View.VISIBLE : View.GONE));
         setContentView(root);
         start();
@@ -139,7 +173,9 @@ public class PlayerActivity extends AppCompatActivity {
         Intent in = getIntent();
         String url = in.getStringExtra(EXTRA_URL);
         if (url == null || url.isEmpty()) { error = "Sin dirección"; finish(); return; }
-        MediaItem.Builder b = new MediaItem.Builder().setUri(Uri.parse(url));
+        reconnectSec = in.getIntExtra(EXTRA_RECONNECT, 180);
+        MediaItem.Builder b = new MediaItem.Builder().setUri(Uri.parse(url))
+            .setLiveConfiguration(new MediaItem.LiveConfiguration.Builder().setTargetOffsetMs(15_000).build());
         String mime = in.getStringExtra(EXTRA_MIME);
         if (mime != null && !mime.isEmpty()) b.setMimeType(mime);
         else if (url.contains("/ace/getstream")) b.setMimeType(MimeTypes.VIDEO_MP2T);   // el motor sirve MPEG-TS sin extensión
@@ -160,7 +196,14 @@ public class PlayerActivity extends AppCompatActivity {
         castItem = castItemFor(url, in.getStringExtra(EXTRA_TITLE));
         setupCast(url);
 
-        player = new ExoPlayer.Builder(this).build();
+        DefaultLoadControl load = new DefaultLoadControl.Builder()
+            .setBufferDurationsMs(30_000, 60_000, 2_500, 8_000)   // tras un parón, espera 8 s de reserva antes de seguir
+            .build();
+        player = new ExoPlayer.Builder(this)
+            .setLoadControl(load)
+            .setMediaSourceFactory(new DefaultMediaSourceFactory(this).setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(12)))
+            .build();
+        view.setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS);
         view.setPlayer(player);
         player.setMediaItem(exoItem);
         long pos = in.getLongExtra(EXTRA_POS, 0);
@@ -168,14 +211,82 @@ public class PlayerActivity extends AppCompatActivity {
         player.addListener(new Player.Listener() {
             @Override public void onPlayerError(PlaybackException e) {
                 error = e.getErrorCodeName() + (e.getMessage() == null ? "" : ": " + e.getMessage());
-                finish();
+                // se quedó atrás del directo: se vuelve al directo sin más
+                if (e.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) { player.seekToDefaultPosition(); player.prepare(); return; }
+                // no llegó a arrancar (o el usuario prefiere cambiar): la app prueba el siguiente enlace
+                if (!started || reconnectSec <= 0) { finish(); return; }
+                // se cortó mientras se veía: se reconecta solo, cada vez con algo más de espera
+                if (cutSince == 0) { cutSince = System.currentTimeMillis(); startCutTick(); }
+                if (System.currentTimeMillis() - cutSince >= reconnectSec * 1000L) { finish(); return; }
+                long delay = Math.min(10_000L, 2_000L * (1 + retries++));
+                if (retryRun != null) handler.removeCallbacks(retryRun);
+                // se sigue desde donde iba (sin volver a ver lo ya visto); si mientras tanto el directo ha avanzado
+                // demasiado, llega ERROR_CODE_BEHIND_LIVE_WINDOW y se salta al directo
+                retryRun = () -> { if (player != null) { player.prepare(); player.setPlayWhenReady(true); } };
+                handler.postDelayed(retryRun, delay);
             }
             @Override public void onPlaybackStateChanged(int state) {
+                if (state == Player.STATE_READY) { started = true; if (!player.isCurrentMediaItemLive()) clearCut(); }   // en directo lo quita el vigilante al ver que avanza
                 if (state == Player.STATE_ENDED) { ended = true; finish(); }
             }
         });
         player.prepare();
         player.setPlayWhenReady(true);
+        startWatch();
+    }
+
+    /** Aviso «Se ha cortado. Reconectando… 0:42» mientras dura el corte */
+    private void startCutTick() {
+        cutBox.setVisibility(View.VISIBLE);
+        if (cutTick != null) handler.removeCallbacks(cutTick);
+        cutTick = new Runnable() {
+            @Override public void run() {
+                if (cutSince == 0) return;
+                long s = (System.currentTimeMillis() - cutSince) / 1000;
+                cutText.setText(String.format(Locale.ROOT, "Se ha cortado. Reconectando… %d:%02d", s / 60, s % 60));
+                if (s >= reconnectSec) { if (error.isEmpty()) error = "ERROR_CODE_TIMEOUT: sin señal"; finish(); return; }
+                handler.postDelayed(this, 1000);
+            }
+        };
+        handler.post(cutTick);
+    }
+    /** Vigilante del directo (cada 2 s): mira si la imagen avanza de verdad. A veces el reproductor dice «listo» o
+     *  «cargando» pero se queda congelado en la última imagen sin pedir más vídeo.
+     *  - 12 s sin avanzar: aviso «Se ha cortado. Reconectando…».
+     *  - Sin avanzar y con vídeo nuevo por delante (el motor ya vuelve a dar señal): salta al directo.
+     *  Mientras el motor no da nada nuevo no se mueve de sitio (así no se repiten los últimos segundos). */
+    private void startWatch() {
+        watchRun = new Runnable() {
+            @Override public void run() {
+                handler.postDelayed(this, 2000);
+                if (player == null || !started || reconnectSec <= 0 || !player.getPlayWhenReady() || !player.isCurrentMediaItemLive()) { frozenTicks = 0; hasLast = false; return; }
+                Timeline t = player.getCurrentTimeline();
+                if (t.isEmpty()) return;
+                t.getWindow(player.getCurrentMediaItemIndex(), tw);
+                long start = tw.getPositionInFirstPeriodMs();
+                long abs = start + player.getCurrentPosition();
+                long end = tw.durationUs == C.TIME_UNSET ? abs : start + tw.getDurationMs();
+                boolean first = !hasLast, moving = hasLast && abs - lastAbs >= 500;
+                lastAbs = abs; hasLast = true;                if (moving) { frozenTicks = 0; if (cutSince != 0 && player.getPlaybackState() == Player.STATE_READY) clearCut(); return; }
+                if (first) return;
+                frozenTicks++;
+                if (frozenTicks >= 6 && cutSince == 0) { cutSince = System.currentTimeMillis(); startCutTick(); }
+                if (frozenTicks >= 4 && end - abs > 4000 && !player.isLoading()) {
+                    int st = player.getPlaybackState();
+                    player.seekToDefaultPosition();
+                    if (st == Player.STATE_IDLE) player.prepare();
+                    player.setPlayWhenReady(true);
+                    frozenTicks = 0; hasLast = false;
+                }
+            }
+        };
+        handler.postDelayed(watchRun, 2000);
+    }
+    private void clearCut() {
+        cutSince = 0; retries = 0; error = "";
+        if (cutTick != null) handler.removeCallbacks(cutTick);
+        if (retryRun != null) handler.removeCallbacks(retryRun);
+        if (cutBox != null) cutBox.setVisibility(View.GONE);
     }
 
     /** Temporizador de apagado: cada pulsación pasa a 15, 30, 60 min o lo quita; al cumplirse pausa y cierra. */
@@ -275,6 +386,8 @@ public class PlayerActivity extends AppCompatActivity {
             r.putExtra("duration", d < 0 ? 0L : d);
             r.putExtra("ended", ended);
             r.putExtra("error", error);
+            r.putExtra("started", started);
+            r.putExtra("next", wantNext);
             setResult(RESULT_OK, r);
         }
         super.finish();
@@ -282,6 +395,9 @@ public class PlayerActivity extends AppCompatActivity {
 
     @Override protected void onDestroy() {
         if (sleepRun != null) handler.removeCallbacks(sleepRun);
+        if (cutTick != null) handler.removeCallbacks(cutTick);
+        if (retryRun != null) handler.removeCallbacks(retryRun);
+        if (watchRun != null) handler.removeCallbacks(watchRun);
         if (castPlayer != null) { castPlayer.setSessionAvailabilityListener(null); castPlayer.release(); castPlayer = null; }
         if (player != null) { player.release(); player = null; }
         super.onDestroy();

@@ -75,14 +75,28 @@ function download(url, dest, size, sha256, hops = 0) {
   });
 }
 
+const updateDir = () => path.join(os.tmpdir(), 'topotv-update');
+/** Borra instaladores que ya no hacen falta (~100 MB cada uno): al arrancar, los de la versión instalada o anteriores;
+ *  al descargar una actualización, todos menos el que se va a usar. */
+function cleanInstallers(keep, all) {
+  let names = [];
+  try { names = fs.readdirSync(updateDir()); } catch { return; }
+  for (const n of names) {
+    const m = n.match(/^TOPOTV-Setup-(\d+\.\d+\.\d+)\.exe$/i);
+    if (!m || n === keep || (!all && isNewer(m[1], opts.version || '0.0.0'))) continue;
+    try { fs.unlinkSync(path.join(updateDir(), n)); log('[sys] instalador viejo borrado:', n); } catch { /* en uso */ }
+  }
+}
+
 async function install() {
   if (up.phase === 'downloading') return;
   Object.assign(up, { phase: 'downloading', percent: 0, error: '', file: '' });
   try {
     const info = await checkUpdate();
     if (!info.newer) throw new Error('Ya tienes la última versión.');
-    const dir = path.join(os.tmpdir(), 'topotv-update');
+    const dir = updateDir();
     fs.mkdirSync(dir, { recursive: true });
+    cleanInstallers(info.asset.name, true);
     const file = path.join(dir, info.asset.name);
     await download(info.asset.url, file, info.asset.size, info.asset.sha256);
     if (!info.asset.size) throw new Error('GitHub no indicó el tamaño del instalador');
@@ -219,6 +233,7 @@ function start(o = {}) {
     } catch (e) { json(500, { error: e.message }); }
   });
   server.listen(PORT, '127.0.0.1', () => log(`[sys] http://localhost:${PORT}`));
+  setTimeout(() => cleanInstallers(null, false), 20000);   // un rato después de arrancar, sin estorbar
   server.on('error', e => log('[sys] ERROR', e.message));
   return server;
 }

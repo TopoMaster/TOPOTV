@@ -95,14 +95,18 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       set({ detail: null });
     }
     if (!result.ok) { set({ status: 'error', errorMessage: result.error ?? 'Error de conexión' }); return false; }
-    const opened = await openInPlayer(resolved, backendConfig, preferredPlayer, playback, { title: channel.name, resumeMs: get().resumeAt * 1000, subtitles: channel.vod?.subtitles });
+    const { onCut, cutWaitSec } = useSettingsStore.getState();
+    const opened = await openInPlayer(resolved, backendConfig, preferredPlayer, playback, { title: channel.name, resumeMs: get().resumeAt * 1000, subtitles: channel.vod?.subtitles, reconnect: onCut === 'wait' ? cutWaitSec : 0 });
     if (!opened.ok) { set({ status: 'error', errorMessage: opened.error ?? 'No se pudo abrir el reproductor' }); return false; }
     if (!target.torrent || resolved.engine) set({ detail: null });
     // reproductor integrado de Android: al cerrarse devuelve dónde se quedó y si falló (entonces se salta al siguiente enlace)
     if (opened.done) void opened.done.then(r => {
       if (my !== openId) return;
       if (channel.vod && r.duration > 0) useProgressStore.getState().save({ type: channel.vod.type, id: channel.vod.id, videoId: channel.vod.videoId, addon: channel.vod.addon, title: channel.vod.title, poster: channel.vod.poster, pos: r.position / 1000, dur: r.duration / 1000 });
-      if (r.error && r.position < 5000) { void get().reportFailure(`No se pudo reproducir (${r.error}).`, resolved.aceId); return; }
+      if (r.next) { void get().playNext().then(ok => { if (!ok) set({ status: 'error', errorMessage: 'No quedan más enlaces de este canal.' }); }); return; }   // «Probar otro enlace» en el reproductor
+      // solo se cambia de enlace solo si no llegó a arrancar; si se cortó viendo el canal (y no volvió), se avisa y eliges tú
+      if (r.error && (r.started === false || (r.started === undefined && r.position < 5000))) { void get().reportFailure(`No se pudo reproducir (${r.error}).`, resolved.aceId); return; }
+      if (r.error && r.started) { set({ status: 'error', errorMessage: 'El canal se cortó y no volvió. Prueba otro enlace o vuelve a intentarlo.' }); return; }
       get().stop();
     });
     useHistoryStore.getState().push(channel);

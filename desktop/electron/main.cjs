@@ -185,10 +185,12 @@ function electronScrape(extractInBrowser, source) {
 
 /* ── Ventana principal ──────────────────────────────────────── */
 let mainWin = null;
+const DEV_ICON = path.join(__dirname, '..', 'build', 'icon.png');
 function createWindow() {
   mainWin = new BrowserWindow({
     width: 1440, height: 900, minWidth: 980, minHeight: 640, backgroundColor: '#080a0e', title: 'TOPOTV', autoHideMenuBar: true,
-    icon: path.join(__dirname, '..', 'build', 'icon.png'), fullscreen: process.argv.includes('--fullscreen'),
+    // instalada: sin «icon» Windows usa el del propio TOPOTV.exe (lleva el del topo); en desarrollo, el de build/
+    ...(fs.existsSync(DEV_ICON) ? { icon: DEV_ICON } : {}), fullscreen: process.argv.includes('--fullscreen'),
     webPreferences: { contextIsolation: true, sandbox: true, spellcheck: false },
   });
   Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'TOPOTV', submenu: [
